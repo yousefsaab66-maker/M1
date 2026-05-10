@@ -114,6 +114,19 @@ function writeJSON(key: string, value: unknown) {
   }
 }
 
+/** يمنع fallback قديم في `muhra-products-v1` لو فشل طلب لاحق على الجوال وقرأ localStorage. */
+function clearStaleLocalProductCache() {
+  try {
+    localStorage.removeItem(KEY_PRODUCTS);
+  } catch {
+    /* ignore */
+  }
+}
+
+function catalogProductsUrl() {
+  return `/api/catalog/products?_=${Date.now()}`;
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   /** يُحدَّد وقت التشغيل من `/api/catalog/products` حتى يعمل الكتالوج لو غاب NEXT_PUBLIC وقت بناء الاستضافة. */
   const [remoteCatalog, setRemoteCatalog] = useState(false);
@@ -134,10 +147,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const refreshCatalog = useCallback(async () => {
     try {
-      const r = await fetch("/api/catalog/products", { cache: "no-store" });
+      const r = await fetch(catalogProductsUrl(), { cache: "no-store" });
       if (!r.ok) return;
       const d = (await r.json()) as { products?: Product[] };
       if (Array.isArray(d.products)) {
+        clearStaleLocalProductCache();
         setRemoteCatalog(true);
         setProductsState(d.products);
       }
@@ -178,7 +192,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setOrders(readJSON<Order[]>(KEY_ORDERS, []));
     };
 
-    void fetch("/api/catalog/products", { cache: "no-store" })
+    void fetch(catalogProductsUrl(), { cache: "no-store" })
       .then(async (r) => {
         if (!r.ok) {
           useLocalCatalog();
@@ -187,6 +201,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         try {
           const d = (await r.json()) as { products?: Product[] };
           if (Array.isArray(d.products)) {
+            clearStaleLocalProductCache();
             setRemoteCatalog(true);
             setProductsState(d.products.length > 0 ? d.products : SEED_PRODUCTS);
           } else {
@@ -203,6 +218,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         queueMicrotask(hydrateSiteAndUi);
       });
   }, []);
+
+  /** الجوال يبقى التطبيق بالخلفية؛ عند الرجوع نحدّث الكتالوج حتى يظهر آخر منتج من Supabase. */
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") void refreshCatalog();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [refreshCatalog]);
 
   const setProducts = useCallback(
     (p: Product[]) => {

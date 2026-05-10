@@ -4,9 +4,10 @@ import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin
 
 export const dynamic = "force-dynamic";
 
-/** Prevent shared caches (CDN/proxy) from serving stale catalog JSON to other clients. */
+/** Prevent shared caches (CDN/proxy/browser) from serving stale catalog JSON. */
 const NO_STORE_JSON = {
   "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+  "CDN-Cache-Control": "no-store",
 } as const;
 
 export async function GET() {

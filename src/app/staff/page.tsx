@@ -54,21 +54,26 @@ function readFileAsDataUrl(file: File): Promise<string> {
 
 type TabId = "dashboard" | "products" | "orders" | "collections" | "journal" | "site" | "security";
 
-const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }> }[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "products", label: "Products", icon: Gem },
-  { id: "orders", label: "Orders", icon: ClipboardList },
-  { id: "collections", label: "Collections", icon: ArchiveRestore },
-  { id: "journal", label: "Journal", icon: Newspaper },
-  { id: "site", label: "Site copy", icon: Settings },
-  { id: "security", label: "Security", icon: KeyRound },
-];
-
 export default function StaffPage() {
   const { signedInAs, signOut, hydrated } = useAuth();
   const { remoteCatalog, pullRemoteOrders } = useStore();
+  const { t } = useLocale();
   const router = useRouter();
   const [tab, setTab] = useState<TabId>("dashboard");
+
+  const tabs = useMemo(
+    () =>
+      [
+        { id: "dashboard" as const, label: t("staff.nav.dashboard"), icon: LayoutDashboard },
+        { id: "products" as const, label: t("staff.nav.products"), icon: Gem },
+        { id: "orders" as const, label: t("staff.nav.orders"), icon: ClipboardList },
+        { id: "collections" as const, label: t("staff.nav.collections"), icon: ArchiveRestore },
+        { id: "journal" as const, label: t("staff.nav.journal"), icon: Newspaper },
+        { id: "site" as const, label: t("staff.nav.site"), icon: Settings },
+        { id: "security" as const, label: t("staff.nav.security"), icon: KeyRound },
+      ] satisfies { id: TabId; label: string; icon: typeof LayoutDashboard }[],
+    [t],
+  );
 
   useEffect(() => {
     if (hydrated && !signedInAs.staff) router.replace("/staff/login");
@@ -86,15 +91,15 @@ export default function StaffPage() {
       <div className="mx-auto max-w-[1500px]">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="eyebrow">MUHRA · {signedInAs.staff}</p>
-            <h1 className="font-display mt-3 text-4xl md:text-5xl">Staff Dashboard</h1>
+            <p className="eyebrow">MUHRA · {t("staff.shell.eyebrow")} · {signedInAs.staff}</p>
+            <h1 className="font-display mt-3 text-4xl md:text-5xl">{t("staff.shell.title")}</h1>
           </div>
           <div className="flex items-center gap-3">
             <Link href={"/" as never} className="text-[11px] tracking-eyebrow uppercase gold-underline">
-              View site →
+              {t("staff.shell.viewStore")}
             </Link>
             <button type="button" onClick={() => signOut("staff")} className="btn-ghost">
-              Sign out
+              {t("common.signout")}
             </button>
           </div>
         </header>
@@ -102,7 +107,7 @@ export default function StaffPage() {
         <div className="mt-10 grid gap-8 lg:grid-cols-[220px_1fr] lg:gap-12">
           <nav className="lg:sticky lg:top-28 self-start">
             <ul className="flex gap-2 overflow-x-auto no-scrollbar lg:flex-col lg:gap-1">
-              {TABS.map((tabDef) => (
+              {tabs.map((tabDef) => (
                 <li key={tabDef.id}>
                   <button
                     type="button"
@@ -168,22 +173,23 @@ export default function StaffPage() {
 
 function DashboardPane() {
   const { products, orders, collections, journal } = useStore();
+  const { t, locale } = useLocale();
   const pending = orders.filter((o) => o.status === "pending").length;
   const shipped = orders.filter((o) => o.status === "shipped" || o.status === "delivered").length;
   const revenue = orders
     .filter((o) => o.status !== "cancelled")
     .reduce((s, o) => s + o.subtotal, 0);
   const stats = [
-    { label: "Products", value: products.length },
-    { label: "Collections", value: collections.length },
-    { label: "Journal", value: journal.length },
-    { label: "Orders", value: orders.length },
-    { label: "Pending", value: pending },
-    { label: "Shipped", value: shipped },
+    { label: t("staff.dashboard.statProducts"), value: products.length },
+    { label: t("staff.dashboard.statCollections"), value: collections.length },
+    { label: t("staff.dashboard.statJournal"), value: journal.length },
+    { label: t("staff.dashboard.statOrders"), value: orders.length },
+    { label: t("staff.dashboard.statPending"), value: pending },
+    { label: t("staff.dashboard.statShipped"), value: shipped },
   ];
   return (
     <section>
-      <SectionTitle eyebrow="MUHRA" title="Overview" align="center" />
+      <SectionTitle eyebrow="MUHRA" title={t("staff.dashboard.overviewTitle")} align="center" />
       <div className="mt-12 grid grid-cols-2 gap-3 md:grid-cols-3">
         {stats.map((s) => (
           <div key={s.label} className="staff-card text-center">
@@ -193,8 +199,8 @@ function DashboardPane() {
         ))}
       </div>
       <div className="mt-8 staff-card">
-        <p className="eyebrow">Demo revenue (excl. cancelled)</p>
-        <p className="font-display mt-3 text-4xl">{formatPrice(revenue, "EUR", "en")}</p>
+        <p className="eyebrow">{t("staff.dashboard.demoRevenue")}</p>
+        <p className="font-display mt-3 text-4xl">{formatPrice(revenue, "EUR", locale)}</p>
       </div>
     </section>
   );
@@ -241,7 +247,7 @@ function ProductsPane() {
         setOrderHint(res.product);
         await refreshCatalog();
       } catch {
-        setSaveError("Request failed");
+        setSaveError(t("staff.products.errorRequest"));
       }
       setEditing(null);
       setCreating(false);
@@ -261,7 +267,7 @@ function ProductsPane() {
   };
 
   const onDelete = async (id: string) => {
-    if (typeof window !== "undefined" && !window.confirm("Delete this product?")) return;
+    if (typeof window !== "undefined" && !window.confirm(t("staff.products.deleteConfirm"))) return;
     if (remoteCatalog) {
       setSaveError(null);
       try {
@@ -269,7 +275,7 @@ function ProductsPane() {
         await deleteProductRemote(id);
         await refreshCatalog();
       } catch {
-        setSaveError("Delete failed");
+        setSaveError(t("staff.products.errorDelete"));
       }
       return;
     }
@@ -279,7 +285,7 @@ function ProductsPane() {
   return (
     <section>
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-3xl">Products ({products.length})</h2>
+        <h2 className="font-display text-3xl">{t("staff.products.count").replace("{n}", String(products.length))}</h2>
         <button
           type="button"
           onClick={() => {
@@ -288,7 +294,7 @@ function ProductsPane() {
           }}
           className="btn-ghost"
         >
-          <Plus className="h-4 w-4" strokeWidth={1.4} /> New product
+          <Plus className="h-4 w-4" strokeWidth={1.4} /> {t("staff.products.new")}
         </button>
       </header>
 
@@ -296,6 +302,27 @@ function ProductsPane() {
         <p className="mt-4 text-sm" style={{ color: "var(--color-bordeaux)" }} role="alert">
           {saveError}
         </p>
+      )}
+
+      {!remoteCatalog && (
+        <div
+          className="mt-6 staff-card border border-amber-600/40 bg-amber-500/10 text-start"
+          role="status"
+        >
+          <p className="text-[11px] font-medium uppercase tracking-eyebrow text-amber-900 dark:text-amber-200/95">
+            {t("staff.catalog.localOnlyTitle")}
+          </p>
+          <p className="mt-3 text-sm leading-relaxed opacity-90 text-amber-950 dark:text-amber-50/90">
+            {t("staff.catalog.localOnlyBody")}
+          </p>
+          <button
+            type="button"
+            className="btn-ghost mt-4 inline-flex items-center gap-2 text-[11px] tracking-eyebrow uppercase"
+            onClick={() => void refreshCatalog()}
+          >
+            <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.4} /> {t("staff.catalog.retryRemote")}
+          </button>
+        </div>
       )}
 
       {orderHint && (
@@ -399,12 +426,12 @@ function ProductsPane() {
                     >
                       <ShoppingBag className="h-4 w-4" strokeWidth={1.4} />
                     </button>
-                    <button type="button" aria-label="Edit" onClick={() => { setEditing(p); setCreating(false); }} className="opacity-70 hover:opacity-100">
+                    <button type="button" aria-label={t("staff.aria.edit")} onClick={() => { setEditing(p); setCreating(false); }} className="opacity-70 hover:opacity-100">
                       <Pencil className="h-4 w-4" strokeWidth={1.4} />
                     </button>
                     <button
                       type="button"
-                      aria-label="Delete"
+                      aria-label={t("staff.aria.delete")}
                       onClick={() => void onDelete(p.id)}
                       className="opacity-70 hover:opacity-100"
                     >
@@ -445,6 +472,7 @@ function ProductEditor({
   onCancel: () => void;
   onSave: (p: Product) => void | Promise<void>;
 }) {
+  const { t } = useLocale();
   const [draft, setDraft] = useState<Product>(product);
   const update = <K extends keyof Product>(k: K, v: Product[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
@@ -463,8 +491,8 @@ function ProductEditor({
         </aside>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
           <div className="flex shrink-0 items-center justify-between p-6" style={{ borderBottom: "1px solid var(--line)" }}>
-            <h3 className="font-display text-2xl">{isCreating ? "New product" : "Edit product"}</h3>
-            <button type="button" onClick={onCancel} aria-label="Close">
+            <h3 className="font-display text-2xl">{isCreating ? t("staff.form.newTitle") : t("staff.form.editTitle")}</h3>
+            <button type="button" onClick={onCancel} aria-label={t("staff.aria.close")}>
               <X className="h-5 w-5" strokeWidth={1.4} />
             </button>
           </div>
@@ -475,17 +503,17 @@ function ProductEditor({
               await onSave(draft);
             }}
           >
-          <Field label="Name">
+          <Field label={t("staff.form.name")}>
             <input className="staff-input" value={draft.name} onChange={(e) => update("name", e.target.value)} required />
           </Field>
-          <Field label="Slug">
-            <input className="staff-input" value={draft.slug} onChange={(e) => update("slug", slugify(e.target.value))} placeholder="auto-generated from name" />
+          <Field label={t("staff.form.slug")}>
+            <input className="staff-input" value={draft.slug} onChange={(e) => update("slug", slugify(e.target.value))} placeholder={t("staff.form.slugPlaceholder")} />
           </Field>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Price">
+            <Field label={t("staff.form.price")}>
               <input type="number" className="staff-input" min="0" value={draft.price} onChange={(e) => update("price", Number(e.target.value))} required />
             </Field>
-            <Field label="Currency">
+            <Field label={t("staff.form.currency")}>
               <select className="staff-input" value={draft.currency} onChange={(e) => update("currency", e.target.value as Currency)}>
                 {(["EUR", "USD", "AED", "JPY"] as const).map((c) => (
                   <option key={c} value={c}>{c}</option>
@@ -494,14 +522,14 @@ function ProductEditor({
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Collection">
+            <Field label={t("staff.form.collection")}>
               <select className="staff-input" value={draft.collection} onChange={(e) => update("collection", e.target.value)}>
                 {collections.map((c) => (
                   <option key={c.slug} value={c.slug}>{c.name}</option>
                 ))}
               </select>
             </Field>
-            <Field label="Category">
+            <Field label={t("staff.form.category")}>
               <select className="staff-input" value={draft.category} onChange={(e) => update("category", e.target.value as Category)}>
                 {(["necklaces", "rings", "earrings", "bracelets", "watches", "bridal"] as const).map((c) => (
                   <option key={c} value={c}>{c}</option>
@@ -509,7 +537,7 @@ function ProductEditor({
               </select>
             </Field>
           </div>
-          <Field label="Materials (comma separated)">
+          <Field label={t("staff.form.materials")}>
             <input
               className="staff-input"
               value={draft.materials.join(", ")}
@@ -518,7 +546,7 @@ function ProductEditor({
               }
             />
           </Field>
-          <Field label="Stones (comma separated)">
+          <Field label={t("staff.form.stones")}>
             <input
               className="staff-input"
               value={draft.stones.join(", ")}
@@ -531,16 +559,16 @@ function ProductEditor({
             images={draft.images}
             onChange={(next) => update("images", next)}
           />
-          <Field label="Description">
+          <Field label={t("staff.form.description")}>
             <textarea className="staff-input" rows={3} value={draft.description} onChange={(e) => update("description", e.target.value)} />
           </Field>
-          <Field label="Story">
+          <Field label={t("staff.form.story")}>
             <textarea className="staff-input" rows={5} value={draft.story} onChange={(e) => update("story", e.target.value)} />
           </Field>
           <div className="border-t pt-5" style={{ borderColor: "var(--line)" }}>
             <SizesEditor sizes={draft.sizes} onChange={(next) => update("sizes", next)} />
           </div>
-          <Field label="Related slugs/ids (comma separated)">
+          <Field label={t("staff.form.related")}>
             <input
               className="staff-input"
               value={(draft.related ?? []).join(", ")}
@@ -550,16 +578,16 @@ function ProductEditor({
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={!!draft.isNew} onChange={(e) => update("isNew", e.target.checked)} />
-              New
+              {t("staff.form.flagNew")}
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={!!draft.isHighJewelry} onChange={(e) => update("isHighJewelry", e.target.checked)} />
-              High jewelry
+              {t("staff.form.flagHighJewelry")}
             </label>
           </div>
           <div className="flex items-center justify-end gap-3 pt-4">
-            <button type="button" onClick={onCancel} className="btn-ghost">Cancel</button>
-            <button type="submit" className="btn-primary">Save</button>
+            <button type="button" onClick={onCancel} className="btn-ghost">{t("staff.form.cancel")}</button>
+            <button type="submit" className="btn-primary">{t("staff.form.save")}</button>
           </div>
         </form>
         </div>
@@ -895,11 +923,11 @@ function ImagesField({
   );
 }
 
-function paymentMethodLabel(method: string | undefined) {
+function paymentMethodLabel(method: string | undefined, t: (key: string) => string) {
   if (!method) return "—";
-  if (method === "cod") return "COD";
-  if (method === "mastercard") return "Mastercard";
-  if (method === "zaincash") return "ZainCash";
+  if (method === "cod") return t("staff.pay.cod");
+  if (method === "mastercard") return t("staff.pay.mastercard");
+  if (method === "zaincash") return t("staff.pay.zaincash");
   return method;
 }
 
@@ -942,7 +970,7 @@ function OrdersPane() {
   return (
     <section>
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-3xl">Orders ({orders.length})</h2>
+        <h2 className="font-display text-3xl">{t("staff.orders.titleCount").replace("{n}", String(orders.length))}</h2>
         <div className="flex flex-wrap items-center gap-3">
           <select
             className="staff-input"
@@ -953,7 +981,7 @@ function OrdersPane() {
             <option value="all">{t("staff.orders.filterAll")}</option>
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {t(`staff.status.${s}` as "staff.status.pending")}
               </option>
             ))}
           </select>
@@ -1024,7 +1052,7 @@ function OrdersPane() {
                             background: "var(--surface)",
                           }}
                         >
-                          {paymentMethodLabel(o.payment.method)}
+                          {paymentMethodLabel(o.payment.method, t)}
                         </span>
                       ) : (
                         "—"
@@ -1049,7 +1077,7 @@ function OrdersPane() {
                       >
                         {STATUS_OPTIONS.map((s) => (
                           <option key={s} value={s}>
-                            {s}
+                            {t(`staff.status.${s}` as "staff.status.pending")}
                           </option>
                         ))}
                       </select>
@@ -1058,7 +1086,7 @@ function OrdersPane() {
                       <div className="flex justify-end gap-3">
                         <button
                           type="button"
-                          aria-label="Remove"
+                          aria-label={t("staff.aria.remove")}
                           onClick={() => void removeOrder(o.id)}
                           className="opacity-70 hover:opacity-100"
                         >
@@ -1081,7 +1109,7 @@ function OrdersPane() {
                               {o.customer?.address}
                               {o.customer?.city ? `, ${o.customer.city}` : ""}
                               <br />
-                              {govLabel} — Iraq
+                              {govLabel} — {t("staff.orders.countryIraq")}
                             </p>
                             {o.customer?.notes && (
                               <>
@@ -1091,7 +1119,7 @@ function OrdersPane() {
                             )}
                             <p className="eyebrow mt-4">{t("staff.orders.payment")}</p>
                             <p className="mt-2 text-sm">
-                              {o.payment?.method ? paymentMethodLabel(o.payment.method) : "—"}
+                              {o.payment?.method ? paymentMethodLabel(o.payment.method, t) : "—"}
                               {o.payment?.cardLast4 ? ` · •••• ${o.payment.cardLast4}` : ""}
                               {o.payment?.zaincashPhone ? ` · ${o.payment.zaincashPhone}` : ""}
                             </p>
@@ -1159,10 +1187,11 @@ function FragmentRow({ children }: { children: React.ReactNode }) {
 
 function CollectionsPane() {
   const { collections, setCollections } = useStore();
+  const { t } = useLocale();
   return (
     <section>
-      <h2 className="font-display text-3xl">Collections ({collections.length})</h2>
-      <p className="mt-2 opacity-70 text-sm">Edit existing collection metadata. Slugs are read-only.</p>
+      <h2 className="font-display text-3xl">{t("staff.collections.titleCount").replace("{n}", String(collections.length))}</h2>
+      <p className="mt-2 opacity-70 text-sm">{t("staff.collections.hint")}</p>
       <div className="mt-6 grid gap-4">
         {collections.map((c) => (
           <details key={c.id} className="staff-card">
@@ -1171,7 +1200,7 @@ function CollectionsPane() {
               <span className="ms-3 opacity-60 text-sm">/{c.slug}</span>
             </summary>
             <div className="mt-4 grid gap-4">
-              <Field label="Name">
+              <Field label={t("staff.collections.fieldName")}>
                 <input
                   className="staff-input"
                   value={c.name}
@@ -1180,7 +1209,7 @@ function CollectionsPane() {
                   }
                 />
               </Field>
-              <Field label="Tagline">
+              <Field label={t("staff.collections.fieldTagline")}>
                 <input
                   className="staff-input"
                   value={c.tagline}
@@ -1189,7 +1218,7 @@ function CollectionsPane() {
                   }
                 />
               </Field>
-              <Field label="Description">
+              <Field label={t("staff.collections.fieldDescription")}>
                 <textarea
                   className="staff-input"
                   rows={4}
@@ -1199,7 +1228,7 @@ function CollectionsPane() {
                   }
                 />
               </Field>
-              <Field label="Cover image URL">
+              <Field label={t("staff.collections.fieldCover")}>
                 <input
                   className="staff-input"
                   value={c.coverImage}
@@ -1208,7 +1237,7 @@ function CollectionsPane() {
                   }
                 />
               </Field>
-              <Field label="Editorial image URL">
+              <Field label={t("staff.collections.fieldEditorial")}>
                 <input
                   className="staff-input"
                   value={c.editorialImage}
@@ -1227,30 +1256,31 @@ function CollectionsPane() {
 
 function JournalPane() {
   const { journal, setJournal } = useStore();
+  const { t } = useLocale();
   const onAdd = () => {
     const article: JournalArticle = {
       id: "j-" + Date.now(),
       slug: `chapter-${Date.now()}`,
-      title: "Untitled chapter",
+      title: t("staff.journal.defaultTitle"),
       excerpt: "",
       body: "",
       image: "https://images.unsplash.com/photo-1611652022419-a9419f74343d?auto=format&fit=crop&w=1600&q=80",
-      author: "MUHRA Editorial",
+      author: t("staff.journal.defaultAuthor"),
       date: new Date().toISOString().slice(0, 10),
-      category: "Maison",
+      category: t("staff.journal.defaultCategory"),
     };
     setJournal([article, ...journal]);
   };
   const onDelete = (id: string) => {
-    if (typeof window !== "undefined" && !window.confirm("Delete this article?")) return;
+    if (typeof window !== "undefined" && !window.confirm(t("staff.journal.deleteConfirm"))) return;
     setJournal(journal.filter((a) => a.id !== id));
   };
   return (
     <section>
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-3xl">Journal ({journal.length})</h2>
+        <h2 className="font-display text-3xl">{t("staff.journal.titleCount").replace("{n}", String(journal.length))}</h2>
         <button type="button" onClick={onAdd} className="btn-ghost">
-          <Plus className="h-4 w-4" strokeWidth={1.4} /> New article
+          <Plus className="h-4 w-4" strokeWidth={1.4} /> {t("staff.journal.newArticle")}
         </button>
       </header>
       <div className="mt-6 grid gap-4">
@@ -1261,7 +1291,7 @@ function JournalPane() {
               <span className="ms-3 opacity-60 text-sm">/{a.slug}</span>
             </summary>
             <div className="mt-4 grid gap-4">
-              <Field label="Title">
+              <Field label={t("staff.journal.fieldTitle")}>
                 <input
                   className="staff-input"
                   value={a.title}
@@ -1270,7 +1300,7 @@ function JournalPane() {
                   }
                 />
               </Field>
-              <Field label="Slug">
+              <Field label={t("staff.journal.fieldSlug")}>
                 <input
                   className="staff-input"
                   value={a.slug}
@@ -1280,28 +1310,28 @@ function JournalPane() {
                 />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Author">
+                <Field label={t("staff.journal.fieldAuthor")}>
                   <input className="staff-input" value={a.author} onChange={(e) => setJournal(journal.map((x) => (x.id === a.id ? { ...x, author: e.target.value } : x)))} />
                 </Field>
-                <Field label="Date">
+                <Field label={t("staff.journal.fieldDate")}>
                   <input type="date" className="staff-input" value={a.date} onChange={(e) => setJournal(journal.map((x) => (x.id === a.id ? { ...x, date: e.target.value } : x)))} />
                 </Field>
               </div>
-              <Field label="Category">
+              <Field label={t("staff.journal.fieldCategory")}>
                 <input className="staff-input" value={a.category} onChange={(e) => setJournal(journal.map((x) => (x.id === a.id ? { ...x, category: e.target.value } : x)))} />
               </Field>
-              <Field label="Image URL">
+              <Field label={t("staff.journal.fieldImage")}>
                 <input className="staff-input" value={a.image} onChange={(e) => setJournal(journal.map((x) => (x.id === a.id ? { ...x, image: e.target.value } : x)))} />
               </Field>
-              <Field label="Excerpt">
+              <Field label={t("staff.journal.fieldExcerpt")}>
                 <textarea className="staff-input" rows={2} value={a.excerpt} onChange={(e) => setJournal(journal.map((x) => (x.id === a.id ? { ...x, excerpt: e.target.value } : x)))} />
               </Field>
-              <Field label="Body">
+              <Field label={t("staff.journal.fieldBody")}>
                 <textarea className="staff-input" rows={8} value={a.body} onChange={(e) => setJournal(journal.map((x) => (x.id === a.id ? { ...x, body: e.target.value } : x)))} />
               </Field>
               <div className="flex justify-end">
                 <button type="button" onClick={() => onDelete(a.id)} className="btn-ghost">
-                  <Trash2 className="h-4 w-4" strokeWidth={1.4} /> Delete
+                  <Trash2 className="h-4 w-4" strokeWidth={1.4} /> {t("staff.journal.delete")}
                 </button>
               </div>
             </div>
@@ -1348,8 +1378,8 @@ function SitePane() {
 
   return (
     <section>
-      <h2 className="font-display text-3xl">Site copy</h2>
-      <p className="mt-2 opacity-70 text-sm">These values appear on the public site.</p>
+      <h2 className="font-display text-3xl">{t("staff.site.title")}</h2>
+      <p className="mt-2 opacity-70 text-sm">{t("staff.site.intro")}</p>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -1359,19 +1389,19 @@ function SitePane() {
         }}
         className="mt-6 staff-card grid gap-4"
       >
-        <Field label="Brand name">
+        <Field label={t("staff.site.brandName")}>
           <input className="staff-input" value={draft.brandName} onChange={(e) => setDraft({ ...draft, brandName: e.target.value })} />
         </Field>
-        <Field label="Tagline">
+        <Field label={t("staff.site.tagline")}>
           <input className="staff-input" value={draft.tagline} onChange={(e) => setDraft({ ...draft, tagline: e.target.value })} />
         </Field>
-        <Field label="Hero headline">
+        <Field label={t("staff.site.heroHeadline")}>
           <input className="staff-input" value={draft.heroHeadline} onChange={(e) => setDraft({ ...draft, heroHeadline: e.target.value })} />
         </Field>
-        <Field label="Hero subhead">
+        <Field label={t("staff.site.heroSubhead")}>
           <textarea className="staff-input" rows={2} value={draft.heroSubhead} onChange={(e) => setDraft({ ...draft, heroSubhead: e.target.value })} />
         </Field>
-        <Field label="Support email">
+        <Field label={t("staff.site.supportEmail")}>
           <input className="staff-input" type="email" value={draft.supportEmail} onChange={(e) => setDraft({ ...draft, supportEmail: e.target.value })} />
         </Field>
 
@@ -1382,7 +1412,7 @@ function SitePane() {
             <input
               className="staff-input"
               value={draft.heroVideo ?? ""}
-              placeholder="https://…/clip.mp4"
+              placeholder={t("staff.site.heroUrlPlaceholder")}
               onChange={(e) => setDraft({ ...draft, heroVideo: e.target.value })}
             />
           </Field>
@@ -1433,10 +1463,10 @@ function SitePane() {
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <button type="button" onClick={() => { if (confirm("Reset all catalog data to seed?")) resetCatalog(); }} className="btn-ghost">
-            Reset catalog to seed
+          <button type="button" onClick={() => { if (confirm(t("staff.site.resetCatalogConfirm"))) resetCatalog(); }} className="btn-ghost">
+            {t("staff.site.resetCatalog")}
           </button>
-          <button type="submit" className="btn-primary">{saved ? "Saved ✓" : "Save"}</button>
+          <button type="submit" className="btn-primary">{saved ? t("staff.site.saved") : t("staff.site.save")}</button>
         </div>
       </form>
     </section>
@@ -1445,6 +1475,7 @@ function SitePane() {
 
 function SecurityPane() {
   const { changeCredentials } = useAuth();
+  const { t } = useLocale();
   const [current, setCurrent] = useState("");
   const [user, setUser] = useState("");
   const [pwd, setPwd] = useState("");
@@ -1452,12 +1483,9 @@ function SecurityPane() {
   const [err, setErr] = useState<string | null>(null);
   return (
     <section>
-      <h2 className="font-display text-3xl">Security</h2>
-      <p className="mt-2 opacity-70 text-sm">
-        Change your staff credentials. Hashes are kept locally. For live orders and product sync, set{" "}
-        <strong className="font-normal">STAFF_USERNAME</strong> and{" "}
-        <strong className="font-normal">STAFF_PASSWORD</strong> on the server to match these credentials
-        (after you change them here, update the deployment environment too).
+      <h2 className="font-display text-3xl">{t("staff.security.title")}</h2>
+      <p className="mt-2 opacity-70 text-sm leading-relaxed">
+        {t("staff.security.intro")}
       </p>
       <form
         onSubmit={async (e) => {
@@ -1465,27 +1493,27 @@ function SecurityPane() {
           setErr(null); setMsg(null);
           const ok = await changeCredentials("staff", current, user, pwd);
           if (ok) {
-            setMsg("Credentials updated.");
+            setMsg(t("staff.security.msgOk"));
             setCurrent(""); setPwd("");
           } else {
-            setErr("Current password incorrect.");
+            setErr(t("staff.security.errPassword"));
           }
         }}
         className="mt-6 staff-card grid gap-4 max-w-md"
       >
-        <Field label="Current password">
+        <Field label={t("staff.security.currentPassword")}>
           <input className="staff-input" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required />
         </Field>
-        <Field label="New username (optional)">
-          <input className="staff-input" value={user} onChange={(e) => setUser(e.target.value)} placeholder="leave blank to keep" />
+        <Field label={t("staff.security.newUsername")}>
+          <input className="staff-input" value={user} onChange={(e) => setUser(e.target.value)} placeholder={t("staff.security.newUsernamePh")} />
         </Field>
-        <Field label="New password">
+        <Field label={t("staff.security.newPassword")}>
           <input className="staff-input" type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} required />
         </Field>
         {err && <p className="text-sm" style={{ color: "var(--color-bordeaux)" }}>{err}</p>}
         {msg && <p className="text-sm" style={{ color: "var(--color-gold-deep)" }}>{msg}</p>}
         <div className="flex justify-end">
-          <button type="submit" className="btn-primary">Update</button>
+          <button type="submit" className="btn-primary">{t("staff.security.update")}</button>
         </div>
       </form>
     </section>
