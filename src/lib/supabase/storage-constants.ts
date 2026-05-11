@@ -24,3 +24,19 @@ export function sanitizeStorageFileName(original: string): string {
   const cleaned = base.replace(/^-+|-+$/g, "").slice(0, 120);
   return cleaned.length > 0 ? cleaned : "image";
 }
+
+/** Map Supabase Storage errors to stable i18n keys (`staff.images.uploadErr.*`). */
+export function mapSupabaseStorageUploadError(raw: string): string {
+  const m = (raw || "").toLowerCase();
+  if (!m.trim()) return "storage_generic";
+  if (m.includes("bucket") && m.includes("not found")) return "bucket_missing";
+  if (m.includes("row-level security") || m.includes("rls") || m.includes("violates row-level")) return "rls_denied";
+  if (m.includes("already exists")) return "duplicate_object";
+  if (m.includes("mime") || m.includes("content type") || m.includes("not allowed"))
+    return "mime_not_allowed";
+  if (m.includes("payload too large") || m.includes("entity too large") || m.includes("request entity too large"))
+    return "too_large";
+  if (m.includes("jwt") || m.includes("invalid api") || m.includes("invalid token") || m.includes("signature"))
+    return "bad_credentials";
+  return "storage_generic";
+}

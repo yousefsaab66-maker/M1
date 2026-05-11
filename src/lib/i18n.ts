@@ -209,6 +209,17 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.missing_file": "No file received.",
     "staff.images.uploadErr.invalid_type": "Only PNG, JPG, WebP, or GIF.",
     "staff.images.uploadErr.too_large": "File exceeds the 2.5 MB limit.",
+    "staff.images.uploadErr.storage_generic":
+      "Storage rejected the upload. In Supabase, confirm the bucket exists, run repo SQL under supabase/migrations/, and verify SUPABASE_SERVICE_ROLE_KEY and bucket name (default muhra-products).",
+    "staff.images.uploadErr.bucket_missing":
+      "Storage bucket not found. In Supabase → Storage, create bucket “muhra-products” (public) or apply SQL migration 20260211120000_muhra_product_images_storage.sql.",
+    "staff.images.uploadErr.rls_denied":
+      "Storage policy blocked the upload. With the service role key this should not happen — check that SUPABASE_SERVICE_ROLE_KEY is the service_role secret from Supabase → Settings → API.",
+    "staff.images.uploadErr.duplicate_object": "File path collision — try uploading again.",
+    "staff.images.uploadErr.mime_not_allowed":
+      "This image type is blocked by the bucket. Allowed: JPEG, PNG, WebP, GIF (see bucket allowed_mime_types in Supabase).",
+    "staff.images.uploadErr.bad_credentials":
+      "Invalid Supabase key on the server — verify SUPABASE_SERVICE_ROLE_KEY (service_role, not anon).",
     "staff.images.uploadErr.unknown": "Cloud upload failed.",
     "staff.images.remove": "Remove",
     "staff.images.tooLarge": "{name} is larger than 2.5 MB and was skipped.",
@@ -1765,6 +1776,16 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.missing_file": "لم يصل ملف للسيرفر.",
     "staff.images.uploadErr.invalid_type": "مسموح فقط PNG أو JPG أو WebP أو GIF.",
     "staff.images.uploadErr.too_large": "الملف أكبر من 2.5 ميغابايت.",
+    "staff.images.uploadErr.storage_generic":
+      "التخزين رفض الملف. في Supabase: تأكد أن الـ bucket موجود، شغّل SQL المشروع من supabase/migrations/، وتحقق من SUPABASE_SERVICE_ROLE_KEY واسم الـ bucket (الافتراضي muhra-products).",
+    "staff.images.uploadErr.bucket_missing":
+      "مجلد التخزين غير موجود. أنشئ bucket باسم «muhra-products» (عام) في Storage أو نفّذ ملف SQL: 20260211120000_muhra_product_images_storage.sql",
+    "staff.images.uploadErr.rls_denied":
+      "سياسة التخزين منعت الرفع. مع مفتاح service_role لا يفترض يصير — راجع أن SUPABASE_SERVICE_ROLE_KEY هو «service_role» من إعدادات API وليس anon.",
+    "staff.images.uploadErr.duplicate_object": "تعارض في المسار — جرّب رفع الصورة مرة ثانية.",
+    "staff.images.uploadErr.mime_not_allowed":
+      "نوع الصورة مرفوض من إعدادات الـ bucket. المسموح: JPEG، PNG، WebP، GIF.",
+    "staff.images.uploadErr.bad_credentials": "مفتاح Supabase على السيرفر غير صحيح — راجع SUPABASE_SERVICE_ROLE_KEY.",
     "staff.images.uploadErr.unknown": "فشل الرفع للسحابة.",
     "staff.images.remove": "إزالة",
     "staff.images.tooLarge": "{name} أكبر من 2.5 ميغابايت وتم تجاوزها.",

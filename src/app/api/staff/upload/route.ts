@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin";
 import {
+  mapSupabaseStorageUploadError,
   MUHRA_MAX_IMAGE_UPLOAD_BYTES,
   MUHRA_PRODUCT_IMAGES_BUCKET,
   isAllowedStaffImageMime,
@@ -70,8 +71,9 @@ export async function POST(req: Request) {
   });
 
   if (uploadError) {
+    const code = mapSupabaseStorageUploadError(uploadError.message ?? "");
     return NextResponse.json(
-      { ok: false, error: uploadError.message || "storage_upload_failed" },
+      { ok: false, error: code, detail: uploadError.message },
       { status: 502 },
     );
   }
