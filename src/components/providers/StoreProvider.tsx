@@ -141,10 +141,11 @@ function delay(ms: number) {
 /** يقلل احتمال البقاء على وضع محلي بسبب فشل شبكة/حافة لحظي (جوال، CF، إعادة نشر). */
 async function fetchCatalogJson(
   attempts = 3,
+  signal?: AbortSignal,
 ): Promise<{ ok: true; products: Product[] } | { ok: false }> {
   for (let i = 0; i < attempts; i += 1) {
     try {
-      const r = await fetch(catalogProductsUrl(), CATALOG_FETCH_OPTS);
+      const r = await fetch(catalogProductsUrl(), { ...CATALOG_FETCH_OPTS, signal });
       if (r.ok) {
         const d = (await r.json()) as { products?: Product[] };
         if (Array.isArray(d.products)) {
@@ -158,7 +159,10 @@ async function fetchCatalogJson(
         continue;
       }
       return { ok: false };
-    } catch {
+    } catch (e) {
+      if (signal?.aborted || (e instanceof DOMException && e.name === "AbortError")) {
+        return { ok: false };
+      }
       if (i < attempts - 1) {
         await delay(400 * (i + 1));
         continue;
@@ -168,6 +172,9 @@ async function fetchCatalogJson(
   }
   return { ok: false };
 }
+
+/** لا نُبقي واجهة المستخدم معلّقة بانتظار Workers بطيئة أو معلّقة. */
+const STORE_INIT_NETWORK_MS = 18_000;
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   /** يُحدَّد وقت التشغيل من `/api/catalog/products` حتى يعمل الكتالوج لو غاب NEXT_PUBLIC وقت بناء الاستضافة. */
@@ -228,25 +235,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setOrders(readJSON<Order[]>(KEY_ORDERS, []));
     };
 
+    /* لو انتظرنا الشبكة قبل hydrate، صفحات مثل السلة أو الـ staff تبدو «متوقفة» إذا علّق /api على Cloudflare. */
+    hydrateSiteAndUi();
+    useLocalCatalog();
+
     void (async () => {
-      const [healthOutcome, catalogRes] = await Promise.all([
-        fetch("/api/health/supabase", CATALOG_FETCH_OPTS)
-          .then((r) => (r.ok ? (r.json() as Promise<{ ready?: unknown }>) : Promise.resolve({})))
-          .catch(() => ({})),
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
+      try {
+        const [healthOutcome, catalogRes] = await Promise.all([
+          fetch("/api/health/supabase", { ...CATALOG_FETCH_OPTS, signal: ac.signal })
+            .then((r) => (r.ok ? (r.json() as Promise<{ ready?: unknown }>) : Promise.resolve({})))
+            .catch(() => ({})),
 
-        fetchCatalogJson(3),
-      ]);
+          fetchCatalogJson(3, ac.signal),
+        ]);
 
-      setSupabaseReady((healthOutcome as { ready?: boolean }).ready === true);
+        setSupabaseReady((healthOutcome as { ready?: boolean }).ready === true);
 
-      if (catalogRes.ok) {
-        clearStaleLocalProductCache();
-        setRemoteCatalog(true);
-        setProductsState(catalogRes.products);
-      } else {
-        useLocalCatalog();
+        if (catalogRes.ok) {
+          clearStaleLocalProductCache();
+          setRemoteCatalog(true);
+          setProductsState(catalogRes.products);
+        } else {
+          useLocalCatalog();
+        }
+      } finally {
+        clearTimeout(timer);
       }
-      queueMicrotask(hydrateSiteAndUi);
     })();
   }, []);
 
