@@ -296,8 +296,20 @@ function ProductsPane() {
 
   return (
     <section>
-      <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <h2 className="font-display min-w-0 break-words text-2xl sm:text-3xl">{t("staff.products.count").replace("{n}", String(products.length))}</h2>
+      <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display min-w-0 break-words text-2xl sm:text-3xl">
+            {t("staff.products.count").replace("{n}", String(products.length))}
+          </h2>
+          {!supabaseReady && (
+            <p
+              className="mt-3 max-w-2xl text-[12px] leading-relaxed text-amber-900 dark:text-amber-200/95 sm:text-[13px]"
+              role="status"
+            >
+              {t("staff.products.supabaseShort")}
+            </p>
+          )}
+        </div>
         <button
           type="button"
           disabled={!supabaseReady}
@@ -306,7 +318,11 @@ function ProductsPane() {
             setEditing(emptyProduct());
             setCreating(true);
           }}
-          className="btn-ghost disabled:cursor-not-allowed disabled:opacity-45"
+          className={
+            supabaseReady
+              ? "btn-primary shrink-0 self-start"
+              : "shrink-0 self-start border-2 border-amber-600/55 bg-amber-500/15 px-4 py-2.5 text-[11px] font-medium uppercase tracking-eyebrow text-amber-950 opacity-100 disabled:cursor-not-allowed dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-50"
+          }
         >
           <Plus className="h-4 w-4" strokeWidth={1.4} /> {t("staff.products.new")}
         </button>
