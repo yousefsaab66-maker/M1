@@ -1,6 +1,24 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
+function supabaseStorageImagePattern(): { protocol: "https"; hostname: string; pathname: string }[] {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (!raw) return [];
+  try {
+    const host = new URL(raw).hostname;
+    if (!host) return [];
+    return [
+      {
+        protocol: "https",
+        hostname: host,
+        pathname: "/storage/v1/object/public/**",
+      },
+    ];
+  } catch {
+    return [];
+  }
+}
+
 const nextConfig: NextConfig = {
   /* Monorepo / stray lockfile: pin tracing to this app so `next dev` picks the right root */
   outputFileTracingRoot: path.join(process.cwd()),
@@ -16,8 +34,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "plus.unsplash.com",
       },
+      ...supabaseStorageImagePattern(),
     ],
   },
 };
 
 export default nextConfig;
+

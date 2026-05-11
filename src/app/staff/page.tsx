@@ -57,7 +57,7 @@ type TabId = "dashboard" | "products" | "orders" | "collections" | "journal" | "
 
 export default function StaffPage() {
   const { signedInAs, signOut, hydrated } = useAuth();
-  const { remoteCatalog, pullRemoteOrders } = useStore();
+  const { supabaseReady, pullRemoteOrders } = useStore();
   const { t } = useLocale();
   const router = useRouter();
   const [tab, setTab] = useState<TabId>("dashboard");
@@ -81,8 +81,8 @@ export default function StaffPage() {
   }, [hydrated, signedInAs.staff, router]);
 
   useEffect(() => {
-    if (hydrated && signedInAs.staff && remoteCatalog) void pullRemoteOrders();
-  }, [hydrated, signedInAs.staff, remoteCatalog, pullRemoteOrders]);
+    if (hydrated && signedInAs.staff && supabaseReady) void pullRemoteOrders();
+  }, [hydrated, signedInAs.staff, supabaseReady, pullRemoteOrders]);
 
   if (!hydrated) return <div className="px-6 py-32 text-center opacity-70">…</div>;
   if (!signedInAs.staff) return null;
@@ -239,7 +239,7 @@ function mapRemoteProductError(error: string, t: (key: string) => string): strin
 }
 
 function ProductsPane() {
-  const { products, collections, addToBag, remoteCatalog, refreshCatalog } = useStore();
+  const { products, collections, addToBag, remoteCatalog, supabaseReady, refreshCatalog } = useStore();
   const { t } = useLocale();
   const router = useRouter();
   const [editing, setEditing] = useState<Product | null>(null);
@@ -251,7 +251,7 @@ function ProductsPane() {
   const persistProduct = async (p: Product): Promise<boolean> => {
     setSaveError(null);
     const fixed = ensureProductOrderable(p);
-    if (!remoteCatalog) {
+    if (!supabaseReady) {
       setSaveError(t("staff.products.remoteRequired"));
       return false;
     }
@@ -279,7 +279,7 @@ function ProductsPane() {
   };
 
   const onDelete = async (id: string) => {
-    if (!remoteCatalog) {
+    if (!supabaseReady) {
       setSaveError(t("staff.products.remoteRequired"));
       return;
     }
@@ -300,8 +300,8 @@ function ProductsPane() {
         <h2 className="font-display min-w-0 break-words text-2xl sm:text-3xl">{t("staff.products.count").replace("{n}", String(products.length))}</h2>
         <button
           type="button"
-          disabled={!remoteCatalog}
-          title={!remoteCatalog ? t("staff.products.remoteRequired") : undefined}
+          disabled={!supabaseReady}
+          title={!supabaseReady ? t("staff.products.remoteRequired") : undefined}
           onClick={() => {
             setEditing(emptyProduct());
             setCreating(true);
@@ -442,7 +442,7 @@ function ProductsPane() {
                     </button>
                     <button
                       type="button"
-                      disabled={!remoteCatalog}
+                      disabled={!supabaseReady}
                       aria-label={t("staff.product.editImages")}
                       title={t("staff.product.editImages")}
                       onClick={() => setImageQuickEdit(p)}
@@ -452,9 +452,9 @@ function ProductsPane() {
                     </button>
                     <button
                       type="button"
-                      disabled={!remoteCatalog}
+                      disabled={!supabaseReady}
                       aria-label={t("staff.aria.edit")}
-                      title={!remoteCatalog ? t("staff.products.remoteRequired") : undefined}
+                      title={!supabaseReady ? t("staff.products.remoteRequired") : undefined}
                       onClick={() => {
                         setEditing(p);
                         setCreating(false);
@@ -465,9 +465,9 @@ function ProductsPane() {
                     </button>
                     <button
                       type="button"
-                      disabled={!remoteCatalog}
+                      disabled={!supabaseReady}
                       aria-label={t("staff.aria.delete")}
-                      title={!remoteCatalog ? t("staff.products.remoteRequired") : undefined}
+                      title={!supabaseReady ? t("staff.products.remoteRequired") : undefined}
                       onClick={() => void onDelete(p.id)}
                       className="opacity-70 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-35"
                     >
@@ -484,6 +484,7 @@ function ProductsPane() {
       {imageQuickEdit && (
         <ProductImagesQuickModal
           product={imageQuickEdit}
+          cloudUpload={supabaseReady}
           onClose={() => setImageQuickEdit(null)}
           onSave={async (p) => {
             if (await persistProduct(p)) setImageQuickEdit(null);
@@ -497,6 +498,7 @@ function ProductsPane() {
           product={editing}
           collections={collections}
           isCreating={creating}
+          cloudUpload={supabaseReady}
           onCancel={() => { setEditing(null); setCreating(false); }}
           onSave={onSave}
         />
@@ -507,10 +509,12 @@ function ProductsPane() {
 
 function ProductImagesQuickModal({
   product,
+  cloudUpload,
   onClose,
   onSave,
 }: {
   product: Product;
+  cloudUpload: boolean;
   onClose: () => void;
   onSave: (p: Product) => void | Promise<void>;
 }) {
@@ -544,6 +548,7 @@ function ProductImagesQuickModal({
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:p-6">
           <ImagesField
+            cloudUpload={cloudUpload}
             images={[...(draft.images ?? [])]}
             onChange={(next) => setDraft((d) => ({ ...d, images: next }))}
           />
@@ -577,12 +582,14 @@ function ProductEditor({
   product,
   collections,
   isCreating,
+  cloudUpload,
   onCancel,
   onSave,
 }: {
   product: Product;
   collections: Collection[];
   isCreating: boolean;
+  cloudUpload: boolean;
   onCancel: () => void;
   onSave: (p: Product) => void | Promise<void>;
 }) {
@@ -670,6 +677,7 @@ function ProductEditor({
             />
           </Field>
           <ImagesField
+            cloudUpload={cloudUpload}
             images={draft.images}
             onChange={(next) => update("images", next)}
           />
@@ -926,38 +934,79 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ImagesField({
   images,
   onChange,
+  cloudUpload = false,
 }: {
   images: string[];
   onChange: (next: string[]) => void;
+  cloudUpload?: boolean;
 }) {
   const { t } = useLocale();
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function uploadViaSupabase(file: File): Promise<{ ok: true; url: string } | { ok: false; code: string }> {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/staff/upload", {
+      method: "POST",
+      body: fd,
+      credentials: "same-origin",
+    });
+    const body = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
+    if ((res.status === 401 || body.error === "unauthorized") && !(body.ok && body.url)) {
+      return { ok: false, code: "unauthorized" };
+    }
+    if (res.ok && body.ok && typeof body.url === "string") {
+      return { ok: true, url: body.url };
+    }
+    const code = typeof body.error === "string" && body.error.length > 0 ? body.error : "unknown";
+    return { ok: false, code };
+  }
+
+  function translateUploadErr(code: string): string {
+    const key = `staff.images.uploadErr.${code}`;
+    const txt = t(key);
+    return txt === key ? t("staff.images.uploadErr.unknown") : txt;
+  }
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setError(null);
     const accepted: string[] = [];
     const errors: string[] = [];
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith("image/")) {
-        errors.push(t("staff.images.notImage").replace("{name}", file.name));
-        continue;
+    const list = Array.from(files);
+    if (cloudUpload) setBusy(true);
+    try {
+      for (const file of list) {
+        if (!file.type.startsWith("image/")) {
+          errors.push(t("staff.images.notImage").replace("{name}", file.name));
+          continue;
+        }
+        if (file.size > MAX_IMAGE_BYTES) {
+          errors.push(t("staff.images.tooLarge").replace("{name}", file.name));
+          continue;
+        }
+        if (cloudUpload) {
+          const up = await uploadViaSupabase(file);
+          if (up.ok) accepted.push(up.url);
+          else if (up.code === "unauthorized") errors.push(translateUploadErr("unauthorized"));
+          else errors.push(`${file.name}: ${translateUploadErr(up.code)}`);
+        } else {
+          try {
+            const dataUrl = await readFileAsDataUrl(file);
+            if (dataUrl) accepted.push(dataUrl);
+          } catch {
+            errors.push(file.name);
+          }
+        }
       }
-      if (file.size > MAX_IMAGE_BYTES) {
-        errors.push(t("staff.images.tooLarge").replace("{name}", file.name));
-        continue;
-      }
-      try {
-        const dataUrl = await readFileAsDataUrl(file);
-        if (dataUrl) accepted.push(dataUrl);
-      } catch {
-        errors.push(file.name);
-      }
+      if (accepted.length > 0) onChange([...images, ...accepted]);
+      if (errors.length > 0) setError(errors.join(" "));
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } finally {
+      if (cloudUpload) setBusy(false);
     }
-    if (accepted.length > 0) onChange([...images, ...accepted]);
-    if (errors.length > 0) setError(errors.join(" "));
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const removeAt = (idx: number) => {
@@ -965,6 +1014,8 @@ function ImagesField({
     next.splice(idx, 1);
     onChange(next);
   };
+
+  const hintKey = cloudUpload ? "staff.images.uploadHintCloud" : "staff.images.uploadHint";
 
   return (
     <div>
@@ -991,16 +1042,18 @@ function ImagesField({
           accept="image/*"
           multiple
           className="hidden"
+          disabled={busy}
           onChange={(e) => void handleFiles(e.target.files)}
         />
         <button
           type="button"
+          disabled={busy}
           onClick={() => fileInputRef.current?.click()}
-          className="btn-ghost"
+          className="btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Upload className="h-4 w-4" strokeWidth={1.4} /> {t("staff.images.upload")}
+          <Upload className="h-4 w-4" strokeWidth={1.4} /> {busy ? t("staff.images.uploading") : t("staff.images.upload")}
         </button>
-        <span className="text-[11px] opacity-65">{t("staff.images.uploadHint")}</span>
+        <span className="text-[11px] opacity-65">{t(hintKey)}</span>
       </div>
       {error && (
         <p className="mt-2 text-xs" style={{ color: "var(--color-bordeaux)" }}>

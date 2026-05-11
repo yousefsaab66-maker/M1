@@ -78,6 +78,8 @@ type StoreCtx = {
 
   /** وضع الكتالوج عبر Supabase (متغيرات بيئة عامة). */
   remoteCatalog: boolean;
+  /** السيرفر يملك مفاتيح Supabase — للحفظ والرفع حتى لو فشل جلب قائمة المنتجات لحظياً. */
+  supabaseReady: boolean;
   refreshCatalog: () => Promise<void>;
   pullRemoteOrders: () => Promise<void>;
 
@@ -170,6 +172,7 @@ async function fetchCatalogJson(
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   /** يُحدَّد وقت التشغيل من `/api/catalog/products` حتى يعمل الكتالوج لو غاب NEXT_PUBLIC وقت بناء الاستضافة. */
   const [remoteCatalog, setRemoteCatalog] = useState(false);
+  const [supabaseReady, setSupabaseReady] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   const [products, setProductsState] = useState<Product[]>(SEED_PRODUCTS);
@@ -194,7 +197,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const pullRemoteOrders = useCallback(async () => {
-    if (!remoteCatalog) return;
+    if (!supabaseReady) return;
     try {
       const { listOrdersRemote } = await import("@/app/actions/muhra-backend");
       const r = await listOrdersRemote();
@@ -202,7 +205,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* ignore */
     }
-  }, [remoteCatalog]);
+  }, [supabaseReady]);
 
   useEffect(() => {
     if (initialized.current) return;
@@ -226,12 +229,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
 
     void (async () => {
-      const res = await fetchCatalogJson(3);
-      if (res.ok) {
+      const [healthOutcome, catalogRes] = await Promise.all([
+        fetch("/api/health/supabase", CATALOG_FETCH_OPTS)
+          .then((r) => (r.ok ? (r.json() as Promise<{ ready?: unknown }>) : Promise.resolve({})))
+          .catch(() => ({})),
+
+        fetchCatalogJson(3),
+      ]);
+
+      setSupabaseReady((healthOutcome as { ready?: boolean }).ready === true);
+
+      if (catalogRes.ok) {
         clearStaleLocalProductCache();
         setRemoteCatalog(true);
-        /* قائمة حقيقية من Supabase — حتى لو فاضية (ما نبدّلها بـ seed وتخفي المشكلة). */
-        setProductsState(res.products);
+        setProductsState(catalogRes.products);
       } else {
         useLocalCatalog();
       }
@@ -381,7 +392,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [bag, products]);
 
   const placeDemoOrder = useCallback((): Order | null => {
-    if (remoteCatalog) return null;
+    if (supabaseReady) return null;
     if (bag.length === 0) return null;
     const items = buildOrderItems();
     if (items.length === 0) return null;
@@ -411,14 +422,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setBag([]);
     writeJSON(KEY_BAG, []);
     return order;
-  }, [remoteCatalog, bag, buildOrderItems, user]);
+  }, [supabaseReady, bag, buildOrderItems, user]);
 
   const placeOrder = useCallback(
     async (input: PlaceOrderInput): Promise<Order | null> => {
       if (bag.length === 0) return null;
       const lines = bag.map((b) => ({ productId: b.productId, qty: b.qty, size: b.size }));
 
-      if (remoteCatalog) {
+      if (supabaseReady) {
         try {
           const { createOrderRemote } = await import("@/app/actions/muhra-backend");
           const res = await createOrderRemote(input, lines);
@@ -462,12 +473,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       writeJSON(KEY_BAG, []);
       return order;
     },
-    [remoteCatalog, bag, buildOrderItems],
+    [supabaseReady, bag, buildOrderItems],
   );
 
   const setOrderStatus = useCallback(
     async (id: string, status: OrderStatus) => {
-      if (remoteCatalog) {
+      if (supabaseReady) {
         const { updateOrderStatusRemote } = await import("@/app/actions/muhra-backend");
         const ok = await updateOrderStatusRemote(id, status);
         if (ok) void pullRemoteOrders();
@@ -479,12 +490,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     },
-    [remoteCatalog, pullRemoteOrders],
+    [supabaseReady, pullRemoteOrders],
   );
 
   const removeOrder = useCallback(
     async (id: string) => {
-      if (remoteCatalog) {
+      if (supabaseReady) {
         const { deleteOrderRemote } = await import("@/app/actions/muhra-backend");
         const ok = await deleteOrderRemote(id);
         if (ok) void pullRemoteOrders();
@@ -496,7 +507,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     },
-    [remoteCatalog, pullRemoteOrders],
+    [supabaseReady, pullRemoteOrders],
   );
 
   const signIn = useCallback((name: string, email?: string) => {
@@ -537,6 +548,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       toggleWish,
       inWishlist,
       remoteCatalog,
+      supabaseReady,
       refreshCatalog,
       pullRemoteOrders,
       orders,
@@ -571,6 +583,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       toggleWish,
       inWishlist,
       remoteCatalog,
+      supabaseReady,
       refreshCatalog,
       pullRemoteOrders,
       orders,
