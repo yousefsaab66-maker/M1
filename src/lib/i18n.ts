@@ -417,7 +417,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.remoteRequired":
       "Saving products and cloud uploads need Supabase keys on the server (NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY). You can still work if the catalog list failed to load — try “Retry cloud catalog” to refresh.",
     "staff.products.supabaseShort":
-      "Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Netlify (or your host) → Environment variables, then redeploy.",
+      "Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your host’s environment (e.g. Cloudflare Workers → Settings → Variables and Secrets), then redeploy.",
     "staff.products.errorNotConfigured":
       "Supabase env missing on the server: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
     "staff.products.errorUnauthorized": "Staff session expired. Sign in again.",
@@ -1956,7 +1956,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.remoteRequired":
       "حفظ المنتجات والرفع للسحابة يشترط مفاتيح Supabase على السيرفر (NEXT_PUBLIC_SUPABASE_URL و SUPABASE_SERVICE_ROLE_KEY). حتى لو فشل تحميل قائمة المنتجات، يمكنك المحاولة — استخدم «إعادة المحاولة» لتحديث الكتالوج.",
     "staff.products.supabaseShort":
-      "أضف NEXT_PUBLIC_SUPABASE_URL و SUPABASE_SERVICE_ROLE_KEY في Netlify (أو الاستضافة) → Environment variables ثم أعد نشر الموقع لتفعيل «منتج جديد» والرفع.",
+      "أضف NEXT_PUBLIC_SUPABASE_URL و SUPABASE_SERVICE_ROLE_KEY في متغيرات الاستضافة (مثلاً Cloudflare Workers → الإعدادات → Variables and Secrets) ثم أعد النشر لتفعيل «منتج جديد» والرفع.",
     "staff.products.errorNotConfigured": "متغيرات Supabase ناقصة على السيرفر (NEXT_PUBLIC_SUPABASE_URL و SUPABASE_SERVICE_ROLE_KEY).",
     "staff.products.errorUnauthorized": "انتهت جلسة الموظفين. سجّل الدخول من جديد.",
     "staff.form.newTitle": "منتج جديد",

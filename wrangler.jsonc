@@ -4,7 +4,9 @@
   "name": "muhra1",
   "compatibility_date": "2026-05-11",
   "compatibility_flags": [
-    "nodejs_compat"
+    "nodejs_compat",
+    // https://opennext.js.org/cloudflare/get-started — public fetch in Workers
+    "global_fetch_strictly_public"
   ],
   "assets": {
     "directory": ".open-next/assets",
