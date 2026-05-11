@@ -312,16 +312,20 @@ function ProductsPane() {
         </div>
         <button
           type="button"
-          disabled={!supabaseReady}
           title={!supabaseReady ? t("staff.products.remoteRequired") : undefined}
           onClick={() => {
+            if (!supabaseReady) {
+              setSaveError(t("staff.products.supabaseShort"));
+              return;
+            }
+            setSaveError(null);
             setEditing(emptyProduct());
             setCreating(true);
           }}
           className={
             supabaseReady
               ? "btn-primary shrink-0 self-start"
-              : "shrink-0 self-start border-2 border-amber-600/55 bg-amber-500/15 px-4 py-2.5 text-[11px] font-medium uppercase tracking-eyebrow text-amber-950 opacity-100 disabled:cursor-not-allowed dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-50"
+              : "shrink-0 self-start border-2 border-amber-600/55 bg-amber-500/15 px-4 py-2.5 text-[11px] font-medium uppercase tracking-eyebrow text-amber-950 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-50"
           }
         >
           <Plus className="h-4 w-4" strokeWidth={1.4} /> {t("staff.products.new")}
