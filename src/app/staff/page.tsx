@@ -10,6 +10,7 @@ import {
   ClipboardList,
   ExternalLink,
   Gem,
+  Images,
   KeyRound,
   LayoutDashboard,
   Newspaper,
@@ -245,27 +246,35 @@ function ProductsPane() {
   const [creating, setCreating] = useState(false);
   const [orderHint, setOrderHint] = useState<Product | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [imageQuickEdit, setImageQuickEdit] = useState<Product | null>(null);
 
-  const onSave = async (p: Product) => {
+  const persistProduct = async (p: Product): Promise<boolean> => {
     setSaveError(null);
     const fixed = ensureProductOrderable(p);
     if (!remoteCatalog) {
       setSaveError(t("staff.products.remoteRequired"));
-      return;
+      return false;
     }
     try {
       const { upsertProductRemote } = await import("@/app/actions/muhra-backend");
       const res = await upsertProductRemote(fixed);
       if (!res.ok) {
         setSaveError(mapRemoteProductError(res.error, t));
-        return;
+        return false;
       }
       setOrderHint(res.product);
       await refreshCatalog();
-      setEditing(null);
-      setCreating(false);
+      return true;
     } catch {
       setSaveError(t("staff.products.errorRequest"));
+      return false;
+    }
+  };
+
+  const onSave = async (p: Product) => {
+    if (await persistProduct(p)) {
+      setEditing(null);
+      setCreating(false);
     }
   };
 
@@ -434,6 +443,16 @@ function ProductsPane() {
                     <button
                       type="button"
                       disabled={!remoteCatalog}
+                      aria-label={t("staff.product.editImages")}
+                      title={t("staff.product.editImages")}
+                      onClick={() => setImageQuickEdit(p)}
+                      className="opacity-70 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-35"
+                    >
+                      <Images className="h-4 w-4" strokeWidth={1.4} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!remoteCatalog}
                       aria-label={t("staff.aria.edit")}
                       title={!remoteCatalog ? t("staff.products.remoteRequired") : undefined}
                       onClick={() => {
@@ -462,6 +481,16 @@ function ProductsPane() {
         </table>
       </div>
 
+      {imageQuickEdit && (
+        <ProductImagesQuickModal
+          product={imageQuickEdit}
+          onClose={() => setImageQuickEdit(null)}
+          onSave={async (p) => {
+            if (await persistProduct(p)) setImageQuickEdit(null);
+          }}
+        />
+      )}
+
       {editing && (
         <ProductEditor
           key={editing.id}
@@ -473,6 +502,74 @@ function ProductsPane() {
         />
       )}
     </section>
+  );
+}
+
+function ProductImagesQuickModal({
+  product,
+  onClose,
+  onSave,
+}: {
+  product: Product;
+  onClose: () => void;
+  onSave: (p: Product) => void | Promise<void>;
+}) {
+  const { t } = useLocale();
+  const [draft, setDraft] = useState<Product>(() => ({ ...product }));
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setDraft({ ...product });
+  }, [product]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:px-4">
+      <div className="absolute inset-0 bg-black/55" onClick={() => !busy && onClose()} aria-hidden />
+      <div
+        role="dialog"
+        aria-labelledby="staff-images-quick-title"
+        className="relative z-10 flex max-h-[min(92dvh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-none border shadow-2xl sm:rounded-sm"
+        style={{ background: "var(--background)", borderColor: "var(--line)" }}
+      >
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b p-4 sm:p-5" style={{ borderColor: "var(--line)" }}>
+          <div className="min-w-0">
+            <p className="eyebrow opacity-75">{t("staff.product.imagesModalEyebrow")}</p>
+            <h3 id="staff-images-quick-title" className="font-display mt-1 break-words text-xl sm:text-2xl">
+              {draft.name || product.name}
+            </h3>
+          </div>
+          <button type="button" disabled={busy} onClick={onClose} className="flex h-11 w-11 flex-shrink-0 items-center justify-center" aria-label={t("staff.aria.close")}>
+            <X className="h-5 w-5" strokeWidth={1.4} />
+          </button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:p-6">
+          <ImagesField
+            images={[...(draft.images ?? [])]}
+            onChange={(next) => setDraft((d) => ({ ...d, images: next }))}
+          />
+        </div>
+        <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t p-4 sm:p-5" style={{ borderColor: "var(--line)" }}>
+          <button type="button" disabled={busy} onClick={onClose} className="btn-ghost">
+            {t("common.close")}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            className="btn-primary"
+            onClick={() => void (async () => {
+              setBusy(true);
+              try {
+                await onSave(ensureProductOrderable({ ...draft, images: [...(draft.images ?? [])] }));
+              } finally {
+                setBusy(false);
+              }
+            })()}
+          >
+            {t("staff.images.save")}
+          </button>
+        </footer>
+      </div>
+    </div>
   );
 }
 
