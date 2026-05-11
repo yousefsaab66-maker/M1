@@ -17,6 +17,7 @@
   remote_images = [
     "https://images.unsplash.com/.*",
     "https://plus.unsplash.com/.*",
+    "https://.+\\.supabase\\.co/.*",
   ]
 
 [[headers]]
