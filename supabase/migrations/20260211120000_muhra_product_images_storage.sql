@@ -6,7 +6,7 @@ values (
   'muhra-products',
   'muhra-products',
   true,
-  12582912, -- 12 MiB
+  2621440, -- 2.5 MiB
   array['image/jpeg', 'image/png', 'image/webp', 'image/gif']::text[]
 )
 on conflict (id) do update set

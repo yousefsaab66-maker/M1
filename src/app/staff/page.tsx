@@ -40,8 +40,8 @@ import type {
 import { formatDate, formatPrice, slugify } from "@/lib/format";
 import { formatIqd } from "@/lib/iraq";
 import { ensureProductOrderable, productGallerySources, productImageAt } from "@/lib/product-media";
+import { MUHRA_MAX_IMAGE_UPLOAD_BYTES } from "@/lib/supabase/storage-constants";
 
-const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 const MAX_HERO_VIDEO_BYTES = 500 * 1024 * 1024;
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -983,7 +983,7 @@ function ImagesField({
           errors.push(t("staff.images.notImage").replace("{name}", file.name));
           continue;
         }
-        if (file.size > MAX_IMAGE_BYTES) {
+        if (file.size > MUHRA_MAX_IMAGE_UPLOAD_BYTES) {
           errors.push(t("staff.images.tooLarge").replace("{name}", file.name));
           continue;
         }
