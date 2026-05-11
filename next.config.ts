@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 function supabaseStorageImagePattern(): { protocol: "https"; hostname: string; pathname: string }[] {
-  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const raw = process.env.SUPABASE_URL?.trim() || process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   if (!raw) return [];
   try {
     const host = new URL(raw).hostname;

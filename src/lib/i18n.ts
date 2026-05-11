@@ -415,11 +415,11 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.errorRequest": "Request failed",
     "staff.products.errorDelete": "Delete failed",
     "staff.products.remoteRequired":
-      "Saving products and cloud uploads need Supabase keys on the server (NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY). You can still work if the catalog list failed to load — try “Retry cloud catalog” to refresh.",
+      "Saving products and cloud uploads need Supabase on the server: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (same URL as NEXT_PUBLIC_SUPABASE_URL is fine). On Cloudflare, add them in Workers → Variables and redeploy — NEXT_PUBLIC_* alone can stay empty at build time.",
     "staff.products.supabaseShort":
-      "Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your host’s environment (e.g. Cloudflare Workers → Settings → Variables and Secrets), then redeploy.",
+      "Add SUPABASE_URL (same as your Supabase project URL) and SUPABASE_SERVICE_ROLE_KEY under Workers → Variables and Secrets, then redeploy. NEXT_PUBLIC_SUPABASE_URL alone is often baked in empty at build on Cloudflare.",
     "staff.products.errorNotConfigured":
-      "Supabase env missing on the server: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+      "Supabase env missing on the server: SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY.",
     "staff.products.errorUnauthorized": "Staff session expired. Sign in again.",
     "staff.form.newTitle": "New product",
     "staff.form.editTitle": "Edit product",
@@ -1954,10 +1954,11 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.errorRequest": "فشل الطلب",
     "staff.products.errorDelete": "فشل الحذف",
     "staff.products.remoteRequired":
-      "حفظ المنتجات والرفع للسحابة يشترط مفاتيح Supabase على السيرفر (NEXT_PUBLIC_SUPABASE_URL و SUPABASE_SERVICE_ROLE_KEY). حتى لو فشل تحميل قائمة المنتجات، يمكنك المحاولة — استخدم «إعادة المحاولة» لتحديث الكتالوج.",
+      "حفظ المنتجات والرفع يحتاج Supabase على السيرفر: ضع `SUPABASE_URL` و`SUPABASE_SERVICE_ROLE_KEY` (نفس الرابط يكفي). في كلاودفلير أضفها في Variables ثم أعد النشر — `NEXT_PUBLIC_*` لوحده قد يُبنى فارغاً وقت الـ build.",
     "staff.products.supabaseShort":
-      "أضف NEXT_PUBLIC_SUPABASE_URL و SUPABASE_SERVICE_ROLE_KEY في متغيرات الاستضافة (مثلاً Cloudflare Workers → الإعدادات → Variables and Secrets) ثم أعد النشر لتفعيل «منتج جديد» والرفع.",
-    "staff.products.errorNotConfigured": "متغيرات Supabase ناقصة على السيرفر (NEXT_PUBLIC_SUPABASE_URL و SUPABASE_SERVICE_ROLE_KEY).",
+      "أضف `SUPABASE_URL` (نفس رابط مشروع Supabase) و`SUPABASE_SERVICE_ROLE_KEY` في Workers → Variables and Secrets ثم أعد النشر. الاعتماد على `NEXT_PUBLIC_SUPABASE_URL` فقط غالباً يُترك فارغاً داخل الـ Worker بعد البناء.",
+    "staff.products.errorNotConfigured":
+      "متغيرات Supabase ناقصة على السيرفر (`SUPABASE_URL` أو `NEXT_PUBLIC_SUPABASE_URL` و `SUPABASE_SERVICE_ROLE_KEY`).",
     "staff.products.errorUnauthorized": "انتهت جلسة الموظفين. سجّل الدخول من جديد.",
     "staff.form.newTitle": "منتج جديد",
     "staff.form.editTitle": "تعديل المنتج",
