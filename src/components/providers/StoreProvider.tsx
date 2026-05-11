@@ -37,6 +37,8 @@ export type {
 export type { GovernorateCode };
 
 const KEY_PRODUCTS = "muhra-products-v1";
+/** آخر كتالوج ناجح من الـ API — يمنع الرجوع للـ SEED عند فشل Cloudflare/1102 بعد مسح localStorage */
+const KEY_CATALOG_SNAPSHOT = "muhra-remote-catalog-snapshot-v1";
 const KEY_COLLECTIONS = "muhra-collections-v1";
 const KEY_JOURNAL = "muhra-journal-v1";
 const KEY_BOUTIQUES = "muhra-boutiques-v3";
@@ -81,6 +83,8 @@ type StoreCtx = {
   /** السيرفر يملك مفاتيح Supabase — للحفظ والرفع حتى لو فشل جلب قائمة المنتجات لحظياً. */
   supabaseReady: boolean;
   refreshCatalog: () => Promise<void>;
+  /** بعد حفظ منتج عبر API — يحدّث القائمة واللقطة حتى لا يختفي المنتج إذا فشل refresh (CF 1102). */
+  mergeRemoteProduct: (p: Product) => void;
   pullRemoteOrders: () => Promise<void>;
 
   orders: Order[];
@@ -111,6 +115,27 @@ function readJSON<T>(key: string, fallback: T): T {
 function writeJSON(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* quota */
+  }
+}
+
+function readCatalogSnapshot(): Product[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(KEY_CATALOG_SNAPSHOT);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as Product[];
+    return Array.isArray(p) && p.length > 0 ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCatalogSnapshot(products: Product[]) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(KEY_CATALOG_SNAPSHOT, JSON.stringify(products));
   } catch {
     /* quota */
   }
@@ -153,8 +178,8 @@ async function fetchCatalogJson(
         }
         return { ok: false };
       }
-      /* أعد المحاولة لـ 503/502/504 فقط — أخطاء العميل (4xx) غالباً دائمة */
-      if ((r.status === 503 || r.status === 502 || r.status === 504) && i < attempts - 1) {
+      /* أعد المحاولة لأخطاء بروكسي/انتهاء المهلة — أخطاء العميل (4xx) غالباً دائمة */
+      if ((r.status === 503 || r.status === 502 || r.status === 504 || r.status === 524) && i < attempts - 1) {
         await delay(350 * (i + 1));
         continue;
       }
@@ -173,8 +198,8 @@ async function fetchCatalogJson(
   return { ok: false };
 }
 
-/** لا نُبقي واجهة المستخدم معلّقة بانتظار Workers بطيئة أو معلّقة. */
-const STORE_INIT_NETWORK_MS = 18_000;
+/** لا نُبقي واجهة المستخدم معلّقة بانتظار Workers بطيئة أو معلّقة (أوّل تحميل قد يكون بارد على CF). */
+const STORE_INIT_NETWORK_MS = 45_000;
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   /** يُحدَّد وقت التشغيل من `/api/catalog/products` حتى يعمل الكتالوج لو غاب NEXT_PUBLIC وقت بناء الاستضافة. */
@@ -198,9 +223,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const refreshCatalog = useCallback(async () => {
     const res = await fetchCatalogJson(2);
     if (!res.ok) return;
+    writeCatalogSnapshot(res.products);
     clearStaleLocalProductCache();
     setRemoteCatalog(true);
     setProductsState(res.products);
+  }, []);
+
+  const mergeRemoteProduct = useCallback((p: Product) => {
+    setProductsState((prev) => {
+      const i = prev.findIndex((x) => x.id === p.id);
+      const next = i >= 0 ? prev.map((x, j) => (j === i ? p : x)) : [...prev, p];
+      writeCatalogSnapshot(next);
+      return next;
+    });
+    setRemoteCatalog(true);
   }, []);
 
   const pullRemoteOrders = useCallback(async () => {
@@ -235,9 +271,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setOrders(readJSON<Order[]>(KEY_ORDERS, []));
     };
 
+    /** إن فشل الـ API: لا نرجع للـ SEED إذا عندنا لقطة من آخر تحميل ناجح (يحدث مع 1102 بعد مسح muhra-products-v1). */
+    const recoverCatalogAfterNetworkFailure = () => {
+      const snap = readCatalogSnapshot();
+      if (snap && snap.length > 0) {
+        setRemoteCatalog(true);
+        setProductsState(snap);
+        return;
+      }
+      useLocalCatalog();
+    };
+
     /* لو انتظرنا الشبكة قبل hydrate، صفحات مثل السلة أو الـ staff تبدو «متوقفة» إذا علّق /api على Cloudflare. */
     hydrateSiteAndUi();
-    useLocalCatalog();
+    const snapBootstrap = readCatalogSnapshot();
+    if (snapBootstrap && snapBootstrap.length > 0) {
+      setProductsState(snapBootstrap);
+      setRemoteCatalog(true);
+    } else {
+      setProductsState(readJSON<Product[]>(KEY_PRODUCTS, SEED_PRODUCTS));
+      setRemoteCatalog(false);
+    }
+    setOrders(readJSON<Order[]>(KEY_ORDERS, []));
 
     void (async () => {
       const ac = new AbortController();
@@ -254,11 +309,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setSupabaseReady((healthOutcome as { ready?: boolean }).ready === true);
 
         if (catalogRes.ok) {
+          writeCatalogSnapshot(catalogRes.products);
           clearStaleLocalProductCache();
           setRemoteCatalog(true);
           setProductsState(catalogRes.products);
         } else {
-          useLocalCatalog();
+          recoverCatalogAfterNetworkFailure();
         }
       } finally {
         clearTimeout(timer);
@@ -566,6 +622,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       remoteCatalog,
       supabaseReady,
       refreshCatalog,
+      mergeRemoteProduct,
       pullRemoteOrders,
       orders,
       placeDemoOrder,
@@ -601,6 +658,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       remoteCatalog,
       supabaseReady,
       refreshCatalog,
+      mergeRemoteProduct,
       pullRemoteOrders,
       orders,
       placeDemoOrder,

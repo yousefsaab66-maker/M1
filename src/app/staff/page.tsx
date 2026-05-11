@@ -241,7 +241,15 @@ function mapRemoteProductError(error: string, t: (key: string) => string): strin
 }
 
 function ProductsPane() {
-  const { products, collections, addToBag, remoteCatalog, supabaseReady, refreshCatalog } = useStore();
+  const {
+    products,
+    collections,
+    addToBag,
+    remoteCatalog,
+    supabaseReady,
+    refreshCatalog,
+    mergeRemoteProduct,
+  } = useStore();
   const { t } = useLocale();
   const router = useRouter();
   const [editing, setEditing] = useState<Product | null>(null);
@@ -278,6 +286,7 @@ function ProductsPane() {
         return false;
       }
       setOrderHint(body.product);
+      mergeRemoteProduct(body.product);
       await refreshCatalog();
       return true;
     } catch {
