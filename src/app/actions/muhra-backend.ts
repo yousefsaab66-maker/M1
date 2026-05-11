@@ -1,12 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import type { Product } from "@/lib/catalog";
 import type { Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
-import { productToInsert, rowToProduct, isDatabaseProductId, type ProductRow } from "@/lib/catalog-db";
+import { isDatabaseProductId } from "@/lib/catalog-db";
 import { SHIPPING_FEE_IQD, toIqd } from "@/lib/iraq";
-import { ensureProductOrderable, validateProductPayloadForServerSave } from "@/lib/product-media";
+import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -81,7 +80,6 @@ export async function createOrderRemote(
     payment: { method: "cod" },
   };
 
-  revalidatePath("/staff");
   return { ok: true, order };
 }
 
@@ -117,9 +115,7 @@ export async function updateOrderStatusRemote(id: string, status: OrderStatus): 
   if (!isSupabaseBackendConfigured()) return false;
   const sb = supabaseAdmin();
   const { error } = await sb.from("orders").update({ status }).eq("id", id);
-  if (error) return false;
-  revalidatePath("/staff");
-  return true;
+  return !error;
 }
 
 export async function deleteOrderRemote(id: string): Promise<boolean> {
@@ -127,37 +123,13 @@ export async function deleteOrderRemote(id: string): Promise<boolean> {
   if (!isSupabaseBackendConfigured()) return false;
   const sb = supabaseAdmin();
   const { error } = await sb.from("orders").delete().eq("id", id);
-  if (error) return false;
-  revalidatePath("/staff");
-  return true;
+  return !error;
 }
 
+/** Prefer `POST /api/staff/products` from the browser on Cloudflare — lighter than this action. */
 export async function upsertProductRemote(p: Product): Promise<{ ok: true; product: Product } | { ok: false; error: string }> {
   if (!(await requireStaff())) return { ok: false, error: "unauthorized" };
-  if (!isSupabaseBackendConfigured()) return { ok: false, error: "not_configured" };
-
-  const fixed = ensureProductOrderable(p);
-  const payloadErr = validateProductPayloadForServerSave(fixed);
-  if (payloadErr) return { ok: false, error: payloadErr };
-  const row = productToInsert(fixed);
-  const sb = supabaseAdmin();
-
-  if (isDatabaseProductId(fixed.id)) {
-    const { data, error } = await sb
-      .from("products")
-      .update({ ...row, updated_at: new Date().toISOString() })
-      .eq("id", fixed.id)
-      .select("*")
-      .single();
-    if (error || !data) return { ok: false, error: error?.message ?? "update_failed" };
-    revalidatePath("/staff");
-    return { ok: true, product: rowToProduct(data as ProductRow) };
-  }
-
-  const { data, error } = await sb.from("products").insert(row).select("*").single();
-  if (error || !data) return { ok: false, error: error?.message ?? "insert_failed" };
-  revalidatePath("/staff");
-  return { ok: true, product: rowToProduct(data as ProductRow) };
+  return upsertProductToSupabase(p);
 }
 
 export async function deleteProductRemote(id: string): Promise<boolean> {
@@ -166,7 +138,5 @@ export async function deleteProductRemote(id: string): Promise<boolean> {
   if (!isDatabaseProductId(id)) return false;
   const sb = supabaseAdmin();
   const { error } = await sb.from("products").delete().eq("id", id);
-  if (error) return false;
-  revalidatePath("/staff");
-  return true;
+  return !error;
 }

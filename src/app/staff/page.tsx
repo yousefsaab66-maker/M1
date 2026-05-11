@@ -258,13 +258,26 @@ function ProductsPane() {
       return false;
     }
     try {
-      const { upsertProductRemote } = await import("@/app/actions/muhra-backend");
-      const res = await upsertProductRemote(fixed);
-      if (!res.ok) {
-        setSaveError(mapRemoteProductError(res.error, t));
+      const res = await fetch("/api/staff/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(fixed),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        product?: Product;
+        error?: string;
+      };
+      if (res.status === 401 || body.error === "unauthorized") {
+        setSaveError(mapRemoteProductError("unauthorized", t));
         return false;
       }
-      setOrderHint(res.product);
+      if (!body.ok || !body.product) {
+        setSaveError(mapRemoteProductError(typeof body.error === "string" ? body.error : "unknown", t));
+        return false;
+      }
+      setOrderHint(body.product);
       await refreshCatalog();
       return true;
     } catch {
