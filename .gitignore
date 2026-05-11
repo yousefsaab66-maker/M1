@@ -43,3 +43,11 @@ yarn-error.log*
 
 # netlify local
 .netlify/
+
+# OpenNext
+.open-next
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
