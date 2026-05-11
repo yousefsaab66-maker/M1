@@ -39,7 +39,7 @@ export type { GovernorateCode };
 const KEY_PRODUCTS = "muhra-products-v1";
 const KEY_COLLECTIONS = "muhra-collections-v1";
 const KEY_JOURNAL = "muhra-journal-v1";
-const KEY_BOUTIQUES = "muhra-boutiques-v1";
+const KEY_BOUTIQUES = "muhra-boutiques-v3";
 const KEY_SITE = "muhra-site-v1";
 const KEY_BAG = "muhra-bag-v1";
 const KEY_WISH = "muhra-wishlist-v1";
@@ -127,6 +127,46 @@ function catalogProductsUrl() {
   return `/api/catalog/products?_=${Date.now()}`;
 }
 
+const CATALOG_FETCH_OPTS: RequestInit = {
+  cache: "no-store",
+  credentials: "same-origin",
+};
+
+function delay(ms: number) {
+  return new Promise<void>((r) => setTimeout(r, ms));
+}
+
+/** يقلل احتمال البقاء على وضع محلي بسبب فشل شبكة/حافة لحظي (جوال، CF، إعادة نشر). */
+async function fetchCatalogJson(
+  attempts = 3,
+): Promise<{ ok: true; products: Product[] } | { ok: false }> {
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const r = await fetch(catalogProductsUrl(), CATALOG_FETCH_OPTS);
+      if (r.ok) {
+        const d = (await r.json()) as { products?: Product[] };
+        if (Array.isArray(d.products)) {
+          return { ok: true, products: d.products };
+        }
+        return { ok: false };
+      }
+      /* أعد المحاولة لـ 503/502/504 فقط — أخطاء العميل (4xx) غالباً دائمة */
+      if ((r.status === 503 || r.status === 502 || r.status === 504) && i < attempts - 1) {
+        await delay(350 * (i + 1));
+        continue;
+      }
+      return { ok: false };
+    } catch {
+      if (i < attempts - 1) {
+        await delay(400 * (i + 1));
+        continue;
+      }
+      return { ok: false };
+    }
+  }
+  return { ok: false };
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   /** يُحدَّد وقت التشغيل من `/api/catalog/products` حتى يعمل الكتالوج لو غاب NEXT_PUBLIC وقت بناء الاستضافة. */
   const [remoteCatalog, setRemoteCatalog] = useState(false);
@@ -146,18 +186,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const initialized = useRef(false);
 
   const refreshCatalog = useCallback(async () => {
-    try {
-      const r = await fetch(catalogProductsUrl(), { cache: "no-store" });
-      if (!r.ok) return;
-      const d = (await r.json()) as { products?: Product[] };
-      if (Array.isArray(d.products)) {
-        clearStaleLocalProductCache();
-        setRemoteCatalog(true);
-        setProductsState(d.products);
-      }
-    } catch {
-      /* ignore */
-    }
+    const res = await fetchCatalogJson(2);
+    if (!res.ok) return;
+    clearStaleLocalProductCache();
+    setRemoteCatalog(true);
+    setProductsState(res.products);
   }, []);
 
   const pullRemoteOrders = useCallback(async () => {
@@ -192,31 +225,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setOrders(readJSON<Order[]>(KEY_ORDERS, []));
     };
 
-    void fetch(catalogProductsUrl(), { cache: "no-store" })
-      .then(async (r) => {
-        if (!r.ok) {
-          useLocalCatalog();
-          return;
-        }
-        try {
-          const d = (await r.json()) as { products?: Product[] };
-          if (Array.isArray(d.products)) {
-            clearStaleLocalProductCache();
-            setRemoteCatalog(true);
-            setProductsState(d.products.length > 0 ? d.products : SEED_PRODUCTS);
-          } else {
-            useLocalCatalog();
-          }
-        } catch {
-          useLocalCatalog();
-        }
-      })
-      .catch(() => {
+    void (async () => {
+      const res = await fetchCatalogJson(3);
+      if (res.ok) {
+        clearStaleLocalProductCache();
+        setRemoteCatalog(true);
+        /* قائمة حقيقية من Supabase — حتى لو فاضية (ما نبدّلها بـ seed وتخفي المشكلة). */
+        setProductsState(res.products);
+      } else {
         useLocalCatalog();
-      })
-      .finally(() => {
-        queueMicrotask(hydrateSiteAndUi);
-      });
+      }
+      queueMicrotask(hydrateSiteAndUi);
+    })();
   }, []);
 
   /** الجوال يبقى التطبيق بالخلفية؛ عند الرجوع نحدّث الكتالوج حتى يظهر آخر منتج من Supabase. */
@@ -224,8 +244,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const onVis = () => {
       if (document.visibilityState === "visible") void refreshCatalog();
     };
+    const onOnline = () => void refreshCatalog();
     document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
+    window.addEventListener("online", onOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("online", onOnline);
+    };
   }, [refreshCatalog]);
 
   const setProducts = useCallback(

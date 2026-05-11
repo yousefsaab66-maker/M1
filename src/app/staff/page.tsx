@@ -40,8 +40,8 @@ import { formatDate, formatPrice, slugify } from "@/lib/format";
 import { formatIqd } from "@/lib/iraq";
 import { ensureProductOrderable, productGallerySources, productImageAt } from "@/lib/product-media";
 
-const MAX_IMAGE_BYTES = Math.floor(2.5 * 1024 * 1024);
-const MAX_HERO_VIDEO_BYTES = 25 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+const MAX_HERO_VIDEO_BYTES = 500 * 1024 * 1024;
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -87,15 +87,15 @@ export default function StaffPage() {
   if (!signedInAs.staff) return null;
 
   return (
-    <div className="px-5 py-12 md:px-10">
-      <div className="mx-auto max-w-[1500px]">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="eyebrow">MUHRA · {t("staff.shell.eyebrow")} · {signedInAs.staff}</p>
-            <h1 className="font-display mt-3 text-4xl md:text-5xl">{t("staff.shell.title")}</h1>
+    <div className="min-w-0 overflow-x-hidden px-4 py-8 sm:px-5 sm:py-12 md:px-10 md:py-12 [padding-bottom:max(2rem,env(safe-area-inset-bottom,0px))]">
+      <div className="mx-auto min-w-0 max-w-[1500px]">
+        <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="eyebrow break-words text-[10px] sm:text-[11px]">MUHRA · {t("staff.shell.eyebrow")} · {signedInAs.staff}</p>
+            <h1 className="font-display mt-2 break-words text-2xl sm:mt-3 sm:text-4xl md:text-5xl">{t("staff.shell.title")}</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href={"/" as never} className="text-[11px] tracking-eyebrow uppercase gold-underline">
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-2 sm:gap-3">
+            <Link href={"/" as never} className="text-[10px] tracking-eyebrow uppercase gold-underline sm:text-[11px]">
               {t("staff.shell.viewStore")}
             </Link>
             <button type="button" onClick={() => signOut("staff")} className="btn-ghost">
@@ -104,9 +104,9 @@ export default function StaffPage() {
           </div>
         </header>
 
-        <div className="mt-10 grid gap-8 lg:grid-cols-[220px_1fr] lg:gap-12">
-          <nav className="lg:sticky lg:top-28 self-start">
-            <ul className="flex gap-2 overflow-x-auto no-scrollbar lg:flex-col lg:gap-1">
+        <div className="mt-6 grid min-w-0 gap-6 sm:mt-8 sm:gap-8 lg:mt-10 lg:grid-cols-[minmax(0,220px)_1fr] lg:gap-12">
+          <nav className="lg:sticky lg:top-28 lg:self-start">
+            <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [-webkit-overflow-scrolling:touch] sm:mx-0 sm:px-0 lg:flex-col lg:gap-1">
               {tabs.map((tabDef) => (
                 <li key={tabDef.id}>
                   <button
@@ -123,7 +123,7 @@ export default function StaffPage() {
               ))}
             </ul>
           </nav>
-          <div>
+          <div className="min-w-0">
             {tab === "dashboard" && <DashboardPane />}
             {tab === "products" && <ProductsPane />}
             {tab === "orders" && <OrdersPane />}
@@ -140,6 +140,7 @@ export default function StaffPage() {
           align-items: center;
           gap: 0.7rem;
           padding: 0.7rem 1rem;
+          min-height: 2.75rem;
           font-size: 0.7rem;
           letter-spacing: 0.32em;
           text-transform: uppercase;
@@ -148,6 +149,12 @@ export default function StaffPage() {
           white-space: nowrap;
           transition: background 0.35s var(--ease-luxe), color 0.35s var(--ease-luxe), border-color 0.35s var(--ease-luxe);
         }
+        @media (max-width: 639px) {
+          .staff-tab { min-height: 3rem; padding: 0.65rem 0.85rem; }
+          .staff-table th, .staff-table td { padding: 0.5rem 0.45rem; font-size: 0.78rem; }
+          .staff-card { padding: 1rem; }
+        }
+        .staff-table-wrap { -webkit-overflow-scrolling: touch; }
         .staff-tab:hover { border-color: var(--color-gold); }
         .staff-tab[data-active="true"] {
           background: var(--color-onyx);
@@ -224,8 +231,14 @@ function emptyProduct(): Product {
   };
 }
 
+function mapRemoteProductError(error: string, t: (key: string) => string): string {
+  if (error === "not_configured") return t("staff.products.errorNotConfigured");
+  if (error === "unauthorized") return t("staff.products.errorUnauthorized");
+  return error;
+}
+
 function ProductsPane() {
-  const { products, setProducts, collections, addToBag, remoteCatalog, refreshCatalog } = useStore();
+  const { products, collections, addToBag, remoteCatalog, refreshCatalog } = useStore();
   const { t } = useLocale();
   const router = useRouter();
   const [editing, setEditing] = useState<Product | null>(null);
@@ -236,63 +249,55 @@ function ProductsPane() {
   const onSave = async (p: Product) => {
     setSaveError(null);
     const fixed = ensureProductOrderable(p);
-    if (remoteCatalog) {
-      try {
-        const { upsertProductRemote } = await import("@/app/actions/muhra-backend");
-        const res = await upsertProductRemote(fixed);
-        if (!res.ok) {
-          setSaveError(res.error);
-          return;
-        }
-        setOrderHint(res.product);
-        await refreshCatalog();
-      } catch {
-        setSaveError(t("staff.products.errorRequest"));
-      }
-      setEditing(null);
-      setCreating(false);
+    if (!remoteCatalog) {
+      setSaveError(t("staff.products.remoteRequired"));
       return;
     }
-    if (creating) {
-      const next = { ...fixed, id: "p-" + Date.now() };
-      setProducts([next, ...products]);
-      setOrderHint(next);
-    } else {
-      const next = { ...fixed, id: p.id };
-      setProducts(products.map((x) => (x.id === p.id ? next : x)));
-      setOrderHint(next);
+    try {
+      const { upsertProductRemote } = await import("@/app/actions/muhra-backend");
+      const res = await upsertProductRemote(fixed);
+      if (!res.ok) {
+        setSaveError(mapRemoteProductError(res.error, t));
+        return;
+      }
+      setOrderHint(res.product);
+      await refreshCatalog();
+      setEditing(null);
+      setCreating(false);
+    } catch {
+      setSaveError(t("staff.products.errorRequest"));
     }
-    setEditing(null);
-    setCreating(false);
   };
 
   const onDelete = async (id: string) => {
-    if (typeof window !== "undefined" && !window.confirm(t("staff.products.deleteConfirm"))) return;
-    if (remoteCatalog) {
-      setSaveError(null);
-      try {
-        const { deleteProductRemote } = await import("@/app/actions/muhra-backend");
-        await deleteProductRemote(id);
-        await refreshCatalog();
-      } catch {
-        setSaveError(t("staff.products.errorDelete"));
-      }
+    if (!remoteCatalog) {
+      setSaveError(t("staff.products.remoteRequired"));
       return;
     }
-    setProducts(products.filter((p) => p.id !== id));
+    if (typeof window !== "undefined" && !window.confirm(t("staff.products.deleteConfirm"))) return;
+    setSaveError(null);
+    try {
+      const { deleteProductRemote } = await import("@/app/actions/muhra-backend");
+      await deleteProductRemote(id);
+      await refreshCatalog();
+    } catch {
+      setSaveError(t("staff.products.errorDelete"));
+    }
   };
 
   return (
     <section>
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-3xl">{t("staff.products.count").replace("{n}", String(products.length))}</h2>
+      <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <h2 className="font-display min-w-0 break-words text-2xl sm:text-3xl">{t("staff.products.count").replace("{n}", String(products.length))}</h2>
         <button
           type="button"
+          disabled={!remoteCatalog}
+          title={!remoteCatalog ? t("staff.products.remoteRequired") : undefined}
           onClick={() => {
             setEditing(emptyProduct());
             setCreating(true);
           }}
-          className="btn-ghost"
+          className="btn-ghost disabled:cursor-not-allowed disabled:opacity-45"
         >
           <Plus className="h-4 w-4" strokeWidth={1.4} /> {t("staff.products.new")}
         </button>
@@ -370,16 +375,16 @@ function ProductsPane() {
           </div>
         </div>
       )}
-      <div className="mt-6 overflow-x-auto staff-card p-0">
-        <table className="staff-table">
+      <div className="staff-table-wrap mt-6 overflow-x-auto staff-card p-0">
+        <table className="staff-table min-w-[640px]">
           <thead>
             <tr>
               <th className="w-16">{t("staff.table.photo")}</th>
-              <th>Name</th>
-              <th>Collection</th>
-              <th>Category</th>
+              <th>{t("staff.table.name")}</th>
+              <th>{t("staff.table.collection")}</th>
+              <th>{t("staff.table.category")}</th>
               <th>{t("staff.table.sizes")}</th>
-              <th>Price</th>
+              <th>{t("staff.table.price")}</th>
               <th></th>
             </tr>
           </thead>
@@ -426,14 +431,26 @@ function ProductsPane() {
                     >
                       <ShoppingBag className="h-4 w-4" strokeWidth={1.4} />
                     </button>
-                    <button type="button" aria-label={t("staff.aria.edit")} onClick={() => { setEditing(p); setCreating(false); }} className="opacity-70 hover:opacity-100">
+                    <button
+                      type="button"
+                      disabled={!remoteCatalog}
+                      aria-label={t("staff.aria.edit")}
+                      title={!remoteCatalog ? t("staff.products.remoteRequired") : undefined}
+                      onClick={() => {
+                        setEditing(p);
+                        setCreating(false);
+                      }}
+                      className="opacity-70 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-35"
+                    >
                       <Pencil className="h-4 w-4" strokeWidth={1.4} />
                     </button>
                     <button
                       type="button"
+                      disabled={!remoteCatalog}
                       aria-label={t("staff.aria.delete")}
+                      title={!remoteCatalog ? t("staff.products.remoteRequired") : undefined}
                       onClick={() => void onDelete(p.id)}
-                      className="opacity-70 hover:opacity-100"
+                      className="opacity-70 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-35"
                     >
                       <Trash2 className="h-4 w-4" strokeWidth={1.4} />
                     </button>
@@ -477,27 +494,27 @@ function ProductEditor({
   const update = <K extends keyof Product>(k: K, v: Product[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end">
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center sm:justify-end">
       <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onCancel} aria-hidden />
       <div
-        className="relative z-10 flex max-h-full w-full max-w-6xl flex-col overflow-hidden md:flex-row"
+        className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden overscroll-contain pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] sm:h-auto sm:max-h-[100dvh] md:flex-row"
         style={{ background: "var(--background)", borderInlineStart: "1px solid var(--line)" }}
       >
         <aside
-          className="max-h-[38vh] shrink-0 overflow-y-auto border-b p-5 sm:p-6 md:max-h-none md:w-[min(100%,380px)] md:border-b-0 md:border-e"
+          className="max-h-[32vh] shrink-0 overflow-y-auto border-b p-4 sm:max-h-[38vh] sm:p-5 md:max-h-none md:w-[min(100%,380px)] md:border-b-0 md:border-e md:p-6"
           style={{ borderColor: "var(--line)", background: "var(--surface)" }}
         >
           <ProductStaffPreview key={draft.id} draft={draft} collections={collections} />
         </aside>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-          <div className="flex shrink-0 items-center justify-between p-6" style={{ borderBottom: "1px solid var(--line)" }}>
-            <h3 className="font-display text-2xl">{isCreating ? t("staff.form.newTitle") : t("staff.form.editTitle")}</h3>
-            <button type="button" onClick={onCancel} aria-label={t("staff.aria.close")}>
+          <div className="flex shrink-0 items-center justify-between gap-3 p-4 sm:p-6" style={{ borderBottom: "1px solid var(--line)" }}>
+            <h3 className="min-w-0 flex-1 break-words font-display text-xl sm:text-2xl">{isCreating ? t("staff.form.newTitle") : t("staff.form.editTitle")}</h3>
+            <button type="button" onClick={onCancel} className="flex h-11 w-11 flex-shrink-0 items-center justify-center" aria-label={t("staff.aria.close")}>
               <X className="h-5 w-5" strokeWidth={1.4} />
             </button>
           </div>
           <form
-            className="space-y-5 p-6"
+            className="space-y-5 p-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:p-6"
             onSubmit={async (e) => {
               e.preventDefault();
               await onSave(draft);
@@ -509,7 +526,7 @@ function ProductEditor({
           <Field label={t("staff.form.slug")}>
             <input className="staff-input" value={draft.slug} onChange={(e) => update("slug", slugify(e.target.value))} placeholder={t("staff.form.slugPlaceholder")} />
           </Field>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={t("staff.form.price")}>
               <input type="number" className="staff-input" min="0" value={draft.price} onChange={(e) => update("price", Number(e.target.value))} required />
             </Field>
@@ -521,7 +538,7 @@ function ProductEditor({
               </select>
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={t("staff.form.collection")}>
               <select className="staff-input" value={draft.collection} onChange={(e) => update("collection", e.target.value)}>
                 {collections.map((c) => (
@@ -969,9 +986,9 @@ function OrdersPane() {
 
   return (
     <section>
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-3xl">{t("staff.orders.titleCount").replace("{n}", String(orders.length))}</h2>
-        <div className="flex flex-wrap items-center gap-3">
+      <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <h2 className="font-display min-w-0 break-words text-2xl sm:text-3xl">{t("staff.orders.titleCount").replace("{n}", String(orders.length))}</h2>
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <select
             className="staff-input"
             value={statusFilter}
@@ -986,15 +1003,15 @@ function OrdersPane() {
             ))}
           </select>
           <input
-            className="staff-input max-w-xs"
+            className="staff-input w-full min-w-0 sm:max-w-xs"
             placeholder={t("staff.orders.searchPlaceholder")}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
       </header>
-      <div className="mt-6 overflow-x-auto staff-card p-0">
-        <table className="staff-table">
+      <div className="staff-table-wrap mt-6 overflow-x-auto staff-card p-0">
+        <table className="staff-table min-w-[720px]">
           <thead>
             <tr>
               <th></th>
@@ -1190,7 +1207,7 @@ function CollectionsPane() {
   const { t } = useLocale();
   return (
     <section>
-      <h2 className="font-display text-3xl">{t("staff.collections.titleCount").replace("{n}", String(collections.length))}</h2>
+      <h2 className="font-display break-words text-2xl sm:text-3xl">{t("staff.collections.titleCount").replace("{n}", String(collections.length))}</h2>
       <p className="mt-2 opacity-70 text-sm">{t("staff.collections.hint")}</p>
       <div className="mt-6 grid gap-4">
         {collections.map((c) => (
@@ -1277,8 +1294,8 @@ function JournalPane() {
   };
   return (
     <section>
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-3xl">{t("staff.journal.titleCount").replace("{n}", String(journal.length))}</h2>
+      <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <h2 className="font-display min-w-0 break-words text-2xl sm:text-3xl">{t("staff.journal.titleCount").replace("{n}", String(journal.length))}</h2>
         <button type="button" onClick={onAdd} className="btn-ghost">
           <Plus className="h-4 w-4" strokeWidth={1.4} /> {t("staff.journal.newArticle")}
         </button>
@@ -1309,7 +1326,7 @@ function JournalPane() {
                   }
                 />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label={t("staff.journal.fieldAuthor")}>
                   <input className="staff-input" value={a.author} onChange={(e) => setJournal(journal.map((x) => (x.id === a.id ? { ...x, author: e.target.value } : x)))} />
                 </Field>
@@ -1378,7 +1395,7 @@ function SitePane() {
 
   return (
     <section>
-      <h2 className="font-display text-3xl">{t("staff.site.title")}</h2>
+      <h2 className="font-display break-words text-2xl sm:text-3xl">{t("staff.site.title")}</h2>
       <p className="mt-2 opacity-70 text-sm">{t("staff.site.intro")}</p>
       <form
         onSubmit={(e) => {
@@ -1483,7 +1500,7 @@ function SecurityPane() {
   const [err, setErr] = useState<string | null>(null);
   return (
     <section>
-      <h2 className="font-display text-3xl">{t("staff.security.title")}</h2>
+      <h2 className="font-display break-words text-2xl sm:text-3xl">{t("staff.security.title")}</h2>
       <p className="mt-2 opacity-70 text-sm leading-relaxed">
         {t("staff.security.intro")}
       </p>

@@ -33,9 +33,9 @@ export default function StaffLoginPage() {
   }
 
   return (
-    <div className="px-5 py-20 md:px-10 md:py-28">
+    <div className="min-w-0 overflow-x-hidden px-4 py-16 sm:px-5 md:px-10 md:py-28 [padding-bottom:max(2.5rem,env(safe-area-inset-bottom,0px))]">
       <SectionTitle eyebrow="MUHRA" title={t("staff.signin")} />
-      <form onSubmit={onSubmit} className="card-luxe mx-auto mt-12 w-full max-w-md p-10">
+      <form onSubmit={onSubmit} className="card-luxe mx-auto mt-8 w-full max-w-md p-6 sm:mt-12 sm:p-10">
         <label className="field-label" htmlFor="u">{t("staff.login.username")}</label>
         <input id="u" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} className="input-luxe" autoComplete="username" required />
         <label className="field-label mt-6" htmlFor="p">{t("common.password")}</label>
