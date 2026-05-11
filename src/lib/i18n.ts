@@ -432,6 +432,8 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.errorNotConfigured":
       "Supabase env missing on the server: SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY.",
     "staff.products.errorUnauthorized": "Staff session expired. Sign in again.",
+    "staff.products.errorPayloadImages":
+      "Images are too large as embedded data for cloud save. Upload each image with «Upload from computer» (Supabase) so URLs are https://, or remove pasted base64 from the image URLs field.",
     "staff.form.newTitle": "New product",
     "staff.form.editTitle": "Edit product",
     "staff.form.name": "Name",
@@ -1981,6 +1983,8 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.errorNotConfigured":
       "متغيرات Supabase ناقصة على السيرفر (`SUPABASE_URL` أو `NEXT_PUBLIC_SUPABASE_URL` و `SUPABASE_SERVICE_ROLE_KEY`).",
     "staff.products.errorUnauthorized": "انتهت جلسة الموظفين. سجّل الدخول من جديد.",
+    "staff.products.errorPayloadImages":
+      "صور كبيرة كنص مضمّن (base64) تمنع الحفظ على السحابة. ارفع كل صورة بزر «رفع من الجهاز» حتى تصير الروابط https، أو احذف النصوص الطويلة من حقل روابط الصور.",
     "staff.form.newTitle": "منتج جديد",
     "staff.form.editTitle": "تعديل المنتج",
     "staff.form.name": "الاسم",

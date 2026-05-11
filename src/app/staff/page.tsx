@@ -235,6 +235,8 @@ function emptyProduct(): Product {
 function mapRemoteProductError(error: string, t: (key: string) => string): string {
   if (error === "not_configured") return t("staff.products.errorNotConfigured");
   if (error === "unauthorized") return t("staff.products.errorUnauthorized");
+  if (error === "payload_image_too_large" || error === "payload_images_too_large")
+    return t("staff.products.errorPayloadImages");
   return error;
 }
 

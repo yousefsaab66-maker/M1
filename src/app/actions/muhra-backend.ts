@@ -6,7 +6,7 @@ import type { Product } from "@/lib/catalog";
 import type { Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
 import { productToInsert, rowToProduct, isDatabaseProductId, type ProductRow } from "@/lib/catalog-db";
 import { SHIPPING_FEE_IQD, toIqd } from "@/lib/iraq";
-import { ensureProductOrderable } from "@/lib/product-media";
+import { ensureProductOrderable, validateProductPayloadForServerSave } from "@/lib/product-media";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -137,6 +137,8 @@ export async function upsertProductRemote(p: Product): Promise<{ ok: true; produ
   if (!isSupabaseBackendConfigured()) return { ok: false, error: "not_configured" };
 
   const fixed = ensureProductOrderable(p);
+  const payloadErr = validateProductPayloadForServerSave(fixed);
+  if (payloadErr) return { ok: false, error: payloadErr };
   const row = productToInsert(fixed);
   const sb = supabaseAdmin();
 
@@ -148,22 +150,14 @@ export async function upsertProductRemote(p: Product): Promise<{ ok: true; produ
       .select("*")
       .single();
     if (error || !data) return { ok: false, error: error?.message ?? "update_failed" };
-    revalidateCatalogPaths();
     revalidatePath("/staff");
     return { ok: true, product: rowToProduct(data as ProductRow) };
   }
 
   const { data, error } = await sb.from("products").insert(row).select("*").single();
   if (error || !data) return { ok: false, error: error?.message ?? "insert_failed" };
-  revalidateCatalogPaths();
   revalidatePath("/staff");
   return { ok: true, product: rowToProduct(data as ProductRow) };
-}
-
-function revalidateCatalogPaths() {
-  revalidatePath("/");
-  revalidatePath("/products");
-  revalidatePath("/collections");
 }
 
 export async function deleteProductRemote(id: string): Promise<boolean> {
@@ -173,7 +167,6 @@ export async function deleteProductRemote(id: string): Promise<boolean> {
   const sb = supabaseAdmin();
   const { error } = await sb.from("products").delete().eq("id", id);
   if (error) return false;
-  revalidateCatalogPaths();
   revalidatePath("/staff");
   return true;
 }

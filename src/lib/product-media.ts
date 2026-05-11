@@ -33,3 +33,22 @@ export function ensureProductOrderable(p: Product): Product {
   const sizes = sizeList.length > 0 ? sizeList : undefined;
   return { ...p, slug, images, sizes };
 }
+
+/**
+ * Server Actions must stay small for Edge/Workers CPU limits. Inline data: images (base64) blow JSON size
+ * and can trigger Cloudflare 1102 on save.
+ */
+const MAX_DATA_URL_CHARS_PER_IMAGE = 64 * 1024;
+const MAX_TOTAL_DATA_URL_CHARS = 400 * 1024;
+
+/** Returns an error code if the payload is unsafe to send through a Worker to Supabase. */
+export function validateProductPayloadForServerSave(p: Product): string | null {
+  let total = 0;
+  for (const u of p.images ?? []) {
+    if (!u.startsWith("data:")) continue;
+    if (u.length > MAX_DATA_URL_CHARS_PER_IMAGE) return "payload_image_too_large";
+    total += u.length;
+  }
+  if (total > MAX_TOTAL_DATA_URL_CHARS) return "payload_images_too_large";
+  return null;
+}
