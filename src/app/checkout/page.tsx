@@ -94,13 +94,19 @@ export default function CheckoutPage() {
       address: address.trim(),
       notes: notes.trim() || undefined,
     };
-    const order = await placeOrder({ customer, payment: { method: "cod" } });
-    if (!order) {
+    const result = await placeOrder({ customer, payment: { method: "cod" } });
+    if (!result.ok) {
       setSubmitting(false);
-      setOrderError(t("checkout.orderFailed"));
+      const errKey =
+        result.error === "rate_limited"
+          ? "checkout.rateLimited"
+          : result.error === "invalid_phone"
+            ? "v.phone"
+            : "checkout.orderFailed";
+      setOrderError(t(errKey));
       return;
     }
-    router.push(`/checkout/success?orderId=${encodeURIComponent(order.id)}` as never);
+    router.push(`/checkout/success?orderId=${encodeURIComponent(result.order.id)}` as never);
   };
 
   if (!hydrated) {

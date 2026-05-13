@@ -89,7 +89,9 @@ type StoreCtx = {
 
   orders: Order[];
   placeDemoOrder: () => Order | null;
-  placeOrder: (input: PlaceOrderInput) => Promise<Order | null>;
+  placeOrder: (
+    input: PlaceOrderInput,
+  ) => Promise<{ ok: true; order: Order } | { ok: false; error: string }>;
   setOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
   removeOrder: (id: string) => Promise<void>;
 
@@ -497,25 +499,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [supabaseReady, bag, buildOrderItems, user]);
 
   const placeOrder = useCallback(
-    async (input: PlaceOrderInput): Promise<Order | null> => {
-      if (bag.length === 0) return null;
+    async (
+      input: PlaceOrderInput,
+    ): Promise<{ ok: true; order: Order } | { ok: false; error: string }> => {
+      if (bag.length === 0) return { ok: false, error: "empty" };
       const lines = bag.map((b) => ({ productId: b.productId, qty: b.qty, size: b.size }));
 
       if (supabaseReady) {
         try {
           const { createOrderRemote } = await import("@/app/actions/muhra-backend");
           const res = await createOrderRemote(input, lines);
-          if (!res.ok) return null;
+          if (!res.ok) return { ok: false, error: res.error };
           setBag([]);
           writeJSON(KEY_BAG, []);
-          return res.order;
+          return { ok: true, order: res.order };
         } catch {
-          return null;
+          return { ok: false, error: "network" };
         }
       }
 
       const items = buildOrderItems();
-      if (items.length === 0) return null;
+      if (items.length === 0) return { ok: false, error: "empty" };
       const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
       const currency: Currency = items[0].currency;
       const subtotalIqd = toIqd(subtotal, currency);
@@ -543,7 +547,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
       setBag([]);
       writeJSON(KEY_BAG, []);
-      return order;
+      return { ok: true, order };
     },
     [supabaseReady, bag, buildOrderItems],
   );

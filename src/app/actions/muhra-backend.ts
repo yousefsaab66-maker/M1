@@ -1,13 +1,18 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { Product } from "@/lib/catalog";
 import type { Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
 import { isDatabaseProductId } from "@/lib/catalog-db";
-import { SHIPPING_FEE_IQD, toIqd } from "@/lib/iraq";
+import { normalizeIraqiPhone, SHIPPING_FEE_IQD, toIqd } from "@/lib/iraq";
 import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin";
+
+const ORDER_LIMIT_PER_PHONE = 5;
+const ORDER_LIMIT_PER_IP = 20;
+const ORDER_WINDOW_MS = 60 * 60 * 1000;
 
 async function requireStaff(): Promise<boolean> {
   const secret = process.env.STAFF_COOKIE_SECRET;
@@ -22,6 +27,16 @@ export async function createOrderRemote(
   if (!isSupabaseBackendConfigured()) return { ok: false, error: "not_configured" };
   if (input.payment.method !== "cod") return { ok: false, error: "cod_only" };
   if (bagLines.length === 0) return { ok: false, error: "empty" };
+
+  /* مفتاحان: الهاتف (دقيق) والـ IP (يحمي من تجريب أرقام كثيرة من نفس المصدر). */
+  const phoneKey = normalizeIraqiPhone(input.customer.phone) ?? input.customer.phone.trim();
+  if (!phoneKey) return { ok: false, error: "invalid_phone" };
+  const phoneRl = rateLimit(`order_phone:${phoneKey}`, ORDER_LIMIT_PER_PHONE, ORDER_WINDOW_MS);
+  if (!phoneRl.ok) return { ok: false, error: "rate_limited" };
+
+  const ip = getClientIp(await headers());
+  const ipRl = rateLimit(`order_ip:${ip}`, ORDER_LIMIT_PER_IP, ORDER_WINDOW_MS);
+  if (!ipRl.ok) return { ok: false, error: "rate_limited" };
 
   const sb = supabaseAdmin();
   const ids = [...new Set(bagLines.map((b) => b.productId))];

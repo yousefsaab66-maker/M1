@@ -5,7 +5,7 @@ export const MUHRA_PRODUCT_IMAGES_BUCKET =
     : "muhra-products";
 
 /** يطابق `file_size_limit` لـ bucket `muhra-products` في Supabase (انظر migrations). */
-export const MUHRA_MAX_IMAGE_UPLOAD_BYTES = Math.floor(2.5 * 1024 * 1024);
+export const MUHRA_MAX_IMAGE_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 /** Allowed MIME types for product uploads (staff API + bucket policy alignment). */
 export const MUHRA_IMAGE_UPLOAD_MIME: readonly string[] = [

@@ -148,6 +148,8 @@ export const DICTS: Record<Locale, Dict> = {
     "checkout.empty.cta": "Discover the catalogue",
     "checkout.orderFailed":
       "We could not place your order. Check your connection, that the bag is still valid, then try again.",
+    "checkout.rateLimited":
+      "Too many orders from this phone or network. Please wait a few minutes before trying again.",
     // Validation
     "v.required": "This field is required.",
     "v.phone": "Enter a valid Iraqi mobile number (07XXXXXXXXX).",
@@ -200,15 +202,15 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.title": "Product images",
     "staff.images.urls": "Image URLs (one per line)",
     "staff.images.upload": "Upload from computer",
-    "staff.images.uploadHint": "PNG / JPG / WebP, up to 2.5 MB each.",
-    "staff.images.uploadHintCloud": "PNG / JPG / WebP — up to 2.5 MB each; files are stored in MUHRA cloud (Supabase Storage).",
+    "staff.images.uploadHint": "PNG / JPG / WebP, up to 25 MB each.",
+    "staff.images.uploadHintCloud": "PNG / JPG / WebP — up to 25 MB each; files are stored in MUHRA cloud (Supabase Storage).",
     "staff.images.uploading": "Uploading…",
     "staff.images.uploadErr.unauthorized": "Staff session expired — sign in again.",
     "staff.images.uploadErr.not_configured": "Supabase is not configured on the server.",
     "staff.images.uploadErr.invalid_body": "Could not read the upload request.",
     "staff.images.uploadErr.missing_file": "No file received.",
     "staff.images.uploadErr.invalid_type": "Only PNG, JPG, WebP, or GIF.",
-    "staff.images.uploadErr.too_large": "File exceeds the 2.5 MB limit.",
+    "staff.images.uploadErr.too_large": "File exceeds the 25 MB limit.",
     "staff.images.uploadErr.storage_generic":
       "Storage rejected the upload. In Supabase, confirm the bucket exists, run repo SQL under supabase/migrations/, and verify SUPABASE_SERVICE_ROLE_KEY and bucket name (default muhra-products).",
     "staff.images.uploadErr.bucket_missing":
@@ -220,9 +222,11 @@ export const DICTS: Record<Locale, Dict> = {
       "This image type is blocked by the bucket. Allowed: JPEG, PNG, WebP, GIF (see bucket allowed_mime_types in Supabase).",
     "staff.images.uploadErr.bad_credentials":
       "Invalid Supabase key on the server — verify SUPABASE_SERVICE_ROLE_KEY (service_role, not anon).",
+    "staff.images.uploadErr.rate_limited":
+      "Too many uploads from your account or network. Please wait a few minutes.",
     "staff.images.uploadErr.unknown": "Cloud upload failed.",
     "staff.images.remove": "Remove",
-    "staff.images.tooLarge": "{name} is larger than 2.5 MB and was skipped.",
+    "staff.images.tooLarge": "{name} is larger than 25 MB and was skipped.",
     "staff.images.notImage": "{name} is not an image and was skipped.",
     "staff.images.save": "Save images",
     // Staff — hero video
@@ -654,6 +658,8 @@ export const DICTS: Record<Locale, Dict> = {
     "checkout.empty.cta": "Découvrir le catalogue",
     "checkout.orderFailed":
       "La commande n'a pas pu être enregistrée. Vérifiez la connexion et réessayez.",
+    "checkout.rateLimited":
+      "Trop de commandes depuis ce téléphone ou ce réseau. Patientez quelques minutes et réessayez.",
     "v.required": "Ce champ est requis.",
     "v.phone": "Entrez un numéro de mobile irakien valide (07XXXXXXXXX).",
     "v.governorate": "Veuillez choisir un gouvernorat.",
@@ -701,9 +707,9 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.title": "Images du produit",
     "staff.images.urls": "URL d'images (une par ligne)",
     "staff.images.upload": "Téléverser depuis l'ordinateur",
-    "staff.images.uploadHint": "PNG / JPG / WebP, jusqu'à 2,5 Mo chacune.",
+    "staff.images.uploadHint": "PNG / JPG / WebP, jusqu'à 25 Mo chacune.",
     "staff.images.remove": "Retirer",
-    "staff.images.tooLarge": "{name} dépasse 2,5 Mo et a été ignorée.",
+    "staff.images.tooLarge": "{name} dépasse 25 Mo et a été ignorée.",
     "staff.images.notImage": "{name} n'est pas une image et a été ignorée.",
     "staff.images.save": "Enregistrer les images",
     "staff.hero.title": "Vidéo de l'accueil",
@@ -1010,6 +1016,8 @@ export const DICTS: Record<Locale, Dict> = {
     "checkout.empty.cta": "Scopri il catalogo",
     "checkout.orderFailed":
       "Impossibile completare l'ordine. Controlla la connessione e riprova.",
+    "checkout.rateLimited":
+      "Troppi ordini da questo numero o rete. Attendi qualche minuto e riprova.",
     "v.required": "Questo campo è obbligatorio.",
     "v.phone": "Inserisci un numero di cellulare iracheno valido (07XXXXXXXXX).",
     "v.governorate": "Scegli un governatorato.",
@@ -1057,9 +1065,9 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.title": "Immagini del prodotto",
     "staff.images.urls": "URL delle immagini (una per riga)",
     "staff.images.upload": "Carica dal computer",
-    "staff.images.uploadHint": "PNG / JPG / WebP, fino a 2,5 MB ciascuna.",
+    "staff.images.uploadHint": "PNG / JPG / WebP, fino a 25 MB ciascuna.",
     "staff.images.remove": "Rimuovi",
-    "staff.images.tooLarge": "{name} supera 2,5 MB ed è stata ignorata.",
+    "staff.images.tooLarge": "{name} supera 25 MB ed è stata ignorata.",
     "staff.images.notImage": "{name} non è un'immagine ed è stata ignorata.",
     "staff.images.save": "Salva immagini",
     "staff.hero.title": "Video di copertina",
@@ -1366,6 +1374,8 @@ export const DICTS: Record<Locale, Dict> = {
     "checkout.empty.cta": "Descubre el catálogo",
     "checkout.orderFailed":
       "No se pudo registrar el pedido. Comprueba la conexión e inténtalo de nuevo.",
+    "checkout.rateLimited":
+      "Demasiados pedidos desde este teléfono o red. Espera unos minutos e inténtalo de nuevo.",
     "v.required": "Este campo es obligatorio.",
     "v.phone": "Introduce un móvil iraquí válido (07XXXXXXXXX).",
     "v.governorate": "Elige una gobernación.",
@@ -1413,9 +1423,9 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.title": "Imágenes del producto",
     "staff.images.urls": "URL de imágenes (una por línea)",
     "staff.images.upload": "Subir desde el ordenador",
-    "staff.images.uploadHint": "PNG / JPG / WebP, hasta 2,5 MB cada una.",
+    "staff.images.uploadHint": "PNG / JPG / WebP, hasta 25 MB cada una.",
     "staff.images.remove": "Eliminar",
-    "staff.images.tooLarge": "{name} supera 2,5 MB y se ha omitido.",
+    "staff.images.tooLarge": "{name} supera 25 MB y se ha omitido.",
     "staff.images.notImage": "{name} no es una imagen y se ha omitido.",
     "staff.images.save": "Guardar imágenes",
     "staff.hero.title": "Vídeo principal",
@@ -1722,6 +1732,8 @@ export const DICTS: Record<Locale, Dict> = {
     "checkout.empty.cta": "استكشف الكتالوج",
     "checkout.orderFailed":
       "تعذّر إتمام الطلب. تحقّق من الاتصال أو أن المنتجات ما زالت متوفرة ثم أعد المحاولة.",
+    "checkout.rateLimited":
+      "محاولات كثيرة من هذا الرقم أو الشبكة. انتظر بضع دقائق ثم أعد المحاولة.",
     "v.required": "هذا الحقل مطلوب.",
     "v.phone": "يرجى إدخال رقم هاتف عراقي صحيح (07XXXXXXXXX).",
     "v.governorate": "يرجى اختيار محافظة.",
@@ -1769,15 +1781,15 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.title": "صور المنتج",
     "staff.images.urls": "روابط الصور (واحد لكل سطر)",
     "staff.images.upload": "رفع من الجهاز",
-    "staff.images.uploadHint": "PNG / JPG / WebP، حتى 2.5 ميغابايت لكل صورة.",
-    "staff.images.uploadHintCloud": "PNG / JPG / WebP — حتى 2.5 ميغابايت؛ تُحفظ في سحابة MUHRA (Supabase Storage).",
+    "staff.images.uploadHint": "PNG / JPG / WebP، حتى 25 ميغابايت لكل صورة.",
+    "staff.images.uploadHintCloud": "PNG / JPG / WebP — حتى 25 ميغابايت؛ تُحفظ في سحابة MUHRA (Supabase Storage).",
     "staff.images.uploading": "جاري الرفع…",
     "staff.images.uploadErr.unauthorized": "انتهت جلسة الموظفين — أعد تسجيل الدخول.",
     "staff.images.uploadErr.not_configured": "Supabase غير مُهيَّأ على السيرفر.",
     "staff.images.uploadErr.invalid_body": "تعذّر قراءة طلب الرفع.",
     "staff.images.uploadErr.missing_file": "لم يصل ملف للسيرفر.",
     "staff.images.uploadErr.invalid_type": "مسموح فقط PNG أو JPG أو WebP أو GIF.",
-    "staff.images.uploadErr.too_large": "الملف أكبر من 2.5 ميغابايت.",
+    "staff.images.uploadErr.too_large": "الملف أكبر من 25 ميغابايت.",
     "staff.images.uploadErr.storage_generic":
       "التخزين رفض الملف. في Supabase: تأكد أن الـ bucket موجود، شغّل SQL المشروع من supabase/migrations/، وتحقق من SUPABASE_SERVICE_ROLE_KEY واسم الـ bucket (الافتراضي muhra-products).",
     "staff.images.uploadErr.bucket_missing":
@@ -1788,9 +1800,10 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.mime_not_allowed":
       "نوع الصورة مرفوض من إعدادات الـ bucket. المسموح: JPEG، PNG، WebP، GIF.",
     "staff.images.uploadErr.bad_credentials": "مفتاح Supabase على السيرفر غير صحيح — راجع SUPABASE_SERVICE_ROLE_KEY.",
+    "staff.images.uploadErr.rate_limited": "رفعات كثيرة من حسابك أو شبكتك — انتظر بضع دقائق ثم أعد المحاولة.",
     "staff.images.uploadErr.unknown": "فشل الرفع للسحابة.",
     "staff.images.remove": "إزالة",
-    "staff.images.tooLarge": "{name} أكبر من 2.5 ميغابايت وتم تجاوزها.",
+    "staff.images.tooLarge": "{name} أكبر من 25 ميغابايت وتم تجاوزها.",
     "staff.images.notImage": "{name} ليست صورة وتم تجاوزها.",
     "staff.images.save": "حفظ الصور",
     "staff.hero.title": "فيديو الواجهة",
