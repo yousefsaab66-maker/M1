@@ -23,5 +23,12 @@
   },
   "observability": {
     "enabled": true
+  },
+  // Public, non-secret variables. Secrets (SUPABASE_SERVICE_ROLE_KEY, STAFF_COOKIE_SECRET, STAFF_PASSWORD)
+  // are configured via `wrangler secret put` or the dashboard — never commit them here.
+  // STAFF_USERNAME is configured per-environment via dashboard (defaults to "staff" if unset).
+  "vars": {
+    "SUPABASE_URL": "https://jqiznpmpenabzudcljdl.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://jqiznpmpenabzudcljdl.supabase.co"
   }
 }
