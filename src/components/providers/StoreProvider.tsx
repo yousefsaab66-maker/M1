@@ -82,6 +82,8 @@ type StoreCtx = {
   remoteCatalog: boolean;
   /** السيرفر يملك مفاتيح Supabase — للحفظ والرفع حتى لو فشل جلب قائمة المنتجات لحظياً. */
   supabaseReady: boolean;
+  /** Worker مربوط بـ R2 مع عنوان عام — رفع الوسائط بدون الاعتماد على Supabase Storage. */
+  r2Ready: boolean;
   refreshCatalog: () => Promise<void>;
   /** بعد حفظ منتج عبر API — يحدّث القائمة واللقطة حتى لا يختفي المنتج إذا فشل refresh (CF 1102). */
   mergeRemoteProduct: (p: Product) => void;
@@ -207,6 +209,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   /** يُحدَّد وقت التشغيل من `/api/catalog/products` حتى يعمل الكتالوج لو غاب NEXT_PUBLIC وقت بناء الاستضافة. */
   const [remoteCatalog, setRemoteCatalog] = useState(false);
   const [supabaseReady, setSupabaseReady] = useState(false);
+  const [r2Ready, setR2Ready] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   const [products, setProductsState] = useState<Product[]>(SEED_PRODUCTS);
@@ -267,7 +270,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setHydrated(true);
     };
 
-    const useLocalCatalog = () => {
+    const applyLocalCatalogFromStorage = () => {
       setRemoteCatalog(false);
       setProductsState(readJSON<Product[]>(KEY_PRODUCTS, SEED_PRODUCTS));
       setOrders(readJSON<Order[]>(KEY_ORDERS, []));
@@ -281,47 +284,54 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setProductsState(snap);
         return;
       }
-      useLocalCatalog();
+      applyLocalCatalogFromStorage();
     };
 
-    /* لو انتظرنا الشبكة قبل hydrate، صفحات مثل السلة أو الـ staff تبدو «متوقفة» إذا علّق /api على Cloudflare. */
-    hydrateSiteAndUi();
-    const snapBootstrap = readCatalogSnapshot();
-    if (snapBootstrap && snapBootstrap.length > 0) {
-      setProductsState(snapBootstrap);
-      setRemoteCatalog(true);
-    } else {
-      setProductsState(readJSON<Product[]>(KEY_PRODUCTS, SEED_PRODUCTS));
-      setRemoteCatalog(false);
-    }
-    setOrders(readJSON<Order[]>(KEY_ORDERS, []));
-
-    void (async () => {
-      const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
-      try {
-        const [healthOutcome, catalogRes] = await Promise.all([
-          fetch("/api/health/supabase", { ...CATALOG_FETCH_OPTS, signal: ac.signal })
-            .then((r) => (r.ok ? (r.json() as Promise<{ ready?: unknown }>) : Promise.resolve({})))
-            .catch(() => ({})),
-
-          fetchCatalogJson(3, ac.signal),
-        ]);
-
-        setSupabaseReady((healthOutcome as { ready?: boolean }).ready === true);
-
-        if (catalogRes.ok) {
-          writeCatalogSnapshot(catalogRes.products);
-          clearStaleLocalProductCache();
-          setRemoteCatalog(true);
-          setProductsState(catalogRes.products);
-        } else {
-          recoverCatalogAfterNetworkFailure();
-        }
-      } finally {
-        clearTimeout(timer);
+    queueMicrotask(() => {
+      /* لو انتظرنا الشبكة قبل hydrate، صفحات مثل السلة أو الـ staff تبدو «متوقفة» إذا علّق /api على Cloudflare. */
+      hydrateSiteAndUi();
+      const snapBootstrap = readCatalogSnapshot();
+      if (snapBootstrap && snapBootstrap.length > 0) {
+        setProductsState(snapBootstrap);
+        setRemoteCatalog(true);
+      } else {
+        setProductsState(readJSON<Product[]>(KEY_PRODUCTS, SEED_PRODUCTS));
+        setRemoteCatalog(false);
       }
-    })();
+      setOrders(readJSON<Order[]>(KEY_ORDERS, []));
+
+      void (async () => {
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
+        try {
+          const [healthOutcome, r2Outcome, catalogRes] = await Promise.all([
+            fetch("/api/health/supabase", { ...CATALOG_FETCH_OPTS, signal: ac.signal })
+              .then((r) => (r.ok ? (r.json() as Promise<{ ready?: unknown }>) : Promise.resolve({})))
+              .catch(() => ({})),
+
+            fetch("/api/health/r2", { ...CATALOG_FETCH_OPTS, signal: ac.signal })
+              .then((r) => (r.ok ? (r.json() as Promise<{ ready?: unknown }>) : Promise.resolve({})))
+              .catch(() => ({})),
+
+            fetchCatalogJson(3, ac.signal),
+          ]);
+
+          setSupabaseReady((healthOutcome as { ready?: boolean }).ready === true);
+          setR2Ready((r2Outcome as { ready?: boolean }).ready === true);
+
+          if (catalogRes.ok) {
+            writeCatalogSnapshot(catalogRes.products);
+            clearStaleLocalProductCache();
+            setRemoteCatalog(true);
+            setProductsState(catalogRes.products);
+          } else {
+            recoverCatalogAfterNetworkFailure();
+          }
+        } finally {
+          clearTimeout(timer);
+        }
+      })();
+    });
   }, []);
 
   /** الجوال يبقى التطبيق بالخلفية؛ عند الرجوع نحدّث الكتالوج حتى يظهر آخر منتج من Supabase. */
@@ -625,6 +635,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       inWishlist,
       remoteCatalog,
       supabaseReady,
+      r2Ready,
       refreshCatalog,
       mergeRemoteProduct,
       pullRemoteOrders,
@@ -661,6 +672,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       inWishlist,
       remoteCatalog,
       supabaseReady,
+      r2Ready,
       refreshCatalog,
       mergeRemoteProduct,
       pullRemoteOrders,

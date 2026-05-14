@@ -40,9 +40,7 @@ import type {
 import { formatDate, formatPrice, slugify } from "@/lib/format";
 import { formatIqd } from "@/lib/iraq";
 import { ensureProductOrderable, productGallerySources, productImageAt } from "@/lib/product-media";
-import { MUHRA_MAX_IMAGE_UPLOAD_BYTES } from "@/lib/supabase/storage-constants";
-
-const MAX_HERO_VIDEO_BYTES = 500 * 1024 * 1024;
+import { MUHRA_MAX_IMAGE_UPLOAD_BYTES, MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES, isAllowedStaffVideoMime } from "@/lib/supabase/storage-constants";
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -247,10 +245,12 @@ function ProductsPane() {
     addToBag,
     remoteCatalog,
     supabaseReady,
+    r2Ready,
     refreshCatalog,
     mergeRemoteProduct,
   } = useStore();
   const { t } = useLocale();
+  const mediaCloudUpload = supabaseReady || r2Ready;
   const router = useRouter();
   const [editing, setEditing] = useState<Product | null>(null);
   const [creating, setCreating] = useState(false);
@@ -527,8 +527,9 @@ function ProductsPane() {
 
       {imageQuickEdit && (
         <ProductImagesQuickModal
+          key={imageQuickEdit.id}
           product={imageQuickEdit}
-          cloudUpload={supabaseReady}
+          cloudUpload={mediaCloudUpload}
           onClose={() => setImageQuickEdit(null)}
           onSave={async (p) => {
             if (await persistProduct(p)) setImageQuickEdit(null);
@@ -542,7 +543,7 @@ function ProductsPane() {
           product={editing}
           collections={collections}
           isCreating={creating}
-          cloudUpload={supabaseReady}
+          cloudUpload={mediaCloudUpload}
           onCancel={() => { setEditing(null); setCreating(false); }}
           onSave={onSave}
         />
@@ -565,10 +566,6 @@ function ProductImagesQuickModal({
   const { t } = useLocale();
   const [draft, setDraft] = useState<Product>(() => ({ ...product }));
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    setDraft({ ...product });
-  }, [product]);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:px-4">
@@ -1553,36 +1550,67 @@ function JournalPane() {
   );
 }
 
+function translateStaffMediaUploadErr(code: string, t: (key: string) => string): string {
+  const key = `staff.images.uploadErr.${code}`;
+  const txt = t(key);
+  return txt === key ? t("staff.images.uploadErr.unknown") : txt;
+}
+
 function SitePane() {
-  const { site, setSite, resetCatalog } = useStore();
+  const { site, setSite, resetCatalog, supabaseReady, r2Ready } = useStore();
   const { t } = useLocale();
+  const cloudMedia = supabaseReady || r2Ready;
   const [draft, setDraft] = useState<SiteContent>(site);
   const [saved, setSaved] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoBusy, setVideoBusy] = useState(false);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDraft(site);
+    queueMicrotask(() => {
+      setDraft(site);
+    });
   }, [site]);
 
   const onVideoFile = async (files: FileList | null) => {
     setVideoError(null);
     const file = files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("video/")) {
+    if (!isAllowedStaffVideoMime(file.type)) {
       setVideoError(t("staff.hero.notVideo"));
       return;
     }
-    if (file.size > MAX_HERO_VIDEO_BYTES) {
-      setVideoError(t("staff.hero.tooLarge"));
+    if (file.size <= 0 || file.size > MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES) {
+      setVideoError(t("staff.images.uploadErr.video_too_large"));
       return;
     }
     try {
-      const dataUrl = await readFileAsDataUrl(file);
-      if (dataUrl) setDraft((d) => ({ ...d, heroVideo: dataUrl }));
+      if (cloudMedia) {
+        setVideoBusy(true);
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("kind", "hero");
+        const res = await fetch("/api/staff/upload-media", {
+          method: "POST",
+          body: fd,
+          credentials: "same-origin",
+        });
+        const body = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
+        if (res.ok && body.ok && typeof body.url === "string") {
+          setDraft((d) => ({ ...d, heroVideo: body.url }));
+        } else if (res.status === 401 || body.error === "unauthorized") {
+          setVideoError(translateStaffMediaUploadErr("unauthorized", t));
+        } else {
+          const code = typeof body.error === "string" && body.error.length > 0 ? body.error : "unknown";
+          setVideoError(translateStaffMediaUploadErr(code, t));
+        }
+      } else {
+        const dataUrl = await readFileAsDataUrl(file);
+        if (dataUrl) setDraft((d) => ({ ...d, heroVideo: dataUrl }));
+      }
     } catch {
-      setVideoError(t("staff.hero.tooLarge"));
+      setVideoError(t("staff.images.uploadErr.unknown"));
     } finally {
+      setVideoBusy(false);
       if (videoInputRef.current) videoInputRef.current.value = "";
     }
   };
@@ -1633,10 +1661,12 @@ function SitePane() {
               type="file"
               accept="video/mp4,video/webm,video/quicktime"
               className="hidden"
+              disabled={videoBusy}
               onChange={(e) => void onVideoFile(e.target.files)}
             />
             <button
               type="button"
+              disabled={videoBusy}
               onClick={() => videoInputRef.current?.click()}
               className="btn-ghost"
             >
