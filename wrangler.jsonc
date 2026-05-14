@@ -1,34 +1,60 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
-  "name": "muhra1",
-  "compatibility_date": "2026-05-11",
-  "compatibility_flags": [
-    "nodejs_compat",
-    // https://opennext.js.org/cloudflare/get-started — public fetch in Workers
-    "global_fetch_strictly_public"
-  ],
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
-  "services": [
-    {
-      "binding": "WORKER_SELF_REFERENCE",
-      "service": "muhra1"
-    }
-  ],
-  "images": {
-    "binding": "IMAGES"
-  },
-  "observability": {
-    "enabled": true
-  },
-  // Public, non-secret variables. Secrets (SUPABASE_SERVICE_ROLE_KEY, STAFF_COOKIE_SECRET, STAFF_PASSWORD)
-  // are configured via `wrangler secret put` or the dashboard — never commit them here.
-  // STAFF_USERNAME is configured per-environment via dashboard (defaults to "staff" if unset).
-  "vars": {
-    "SUPABASE_URL": "https://jqiznpmpenabzudcljdl.supabase.co",
-    "NEXT_PUBLIC_SUPABASE_URL": "https://jqiznpmpenabzudcljdl.supabase.co"
-  }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"main": ".open-next/worker.js",
+	"name": "muhra1",
+	"compatibility_date": "2026-05-11",
+	"compatibility_flags": [
+		"nodejs_compat",
+		// https://opennext.js.org/cloudflare/get-started — public fetch in Workers
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"services": [
+		{
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "muhra1"
+		}
+	],
+	"images": {
+		"binding": "IMAGES"
+	},
+	/*
+   * R2 staff media (images + video): create buckets first — `wrangler r2 bucket create muhra-media`
+   * and `wrangler r2 bucket create muhra-media-preview` (preview is for local `wrangler dev` / OpenNext preview).
+   *
+   * Required Worker vars when using R2 public URLs:
+   *   - R2_PUBLIC_BASE_URL — HTTPS origin for public objects (custom domain or *.r2.dev), no secrets in git.
+   * Optional:
+   *   - NEXT_PUBLIC_R2_PUBLIC_BASE_URL — same value for `next/image` remotePatterns at build time (Vercel/CI); Workers can rely on R2_PUBLIC_BASE_URL alone at runtime.
+   */
+	"r2_buckets": [
+		{
+			"binding": "MUHRA_MEDIA",
+			"bucket_name": "muhra-media",
+			"preview_bucket_name": "muhra-media-preview"
+		},
+		{
+			"bucket_name": "muhra-media",
+			"binding": "muhra_media",
+			"remote": true
+		},
+		{
+			"bucket_name": "muhra-media-preview",
+			"binding": "muhra_media_preview",
+			"remote": true
+		}
+	],
+	"observability": {
+		"enabled": true
+	},
+	// Public, non-secret variables. Secrets (SUPABASE_SERVICE_ROLE_KEY, STAFF_COOKIE_SECRET, STAFF_PASSWORD)
+	// are configured via `wrangler secret put` or the dashboard — never commit them here.
+	// STAFF_USERNAME is configured per-environment via dashboard (defaults to "staff" if unset).
+	"vars": {
+		"SUPABASE_URL": "https://jqiznpmpenabzudcljdl.supabase.co",
+		"NEXT_PUBLIC_SUPABASE_URL": "https://jqiznpmpenabzudcljdl.supabase.co"
+	}
 }

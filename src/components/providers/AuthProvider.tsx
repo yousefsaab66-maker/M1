@@ -17,9 +17,30 @@ const KEY_USER = (role: Role) => `muhra-${role}-user-v1`;
 const KEY_SESSION = (role: Role) => `muhra-${role}-session-v1`;
 
 const DEFAULT_CREDS: Record<Role, { username: string; password: string }> = {
-  staff: { username: "staff", password: "staff123" },
+  staff: { username: "staff", password: "staff12345678" },
   admin: { username: "admin", password: "admin123" },
 };
+
+async function establishStaffHttpSession(username: string, password: string): Promise<boolean> {
+  let res: Response;
+  try {
+    res = await fetch("/api/staff/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ username, password }),
+    });
+  } catch {
+    return false;
+  }
+  if (!res.ok) return false;
+  try {
+    const body = (await res.json()) as { ok?: boolean };
+    return body.ok === true;
+  } catch {
+    return false;
+  }
+}
 
 type AuthCtx = {
   authedRole: Role | null;
@@ -79,17 +100,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (username.toLowerCase().trim() !== storedUser.toLowerCase().trim()) return false;
         const h = await hashCredential(username, password);
         if (h !== stored) return false;
+        if (role === "staff") {
+          const serverOk = await establishStaffHttpSession(username, password);
+          if (!serverOk) return false;
+        }
         sessionStorage.setItem(KEY_SESSION(role), username);
         if (role === "staff") setStaffSession(username);
         else setAdminSession(username);
-        if (role === "staff") {
-          void fetch("/api/staff/session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ username, password }),
-          });
-        }
         return true;
       } catch {
         return false;
@@ -125,19 +142,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (currentHash !== stored) return false;
         const cleanUser = newUsername.trim() || storedUser;
         const cleanPwd = newPassword || currentPassword;
+        if (role === "staff") {
+          const serverOk = await establishStaffHttpSession(cleanUser, cleanPwd);
+          if (!serverOk) return false;
+        }
         const newHash = await hashCredential(cleanUser, cleanPwd);
         localStorage.setItem(KEY_USER(role), cleanUser);
         localStorage.setItem(KEY_HASH(role), newHash);
         sessionStorage.setItem(KEY_SESSION(role), cleanUser);
-        if (role === "staff") {
-          setStaffSession(cleanUser);
-          void fetch("/api/staff/session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ username: cleanUser, password: cleanPwd }),
-          });
-        } else setAdminSession(cleanUser);
+        if (role === "staff") setStaffSession(cleanUser);
+        else setAdminSession(cleanUser);
         return true;
       } catch {
         return false;

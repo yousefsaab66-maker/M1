@@ -224,9 +224,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
 
   const initialized = useRef(false);
+  /** Supersedes in-flight catalog GETs so an older request cannot overwrite a newer one (init vs staff save, double refresh). */
+  const catalogApplyGenRef = useRef(0);
 
   const refreshCatalog = useCallback(async () => {
+    const gen = (catalogApplyGenRef.current += 1);
     const res = await fetchCatalogJson(2);
+    if (gen !== catalogApplyGenRef.current) return;
     if (!res.ok) return;
     writeCatalogSnapshot(res.products);
     clearStaleLocalProductCache();
@@ -301,6 +305,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setOrders(readJSON<Order[]>(KEY_ORDERS, []));
 
       void (async () => {
+        const gen = (catalogApplyGenRef.current += 1);
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
@@ -318,6 +323,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
           setSupabaseReady((healthOutcome as { ready?: boolean }).ready === true);
           setR2Ready((r2Outcome as { ready?: boolean }).ready === true);
+
+          if (gen !== catalogApplyGenRef.current) return;
 
           if (catalogRes.ok) {
             writeCatalogSnapshot(catalogRes.products);

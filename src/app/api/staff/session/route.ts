@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     );
   }
   const u = process.env.STAFF_USERNAME ?? "staff";
-  const p = process.env.STAFF_PASSWORD ?? "staff123";
+  const p = process.env.STAFF_PASSWORD ?? "staff12345678";
   if (body.username !== u || body.password !== p) {
     return NextResponse.json(
       { ok: false, error: "invalid_credentials" },

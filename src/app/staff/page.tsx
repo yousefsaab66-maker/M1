@@ -288,6 +288,8 @@ function ProductsPane() {
       setOrderHint(body.product);
       mergeRemoteProduct(body.product);
       await refreshCatalog();
+      /* POST body is canonical for this row; a concurrent or slightly stale list GET must not drop new image URLs. */
+      mergeRemoteProduct(body.product);
       return true;
     } catch {
       setSaveError(t("staff.products.errorRequest"));
