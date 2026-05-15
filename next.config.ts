@@ -80,7 +80,7 @@ const nextConfig: NextConfig = {
     /** Default static staleTime is 300s — can show stale layouts between navigations. */
     staleTimes: {
       dynamic: 0,
-      static: 0,
+      static: 30,
     },
   },
   images: {

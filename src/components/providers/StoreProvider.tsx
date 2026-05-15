@@ -269,9 +269,12 @@ export function StoreProvider({
   const [hydrated, setHydrated] = useState(false);
   const [storeReady, setStoreReady] = useState(false);
 
-  const [products, setProductsState] = useState<Product[]>(() =>
-    bootstrapFromServer ? initialRemoteProducts! : [],
-  );
+  const [products, setProductsState] = useState<Product[]>(() => {
+    if (bootstrapFromServer) return initialRemoteProducts!;
+    const snap = readCatalogSnapshot();
+    if (snap && snap.length > 0) return snap;
+    return readJSON<Product[]>(KEY_PRODUCTS, SEED_PRODUCTS);
+  });
   const [collections, setCollectionsState] = useState<Collection[]>(SEED_COLLECTIONS);
   const [journal, setJournalState] = useState<JournalArticle[]>(SEED_JOURNAL);
   const [boutiques, setBoutiquesState] = useState<Boutique[]>(SEED_BOUTIQUES);
@@ -372,13 +375,15 @@ export function StoreProvider({
     initialized.current = true;
 
     const hydrateSiteAndUi = () => {
-      /* site + collections come from R2 only — do not read localStorage here (causes stale UI on other devices). */
+      setSiteState(normalizeSiteContent(readJSON<SiteContent>(KEY_SITE, SEED_SITE)));
+      setCollectionsState(readJSON<Collection[]>(KEY_COLLECTIONS, SEED_COLLECTIONS));
       setJournalState(readJSON<JournalArticle[]>(KEY_JOURNAL, SEED_JOURNAL));
       setBoutiquesState(readJSON<Boutique[]>(KEY_BOUTIQUES, SEED_BOUTIQUES));
       setBag(readJSON<BagItem[]>(KEY_BAG, []));
       setWishlist(readJSON<string[]>(KEY_WISH, []));
       setUser(readJSON<UserProfile | null>(KEY_USER, null));
       setHydrated(true);
+      setStoreReady(true);
     };
 
     const applyLocalCatalogFromStorage = () => {
@@ -428,20 +433,14 @@ export function StoreProvider({
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
           const storefrontRes = await fetchStorefrontJson(ac.signal);
-          if (gen !== catalogApplyGenRef.current) return;
-
-          if (storefrontRes.ok) {
+          if (gen === catalogApplyGenRef.current && storefrontRes.ok) {
             applyStorefront(storefrontRes.site, storefrontRes.collections, storefrontRes.updatedAt);
             if (storefrontRes.source === "r2") setR2Ready(true);
-          } else {
-            applySite(readJSON<SiteContent>(KEY_SITE, SEED_SITE));
-            applyCollections(readJSON<Collection[]>(KEY_COLLECTIONS, SEED_COLLECTIONS));
           }
 
           if (gen !== catalogApplyGenRef.current) return;
-          setStoreReady(true);
 
-          const catalogRes = await fetchCatalogJson(1, ac.signal);
+          const catalogRes = await fetchCatalogJson(2, ac.signal);
           if (gen !== catalogApplyGenRef.current) return;
 
           if (catalogRes.ok) {
@@ -453,8 +452,11 @@ export function StoreProvider({
           } else {
             recoverCatalogAfterNetworkFailure();
           }
+        } catch {
+          /* keep hydrated local/seed UI */
         } finally {
           clearTimeout(timer);
+          setStoreReady(true);
         }
       })();
     };
