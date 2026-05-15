@@ -5,6 +5,7 @@ import {
   type SiteContent,
 } from "@/lib/catalog";
 import { normalizeSiteContent } from "@/lib/site-display";
+import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import { isStorableMediaUrl, sanitizeSiteContentForServer } from "@/lib/site-content-storage";
 import { getMuhraMediaR2Binding } from "@/lib/r2-upload";
 import { SITE_SETTINGS_R2_KEY } from "@/lib/site-settings-r2";
@@ -29,13 +30,17 @@ export type WriteStorefrontR2Result =
 function sanitizeCollectionsForServer(
   collections: Collection[],
 ): { ok: true; collections: Collection[] } | { ok: false; error: "embedded_media" } {
-  for (const c of collections) {
-    const cover = c.coverImage?.trim() ?? "";
-    const editorial = c.editorialImage?.trim() ?? "";
-    if (cover && !isStorableMediaUrl(cover)) return { ok: false, error: "embedded_media" };
-    if (editorial && !isStorableMediaUrl(editorial)) return { ok: false, error: "embedded_media" };
+  const normalized = collections.map((c) => ({
+    ...c,
+    coverImage: normalizeStaffMediaUrl(c.coverImage ?? ""),
+    editorialImage: normalizeStaffMediaUrl(c.editorialImage ?? ""),
+  }));
+  for (const c of normalized) {
+    if (c.coverImage && !isStorableMediaUrl(c.coverImage)) return { ok: false, error: "embedded_media" };
+    if (c.editorialImage && !isStorableMediaUrl(c.editorialImage))
+      return { ok: false, error: "embedded_media" };
   }
-  return { ok: true, collections };
+  return { ok: true, collections: normalized };
 }
 
 export async function readStorefrontFromR2(): Promise<ReadStorefrontR2Result> {

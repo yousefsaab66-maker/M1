@@ -1,6 +1,7 @@
 "use client";
 
 import { prepareStaffImageForUpload } from "@/lib/staff-image-file";
+import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 
 export type StaffUploadResult = { ok: true; url: string } | { ok: false; code: string };
 
@@ -19,7 +20,9 @@ function resultFromResponse(
   body: { ok?: boolean; url?: string; error?: string },
 ): StaffUploadResult {
   if (res.status === 401 || body.error === "unauthorized") return { ok: false, code: "unauthorized" };
-  if (res.ok && body.ok && typeof body.url === "string") return { ok: true, url: body.url };
+  if (res.ok && body.ok && typeof body.url === "string") {
+    return { ok: true, url: normalizeStaffMediaUrl(body.url) };
+  }
   const code = typeof body.error === "string" && body.error.length > 0 ? body.error : "unknown";
   return { ok: false, code };
 }

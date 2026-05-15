@@ -8,6 +8,7 @@ import { CATALOG_CATEGORIES, HOME_CATEGORY_STRIP } from "@/lib/site-display";
 import { useStore } from "@/components/providers/StoreProvider";
 import { MUHRA_MAX_IMAGE_UPLOAD_BYTES } from "@/lib/supabase/storage-constants";
 import { productImageAt } from "@/lib/product-media";
+import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import { translateStaffUploadError, uploadStaffImageFile } from "@/lib/staff-upload-client";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -77,14 +78,17 @@ export function StaffSingleImageField({
     setError(null);
     if (!isImageFile(file)) {
       setError(t("staff.images.notImage").replace("{name}", file.name));
+      resetFileInput();
       return;
     }
     if (file.size > MUHRA_MAX_IMAGE_UPLOAD_BYTES) {
       setError(t("staff.images.tooLarge").replace("{name}", file.name));
+      resetFileInput();
       return;
     }
     if (!useCloud) {
       setError(t("staff.site.r2RequiredForImages"));
+      resetFileInput();
       return;
     }
     setBusy(true);
@@ -94,7 +98,7 @@ export function StaffSingleImageField({
         signal: ac.signal,
       });
       if (gen !== uploadGenRef.current) return;
-      if (up.ok) onChange(up.url);
+      if (up.ok) onChange(normalizeStaffMediaUrl(up.url));
       else if (up.code !== "aborted") setError(translateStaffUploadError(up.code, t));
     } finally {
       if (gen === uploadGenRef.current) {
@@ -120,9 +124,12 @@ export function StaffSingleImageField({
       <Field label={label}>
         <input
           className="staff-input w-full"
+          dir="ltr"
+          style={{ textAlign: "left" }}
           value={value}
-          placeholder="https://…"
-          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://media.muhrajewelry.com/…"
+          onChange={(e) => onChange(normalizeStaffMediaUrl(e.target.value))}
+          onBlur={(e) => onChange(normalizeStaffMediaUrl(e.target.value))}
         />
       </Field>
       <div className={`flex flex-wrap items-center gap-2 ${compact ? "" : ""}`}>

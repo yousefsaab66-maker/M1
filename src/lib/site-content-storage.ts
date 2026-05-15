@@ -1,4 +1,5 @@
 import type { SiteContent } from "@/lib/catalog";
+import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import { CATALOG_CATEGORIES, normalizeSiteContent } from "@/lib/site-display";
 
 export type SanitizeSiteResult =
@@ -23,18 +24,18 @@ export function sanitizeSiteContentForServer(site: SiteContent): SanitizeSiteRes
   const normalized = normalizeSiteContent(site);
   const rejected: string[] = [];
 
-  const heroVideo = normalized.heroVideo?.trim() ?? "";
+  const heroVideo = normalizeStaffMediaUrl(normalized.heroVideo ?? "");
   if (heroVideo && !isStorableMediaUrl(heroVideo)) {
     rejected.push("heroVideo");
   }
 
-  const atelier = normalized.homepage?.atelierImage?.trim() ?? "";
+  const atelier = normalizeStaffMediaUrl(normalized.homepage?.atelierImage ?? "");
   if (atelier && !isStorableMediaUrl(atelier)) {
     rejected.push("homepage.atelierImage");
   }
 
   for (const key of CATALOG_CATEGORIES) {
-    const img = normalized.categories?.[key]?.image?.trim() ?? "";
+    const img = normalizeStaffMediaUrl(normalized.categories?.[key]?.image ?? "");
     if (img && !isStorableMediaUrl(img)) {
       rejected.push(`categories.${key}.image`);
     }
@@ -48,7 +49,7 @@ export function sanitizeSiteContentForServer(site: SiteContent): SanitizeSiteRes
   for (const key of CATALOG_CATEGORIES) {
     const entry = normalized.categories?.[key];
     if (!entry) continue;
-    const image = entry.image?.trim() ?? "";
+    const image = normalizeStaffMediaUrl(entry.image ?? "");
     const label = entry.label?.trim() ?? "";
     if (!image && !label) continue;
     categories[key] = { label: label || undefined, image: image || undefined };

@@ -1,5 +1,6 @@
 import type { Product } from "./catalog";
 import { slugify } from "./format";
+import { normalizeStaffMediaUrl } from "./staff-media-url";
 
 /** Placeholder when staff saves a product without images — keeps catalogue & PDP usable for ordering. */
 export const MUHRA_PLACEHOLDER_IMAGE =
@@ -8,16 +9,19 @@ export const MUHRA_PLACEHOLDER_IMAGE =
     `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F6F1E7"/><stop offset="100%" stop-color="#E8E0D2"/></linearGradient></defs><rect fill="url(#g)" width="800" height="1000"/><ellipse cx="400" cy="410" rx="140" ry="160" fill="none" stroke="#B89A5E" stroke-width="1.5" opacity="0.4"/><text x="400" y="670" text-anchor="middle" font-family="Georgia,serif" font-size="20" letter-spacing="0.28em" fill="#B89A5E">MUHRA</text></svg>`,
   );
 
-/** Collapse accidental `//` in the path (common when joining base + key). Leaves `https://` intact. */
+/** Collapse accidental `//` in the path; fix staff RTL / missing-protocol URLs. */
 function normalizeCatalogImageUrl(src: string): string {
   const t = src.trim();
-  if (!t.startsWith("http://") && !t.startsWith("https://")) return t;
+  if (!t || t.startsWith("data:")) return t;
+  if (!t.startsWith("http://") && !t.startsWith("https://")) {
+    return normalizeStaffMediaUrl(t);
+  }
   try {
     const u = new URL(t);
     u.pathname = u.pathname.replace(/\/{2,}/g, "/");
     return u.href;
   } catch {
-    return t;
+    return normalizeStaffMediaUrl(t);
   }
 }
 
