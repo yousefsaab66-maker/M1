@@ -519,6 +519,8 @@ export function StoreProvider({
         }
         if (body.error === "table_missing") return { ok: false, error: "table_missing" };
         if (body.error === "embedded_media") return { ok: false, error: "embedded_media" };
+        if (body.error === "r2_not_configured") return { ok: false, error: "r2_not_configured" };
+        if (body.error === "r2_write_failed") return { ok: false, error: "r2_write_failed" };
         if (body.error === "backend_not_configured") {
           return { ok: false, error: "backend_not_configured" };
         }

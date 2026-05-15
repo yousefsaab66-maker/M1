@@ -30,7 +30,10 @@ export async function PUT(req: Request) {
     const status =
       result.error === "embedded_media"
         ? 400
-        : result.error === "backend_not_configured" || result.error === "table_missing"
+        : result.error === "r2_not_configured" ||
+            result.error === "r2_write_failed" ||
+            result.error === "backend_not_configured" ||
+            result.error === "table_missing"
           ? 503
           : 500;
     return NextResponse.json({ ok: false, error: result.error } as const, { status });

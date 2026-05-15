@@ -511,7 +511,8 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.journal.defaultAuthor": "MUHRA Editorial",
     "staff.journal.defaultCategory": "Maison",
     "staff.site.title": "Site & storefront copy",
-    "staff.site.intro": "Saved settings sync to Supabase and appear on all browsers and devices after you click Save.",
+    "staff.site.intro":
+      "After Save, settings are stored on Cloudflare R2 (site/content.json) and load on every browser and device. Upload each image via Upload — do not paste data: URLs.",
     "staff.site.saving": "Saving…",
     "staff.site.brandBlockTitle": "Brand & hero text",
     "staff.site.brandBlockIntro": "Headline and subhead on the homepage video section.",
@@ -533,6 +534,9 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.site.saveErr.embedded_media":
       "Some images or video are stored only in this browser. Use Upload (R2) for each image and the hero video, then save again.",
     "staff.site.r2RequiredForVideo": "Hero video must be uploaded to cloud storage (R2). Check Worker R2 binding and R2_PUBLIC_BASE_URL.",
+    "staff.site.saveErr.r2_not_configured":
+      "Cloudflare R2 is not bound on the Worker (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). Site settings cannot sync to other devices.",
+    "staff.site.saveErr.r2_write_failed": "Could not write site settings to R2. Try again or check the bucket binding.",
     "staff.site.categoriesTitle": "Catalogue categories",
     "staff.site.categoriesIntro": "Custom names and tile images for category filters and the homepage strip. Empty fields use the built-in catalogue labels and images.",
     "staff.site.categoryLabel": "Display name",
@@ -2135,7 +2139,8 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.journal.defaultAuthor": "تحرير مُهرَة",
     "staff.journal.defaultCategory": "الدار",
     "staff.site.title": "نصوص الموقع والواجهة",
-    "staff.site.intro": "بعد الضغط على «حفظ» تُخزَّن الإعدادات في Supabase وتظهر على كل المتصفحات والأجهزة.",
+    "staff.site.intro":
+      "بعد «حفظ» تُخزَّن الإعدادات على Cloudflare R2 وتُحمَّل على كل المتصفحات. ارفع كل صورة عبر زر «رفع» — لا تلصق روابط data:.",
     "staff.site.saving": "جاري الحفظ…",
     "staff.site.brandBlockTitle": "العلامة ونص الواجهة",
     "staff.site.brandBlockIntro": "العنوان والنص الفرعي فوق فيديو الصفحة الرئيسية.",
@@ -2157,6 +2162,9 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.site.saveErr.embedded_media":
       "بعض الصور أو الفيديو محفوظة في هذا المتصفح فقط. ارفع كل صورة وفيديو الهيرو عبر زر «رفع» (R2) ثم احفظ من جديد.",
     "staff.site.r2RequiredForVideo": "فيديو الهيرو يجب رفعه إلى التخزين السحابي (R2). تحقق من ربط R2 على الـ Worker و R2_PUBLIC_BASE_URL.",
+    "staff.site.saveErr.r2_not_configured":
+      "R2 غير مربوط على الـ Worker (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). الإعدادات لن تظهر على أجهزة أخرى.",
+    "staff.site.saveErr.r2_write_failed": "تعذّر كتابة إعدادات الموقع على R2. أعد المحاولة أو تحقق من ربط الباكت.",
     "staff.site.categoriesTitle": "فئات الكتالوج",
     "staff.site.categoriesIntro": "أسماء وصور مخصّصة لفلاتر الفئات وشريط الصفحة الرئيسية. الحقول الفارغة تستخدم تسميات وصور الكتالوج المدمجة.",
     "staff.site.categoryLabel": "الاسم الظاهر",
