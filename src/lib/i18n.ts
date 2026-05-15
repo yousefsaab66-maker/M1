@@ -231,6 +231,7 @@ export const DICTS: Record<Locale, Dict> = {
       "Server credentials error — if product save fails, verify SUPABASE_SERVICE_ROLE_KEY for Postgres (not related to R2 file ACLs).",
     "staff.images.uploadErr.rate_limited":
       "Too many uploads from your account or network. Please wait a few minutes.",
+    "staff.images.uploadErr.decode_failed": "Could not read this image — try exporting as JPG from Photos.",
     "staff.images.uploadErr.unknown": "Cloud upload failed.",
     "staff.images.uploadErr.video_too_large": "Video exceeds the 80 MB limit.",
     "staff.images.uploadErr.video_not_supported_without_r2":
@@ -1879,6 +1880,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.bad_credentials":
       "خطأ بيانات على السيرفر — إذا فشل حفظ المنتج راجع SUPABASE_SERVICE_ROLE_KEY لـ Postgres (لا علاقة له بصلاحيات ملفات R2).",
     "staff.images.uploadErr.rate_limited": "رفعات كثيرة من حسابك أو شبكتك — انتظر بضع دقائق ثم أعد المحاولة.",
+    "staff.images.uploadErr.decode_failed": "تعذّر قراءة الصورة — جرّب تصديرها كـ JPG من تطبيق الصور.",
     "staff.images.uploadErr.unknown": "فشل الرفع للسحابة.",
     "staff.images.uploadErr.video_too_large": "الفيديو يتجاوز حد 80 ميغابايت.",
     "staff.images.uploadErr.video_not_supported_without_r2":

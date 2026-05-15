@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, RotateCcw, Upload, X } from "lucide-react";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import type { Category, Collection, Product, SiteContent } from "@/lib/catalog";
 import { CATALOG_CATEGORIES, HOME_CATEGORY_STRIP } from "@/lib/site-display";
+import { prepareStaffImageForUpload } from "@/lib/staff-image-file";
 import { MUHRA_MAX_IMAGE_UPLOAD_BYTES } from "@/lib/supabase/storage-constants";
 import { productImageAt } from "@/lib/product-media";
 
@@ -77,9 +78,12 @@ export function StaffSingleImageField({
     }
     setBusy(true);
     try {
-      const up = await uploadStaffImage(file, uploadScope);
+      const prepared = await prepareStaffImageForUpload(file);
+      const up = await uploadStaffImage(prepared, uploadScope);
       if (up.ok) onChange(up.url);
       else setError(translateUploadErr(up.code, t));
+    } catch {
+      setError(t("staff.images.uploadErr.decode_failed"));
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";

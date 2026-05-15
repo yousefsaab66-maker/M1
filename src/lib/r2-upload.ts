@@ -15,15 +15,28 @@ export type MuhraMediaR2Bucket = {
   get(key: string): Promise<MuhraMediaR2ObjectBody | null>;
 };
 
+function bucketFromEnv(env: Record<string, unknown>): MuhraMediaR2Bucket | undefined {
+  for (const key of ["MUHRA_MEDIA", "muhra_media"] as const) {
+    const b = env[key];
+    if (b && typeof b === "object" && typeof (b as MuhraMediaR2Bucket).put === "function") {
+      return b as MuhraMediaR2Bucket;
+    }
+  }
+  return undefined;
+}
+
 export async function getMuhraMediaR2Binding(): Promise<MuhraMediaR2Bucket | undefined> {
   try {
     const { env } = await getCloudflareContext({ async: true });
-    const b = env.MUHRA_MEDIA;
-    if (b && typeof b.put === "function") return b as MuhraMediaR2Bucket;
+    return bucketFromEnv(env as Record<string, unknown>);
   } catch {
     /* Netlify / plain Node / OpenNext context unavailable */
   }
   return undefined;
+}
+
+export function isR2ConfiguredAtRuntime(): boolean {
+  return Boolean(process.env.R2_PUBLIC_BASE_URL?.trim());
 }
 
 export async function uploadStaffBlobToR2(

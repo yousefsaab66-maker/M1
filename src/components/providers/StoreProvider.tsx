@@ -26,7 +26,11 @@ import type { BagItem, Order, OrderStatus, PlaceOrderInput } from "@/lib/commerc
 import { SHIPPING_FEE_IQD, toIqd, type GovernorateCode } from "@/lib/iraq";
 import { normalizeSiteContent } from "@/lib/site-display";
 import { sanitizeSiteContentForServer } from "@/lib/site-content-storage";
-import { fetchStorefrontForClient } from "@/lib/storefront-client";
+import {
+  fetchCatalogBootstrapClient,
+  fetchStorefrontForClient,
+  remoteStorefrontIsNewer,
+} from "@/lib/storefront-client";
 
 export type {
   BagItem,
@@ -222,6 +226,66 @@ async function fetchStorefrontJson(signal?: AbortSignal) {
     updatedAt: res.updatedAt,
     source: res.source,
   };
+}
+
+async function probeR2Ready(signal?: AbortSignal): Promise<boolean> {
+  try {
+    const res = await fetch("/api/health/r2", { cache: "no-store", credentials: "same-origin", signal });
+    if (!res.ok) return false;
+    const d = (await res.json()) as { ready?: boolean };
+    return d.ready === true;
+  } catch {
+    return false;
+  }
+}
+
+function readLocalSiteRemoteAt(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(KEY_SITE_REMOTE_AT);
+  } catch {
+    return null;
+  }
+}
+
+function applyBootstrapPayload(
+  gen: number,
+  payload: {
+    products: Product[];
+    site: SiteContent | null;
+    collections: Collection[] | null;
+    updatedAt: string | null;
+    r2Ready: boolean;
+  },
+  handlers: {
+    applyStorefront: (site: SiteContent, collections: Collection[], remoteUpdatedAt?: string | null) => void;
+    setR2Ready: (v: boolean) => void;
+    setRemoteCatalog: (v: boolean) => void;
+    setSupabaseReady: (v: boolean) => void;
+    setProductsState: (p: Product[]) => void;
+    recoverCatalogAfterNetworkFailure: () => void;
+    catalogApplyGenRef: { current: number };
+  },
+) {
+  if (gen !== handlers.catalogApplyGenRef.current) return;
+
+  if (payload.r2Ready) handlers.setR2Ready(true);
+
+  if (payload.products.length > 0) {
+    writeCatalogSnapshot(payload.products);
+    clearStaleLocalProductCache();
+    handlers.setRemoteCatalog(true);
+    handlers.setProductsState(payload.products);
+    handlers.setSupabaseReady(true);
+  }
+
+  if (payload.site && payload.collections) {
+    const localAt = readLocalSiteRemoteAt();
+    if (remoteStorefrontIsNewer(payload.updatedAt, localAt)) {
+      handlers.applyStorefront(payload.site, payload.collections, payload.updatedAt);
+      if (payload.updatedAt) handlers.setR2Ready(true);
+    }
+  }
 }
 
 async function putStorefrontJson(
@@ -432,24 +496,33 @@ export function StoreProvider({
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
-          const storefrontRes = await fetchStorefrontJson(ac.signal);
-          if (gen === catalogApplyGenRef.current && storefrontRes.ok) {
-            applyStorefront(storefrontRes.site, storefrontRes.collections, storefrontRes.updatedAt);
-            if (storefrontRes.source === "r2") setR2Ready(true);
-          }
+          const [bootstrap, r2Probe] = await Promise.all([
+            fetchCatalogBootstrapClient(ac.signal),
+            probeR2Ready(ac.signal),
+          ]);
+          if (r2Probe) setR2Ready(true);
 
-          if (gen !== catalogApplyGenRef.current) return;
-
-          const catalogRes = await fetchCatalogJson(2, ac.signal);
-          if (gen !== catalogApplyGenRef.current) return;
-
-          if (catalogRes.ok) {
-            writeCatalogSnapshot(catalogRes.products);
-            clearStaleLocalProductCache();
-            setRemoteCatalog(true);
-            setProductsState(catalogRes.products);
-            setSupabaseReady(true);
-          } else {
+          if (bootstrap.ok) {
+            applyBootstrapPayload(
+              gen,
+              {
+                products: bootstrap.products,
+                site: bootstrap.site,
+                collections: bootstrap.collections,
+                updatedAt: bootstrap.updatedAt,
+                r2Ready: bootstrap.r2Ready || r2Probe,
+              },
+              {
+                applyStorefront,
+                setR2Ready,
+                setRemoteCatalog,
+                setSupabaseReady,
+                setProductsState,
+                recoverCatalogAfterNetworkFailure,
+                catalogApplyGenRef,
+              },
+            );
+          } else if (gen === catalogApplyGenRef.current) {
             recoverCatalogAfterNetworkFailure();
           }
         } catch {
@@ -470,11 +543,31 @@ export function StoreProvider({
     if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
     remoteRefreshTimerRef.current = setTimeout(() => {
       void (async () => {
-        await refreshCatalog();
-        await refreshStorefront();
+        const gen = (catalogApplyGenRef.current += 1);
+        const bootstrap = await fetchCatalogBootstrapClient();
+        if (!bootstrap.ok) return;
+        applyBootstrapPayload(
+          gen,
+          {
+            products: bootstrap.products,
+            site: bootstrap.site,
+            collections: bootstrap.collections,
+            updatedAt: bootstrap.updatedAt,
+            r2Ready: bootstrap.r2Ready,
+          },
+          {
+            applyStorefront,
+            setR2Ready,
+            setRemoteCatalog,
+            setSupabaseReady,
+            setProductsState,
+            recoverCatalogAfterNetworkFailure: () => {},
+            catalogApplyGenRef,
+          },
+        );
       })();
-    }, 1200);
-  }, [refreshCatalog, refreshStorefront]);
+    }, 3000);
+  }, [applyStorefront]);
 
   useEffect(() => {
     const onVis = () => {
@@ -526,11 +619,12 @@ export function StoreProvider({
       if (result.ok) {
         applyStorefront(sanitized.site, collections, result.updatedAt);
         setR2Ready(true);
+        void refreshStorefront();
         return { ok: true };
       }
       return { ok: false, error: result.error };
     },
-    [applyStorefront, collections],
+    [applyStorefront, collections, refreshStorefront],
   );
 
   const saveCollections = useCallback(
@@ -539,11 +633,12 @@ export function StoreProvider({
       if (result.ok) {
         applyStorefront(site, c, result.updatedAt);
         setR2Ready(true);
+        void refreshStorefront();
         return { ok: true };
       }
       return { ok: false, error: result.error };
     },
-    [applyStorefront, site],
+    [applyStorefront, site, refreshStorefront],
   );
 
   const resetCatalog = useCallback(() => {

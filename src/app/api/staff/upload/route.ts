@@ -7,7 +7,7 @@ import {
   buildR2PublicObjectUrl,
   MUHRA_MAX_IMAGE_UPLOAD_BYTES,
   isAllowedStaffImageMime,
-  sanitizeStorageFileName,
+  staffImageMimeFromFile,
 } from "@/lib/supabase/storage-constants";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +65,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const mime = (file.type || "application/octet-stream").trim().toLowerCase();
+  let mime = staffImageMimeFromFile(file);
+  if (mime === "image/heic" || mime === "image/heif") mime = "image/jpeg";
   if (!isAllowedStaffImageMime(mime)) {
     return NextResponse.json(
       { ok: false, error: "invalid_type" },

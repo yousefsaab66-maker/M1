@@ -19,6 +19,19 @@ export function isAllowedStaffImageMime(mime: string): boolean {
   return MUHRA_IMAGE_UPLOAD_MIME.includes(mime.trim().toLowerCase());
 }
 
+/** iOS / desktop pickers often send an empty `file.type`; infer from extension. */
+export function staffImageMimeFromFile(file: { type?: string; name?: string }): string {
+  const typed = (file.type || "").trim().toLowerCase();
+  if (typed && typed !== "application/octet-stream") return typed;
+  const name = (file.name || "").toLowerCase();
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".gif")) return "image/gif";
+  if (name.endsWith(".heic") || name.endsWith(".heif")) return "image/heic";
+  if (/\.jpe?g$/.test(name)) return "image/jpeg";
+  return typed || "application/octet-stream";
+}
+
 /** Allowed MIME types for staff-uploaded site videos (aligned with staff UI `accept`). */
 export const MUHRA_VIDEO_UPLOAD_MIME: readonly string[] = [
   "video/mp4",
