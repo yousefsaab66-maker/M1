@@ -5,29 +5,10 @@ import { ChevronDown, ChevronUp, RotateCcw, Upload, X } from "lucide-react";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import type { Category, Collection, Product, SiteContent } from "@/lib/catalog";
 import { CATALOG_CATEGORIES, HOME_CATEGORY_STRIP } from "@/lib/site-display";
-import { prepareStaffImageForUpload } from "@/lib/staff-image-file";
+import { useStore } from "@/components/providers/StoreProvider";
 import { MUHRA_MAX_IMAGE_UPLOAD_BYTES } from "@/lib/supabase/storage-constants";
 import { productImageAt } from "@/lib/product-media";
-
-function translateUploadErr(code: string, t: (key: string) => string): string {
-  const key = `staff.images.uploadErr.${code}`;
-  const txt = t(key);
-  return txt === key ? t("staff.images.uploadErr.unknown") : txt;
-}
-
-async function uploadStaffImage(
-  file: File,
-  scope: "site" | "collections" | "products" = "site",
-): Promise<{ ok: true; url: string } | { ok: false; code: string }> {
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("scope", scope);
-  const res = await fetch("/api/staff/upload", { method: "POST", body: fd, credentials: "same-origin" });
-  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
-  if (res.ok && body.ok && typeof body.url === "string") return { ok: true, url: body.url };
-  const code = typeof body.error === "string" && body.error.length > 0 ? body.error : "unknown";
-  return { ok: false, code };
-}
+import { translateStaffUploadError, uploadStaffImageFile } from "@/lib/staff-upload-client";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -56,9 +37,11 @@ export function StaffSingleImageField({
   compact?: boolean;
 }) {
   const { t } = useLocale();
+  const { staffCloudUpload, confirmR2Ready } = useStore();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const useCloud = cloudUpload || staffCloudUpload;
 
   const onFiles = async (files: FileList | null) => {
     const file = files?.[0];
@@ -72,18 +55,15 @@ export function StaffSingleImageField({
       setError(t("staff.images.tooLarge").replace("{name}", file.name));
       return;
     }
-    if (!cloudUpload) {
+    if (!useCloud) {
       setError(t("staff.site.r2RequiredForImages"));
       return;
     }
     setBusy(true);
     try {
-      const prepared = await prepareStaffImageForUpload(file);
-      const up = await uploadStaffImage(prepared, uploadScope);
+      const up = await uploadStaffImageFile(file, uploadScope, { onSuccess: confirmR2Ready });
       if (up.ok) onChange(up.url);
-      else setError(translateUploadErr(up.code, t));
-    } catch {
-      setError(t("staff.images.uploadErr.decode_failed"));
+      else setError(translateStaffUploadError(up.code, t));
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";

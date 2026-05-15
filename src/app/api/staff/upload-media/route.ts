@@ -1,20 +1,22 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { getMuhraMediaR2Binding, uploadStaffBlobToR2 } from "@/lib/r2-upload";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 import {
-  buildR2PublicObjectUrl,
   MUHRA_MAX_IMAGE_UPLOAD_BYTES,
   MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES,
-  isAllowedStaffImageMime,
-  isAllowedStaffVideoMime,
   sanitizeStorageFileName,
 } from "@/lib/supabase/storage-constants";
+import {
+  putStaffObject,
+  staffImageExt,
+  staffVideoExt,
+  validateStaffImageMime,
+  validateStaffVideoMime,
+} from "@/lib/staff-upload-server";
 
 export const dynamic = "force-dynamic";
 
-/** Site media (hero video, journal cover image, …). Product catalogue images use `POST /api/staff/upload`. */
 const MEDIA_KINDS = ["hero", "journal", "product", "site"] as const;
 type MediaKind = (typeof MEDIA_KINDS)[number];
 
@@ -33,21 +35,6 @@ function isMediaKind(s: string): s is MediaKind {
   return (MEDIA_KINDS as readonly string[]).includes(s);
 }
 
-function videoExt(mime: string): string {
-  const m = mime.trim().toLowerCase();
-  if (m === "video/webm") return "webm";
-  if (m === "video/quicktime") return "mov";
-  return "mp4";
-}
-
-function imageExt(mime: string): string {
-  const m = mime.trim().toLowerCase();
-  if (m === "image/png") return "png";
-  if (m === "image/webp") return "webp";
-  if (m === "image/gif") return "gif";
-  return "jpg";
-}
-
 function objectPrefixForKind(kind: MediaKind): string {
   if (kind === "hero") return "hero";
   if (kind === "journal") return "journal";
@@ -62,15 +49,6 @@ export async function POST(req: Request) {
   }
 
   const ip = getClientIp(req.headers);
-
-  const r2Bucket = await getMuhraMediaR2Binding();
-  const r2PublicBase = process.env.R2_PUBLIC_BASE_URL?.trim();
-  const useR2 = Boolean(r2Bucket && r2PublicBase);
-
-  if (!useR2) {
-    const err = r2Bucket && !r2PublicBase ? "r2_public_base_missing" : "r2_media_required";
-    return NextResponse.json({ ok: false, error: err }, { status: 503 });
-  }
 
   let formData: FormData;
   try {
@@ -90,31 +68,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "missing_file" }, { status: 400 });
   }
 
-  const mime = (file.type || "application/octet-stream").trim().toLowerCase();
-  const isVideo = isAllowedStaffVideoMime(mime);
-  const isImage = isAllowedStaffImageMime(mime);
+  const videoMime = validateStaffVideoMime(file);
+  const imageMime = videoMime ? null : validateStaffImageMime(file);
+  const isVideo = Boolean(videoMime);
+  const isImage = Boolean(imageMime);
 
   if (!isVideo && !isImage) {
     return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400 });
   }
 
+  const mime = (isVideo ? videoMime : imageMime)!;
+
   if (kind === "journal" && isVideo) {
     return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400 });
   }
-
-  if (kind === "product" && isVideo) {
-    return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400 });
-  }
-
-  if (kind === "site" && isVideo) {
+  if ((kind === "product" || kind === "site") && isVideo) {
     return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400 });
   }
 
   const maxBytes = isVideo ? MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES : MUHRA_MAX_IMAGE_UPLOAD_BYTES;
-  const size = file.size;
-  if (size <= 0 || size > maxBytes) {
-    const err = isVideo ? "video_too_large" : "too_large";
-    return NextResponse.json({ ok: false, error: err }, { status: 400 });
+  if (file.size <= 0 || file.size > maxBytes) {
+    return NextResponse.json(
+      { ok: false, error: isVideo ? "video_too_large" : "too_large" },
+      { status: 400 },
+    );
   }
 
   const rlKey = isVideo ? `staff_upload_media_vid:${staff}:${ip}` : `staff_upload_media_img:${staff}:${ip}`;
@@ -132,19 +109,15 @@ export async function POST(req: Request) {
   const baseName = sanitizeStorageFileName(typeof file.name === "string" ? file.name : "media");
   const slug = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const stem = baseName.replace(/\.[^.]+$/, "");
-  const ext = isVideo ? videoExt(mime) : imageExt(mime);
-  const prefix = objectPrefixForKind(kind);
-  const objectPath = `${prefix}/${slug}-${stem}.${ext}`;
+  const ext = isVideo ? staffVideoExt(mime) : staffImageExt(mime);
+  const objectPath = `${objectPrefixForKind(kind)}/${slug}-${stem}.${ext}`;
 
-  try {
-    await uploadStaffBlobToR2(r2Bucket!, objectPath, buf, mime);
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
-    return NextResponse.json(
-      { ok: false, error: "r2_upload_failed", detail },
-      { status: 502, headers: rlHeaders },
-    );
+  const put = await putStaffObject(objectPath, buf, mime);
+  if (!put.ok) {
+    const body: { ok: false; error: string; detail?: string } = { ok: false, error: put.error };
+    if ("detail" in put && typeof put.detail === "string") body.detail = put.detail;
+    return NextResponse.json(body, { status: put.status, headers: rlHeaders });
   }
-  const url = buildR2PublicObjectUrl(r2PublicBase!, objectPath);
-  return NextResponse.json({ ok: true, url, path: objectPath }, { headers: rlHeaders });
+
+  return NextResponse.json({ ok: true, url: put.url, path: put.path }, { headers: rlHeaders });
 }

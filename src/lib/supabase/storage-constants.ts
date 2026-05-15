@@ -20,6 +20,16 @@ export function isAllowedStaffImageMime(mime: string): boolean {
 }
 
 /** iOS / desktop pickers often send an empty `file.type`; infer from extension. */
+export function staffVideoMimeFromFile(file: { type?: string; name?: string }): string {
+  const typed = (file.type || "").trim().toLowerCase();
+  if (typed && typed !== "application/octet-stream") return typed;
+  const name = (file.name || "").toLowerCase();
+  if (name.endsWith(".webm")) return "video/webm";
+  if (name.endsWith(".mov")) return "video/quicktime";
+  if (name.endsWith(".mp4") || name.endsWith(".m4v")) return "video/mp4";
+  return typed || "application/octet-stream";
+}
+
 export function staffImageMimeFromFile(file: { type?: string; name?: string }): string {
   const typed = (file.type || "").trim().toLowerCase();
   if (typed && typed !== "application/octet-stream") return typed;

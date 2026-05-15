@@ -37,16 +37,6 @@
 			"binding": "MUHRA_MEDIA",
 			"bucket_name": "muhra-media",
 			"preview_bucket_name": "muhra-media-preview"
-		},
-		{
-			"bucket_name": "muhra-media",
-			"binding": "muhra_media",
-			"remote": true
-		},
-		{
-			"bucket_name": "muhra-media-preview",
-			"binding": "muhra_media_preview",
-			"remote": true
 		}
 	],
 	"observability": {

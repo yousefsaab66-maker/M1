@@ -26,6 +26,7 @@ import type { BagItem, Order, OrderStatus, PlaceOrderInput } from "@/lib/commerc
 import { SHIPPING_FEE_IQD, toIqd, type GovernorateCode } from "@/lib/iraq";
 import { normalizeSiteContent } from "@/lib/site-display";
 import { sanitizeSiteContentForServer } from "@/lib/site-content-storage";
+import { isR2PublicConfiguredClient } from "@/lib/r2-config";
 import {
   fetchCatalogBootstrapClient,
   fetchStorefrontForClient,
@@ -96,6 +97,9 @@ type StoreCtx = {
   supabaseReady: boolean;
   /** Worker مربوط بـ R2 مع عنوان عام — رفع الوسائط بدون الاعتماد على Supabase Storage. */
   r2Ready: boolean;
+  /** لوحة الموظفين: استخدم رفع السحابة (لا data: URLs) عندما R2 مضبوط في البناء أو مؤكد من السيرفر. */
+  staffCloudUpload: boolean;
+  confirmR2Ready: () => void;
   refreshCatalog: () => Promise<void>;
   /** بعد حفظ منتج عبر API — يحدّث القائمة واللقطة حتى لا يختفي المنتج إذا فشل refresh (CF 1102). */
   mergeRemoteProduct: (p: Product) => void;
@@ -879,6 +883,12 @@ export function StoreProvider({
     writeJSON(KEY_USER, null);
   }, []);
 
+  const confirmR2Ready = useCallback(() => {
+    setR2Ready(true);
+  }, []);
+
+  const staffCloudUpload = isR2PublicConfiguredClient() || r2Ready;
+
   const value = useMemo<StoreCtx>(
     () => ({
       products,
@@ -907,6 +917,8 @@ export function StoreProvider({
       remoteCatalog,
       supabaseReady,
       r2Ready,
+      staffCloudUpload,
+      confirmR2Ready,
       refreshCatalog,
       mergeRemoteProduct,
       pullRemoteOrders,
@@ -948,6 +960,8 @@ export function StoreProvider({
       remoteCatalog,
       supabaseReady,
       r2Ready,
+      staffCloudUpload,
+      confirmR2Ready,
       refreshCatalog,
       mergeRemoteProduct,
       pullRemoteOrders,

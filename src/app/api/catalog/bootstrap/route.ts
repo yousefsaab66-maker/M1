@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchCatalogBootstrap } from "@/lib/catalog-bootstrap";
-import { getMuhraMediaR2Binding } from "@/lib/r2-upload";
+import { isR2StaffUploadReady } from "@/lib/r2-staff-context";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +10,8 @@ const NO_STORE = {
 } as const;
 
 export async function GET() {
-  const binding = await getMuhraMediaR2Binding();
-  const r2Public = Boolean(process.env.R2_PUBLIC_BASE_URL?.trim());
   const result = await fetchCatalogBootstrap();
+  const r2Ready = await isR2StaffUploadReady();
 
   return NextResponse.json(
     {
@@ -22,7 +21,7 @@ export async function GET() {
       collections: result.storefront.collections,
       storefrontUpdatedAt: result.storefront.updatedAt,
       storefrontSource: result.storefront.source,
-      r2Ready: Boolean(binding && r2Public),
+      r2Ready,
     },
     { headers: NO_STORE },
   );

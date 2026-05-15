@@ -40,7 +40,17 @@ import type {
 import { formatDate, formatPrice, slugify } from "@/lib/format";
 import { formatIqd } from "@/lib/iraq";
 import { ensureProductOrderable, productGallerySources, productImageAt } from "@/lib/product-media";
-import { MUHRA_MAX_IMAGE_UPLOAD_BYTES, MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES, isAllowedStaffVideoMime } from "@/lib/supabase/storage-constants";
+import {
+  MUHRA_MAX_IMAGE_UPLOAD_BYTES,
+  MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES,
+  isAllowedStaffVideoMime,
+  staffVideoMimeFromFile,
+} from "@/lib/supabase/storage-constants";
+import {
+  translateStaffUploadError,
+  uploadStaffImageFile,
+  uploadStaffMediaFile,
+} from "@/lib/staff-upload-client";
 import {
   StaffCategoriesEditor,
   StaffHomepageEditor,
@@ -252,12 +262,12 @@ function ProductsPane() {
     addToBag,
     remoteCatalog,
     supabaseReady,
-    r2Ready,
+    staffCloudUpload,
     refreshCatalog,
     mergeRemoteProduct,
   } = useStore();
   const { t } = useLocale();
-  const mediaCloudUpload = r2Ready;
+  const mediaCloudUpload = staffCloudUpload;
   const router = useRouter();
   const [editing, setEditing] = useState<Product | null>(null);
   const [creating, setCreating] = useState(false);
@@ -991,34 +1001,11 @@ function ImagesField({
   cloudUpload?: boolean;
 }) {
   const { t } = useLocale();
+  const { staffCloudUpload, confirmR2Ready } = useStore();
+  const useCloud = cloudUpload || staffCloudUpload;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  async function uploadViaSupabase(file: File): Promise<{ ok: true; url: string } | { ok: false; code: string }> {
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/staff/upload", {
-      method: "POST",
-      body: fd,
-      credentials: "same-origin",
-    });
-    const body = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
-    if ((res.status === 401 || body.error === "unauthorized") && !(body.ok && body.url)) {
-      return { ok: false, code: "unauthorized" };
-    }
-    if (res.ok && body.ok && typeof body.url === "string") {
-      return { ok: true, url: body.url };
-    }
-    const code = typeof body.error === "string" && body.error.length > 0 ? body.error : "unknown";
-    return { ok: false, code };
-  }
-
-  function translateUploadErr(code: string): string {
-    const key = `staff.images.uploadErr.${code}`;
-    const txt = t(key);
-    return txt === key ? t("staff.images.uploadErr.unknown") : txt;
-  }
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -1026,10 +1013,10 @@ function ImagesField({
     const accepted: string[] = [];
     const errors: string[] = [];
     const list = Array.from(files);
-    if (cloudUpload) setBusy(true);
+    if (useCloud) setBusy(true);
     try {
       for (const file of list) {
-        if (!file.type.startsWith("image/")) {
+        if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name)) {
           errors.push(t("staff.images.notImage").replace("{name}", file.name));
           continue;
         }
@@ -1037,11 +1024,11 @@ function ImagesField({
           errors.push(t("staff.images.tooLarge").replace("{name}", file.name));
           continue;
         }
-        if (cloudUpload) {
-          const up = await uploadViaSupabase(file);
+        if (useCloud) {
+          const up = await uploadStaffImageFile(file, "products", { onSuccess: confirmR2Ready });
           if (up.ok) accepted.push(up.url);
-          else if (up.code === "unauthorized") errors.push(translateUploadErr("unauthorized"));
-          else errors.push(`${file.name}: ${translateUploadErr(up.code)}`);
+          else if (up.code === "unauthorized") errors.push(translateStaffUploadError("unauthorized", t));
+          else errors.push(`${file.name}: ${translateStaffUploadError(up.code, t)}`);
         } else {
           try {
             const dataUrl = await readFileAsDataUrl(file);
@@ -1055,7 +1042,7 @@ function ImagesField({
       if (errors.length > 0) setError(errors.join(" "));
       if (fileInputRef.current) fileInputRef.current.value = "";
     } finally {
-      if (cloudUpload) setBusy(false);
+      if (useCloud) setBusy(false);
     }
   };
 
@@ -1065,7 +1052,7 @@ function ImagesField({
     onChange(next);
   };
 
-  const hintKey = cloudUpload ? "staff.images.uploadHintCloud" : "staff.images.uploadHint";
+  const hintKey = useCloud ? "staff.images.uploadHintCloud" : "staff.images.uploadHint";
 
   return (
     <div>
@@ -1403,9 +1390,9 @@ function FragmentRow({ children }: { children: React.ReactNode }) {
 }
 
 function CollectionsPane() {
-  const { collections, saveCollections, r2Ready } = useStore();
+  const { collections, saveCollections, staffCloudUpload } = useStore();
   const { t } = useLocale();
-  const cloudUpload = r2Ready;
+  const cloudUpload = staffCloudUpload;
   const [draft, setDraft] = useState<Collection[]>(() => collections);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1595,12 +1582,6 @@ function JournalPane() {
   );
 }
 
-function translateStaffMediaUploadErr(code: string, t: (key: string) => string): string {
-  const key = `staff.images.uploadErr.${code}`;
-  const txt = t(key);
-  return txt === key ? t("staff.images.uploadErr.unknown") : txt;
-}
-
 function siteSaveErrorMessage(code: string, t: (key: string) => string): string {
   const key = `staff.site.saveErr.${code}`;
   const txt = t(key);
@@ -1608,9 +1589,10 @@ function siteSaveErrorMessage(code: string, t: (key: string) => string): string 
 }
 
 function SitePane() {
-  const { site, saveSite, resetCatalog, r2Ready, products, collections } = useStore();
+  const { site, saveSite, resetCatalog, staffCloudUpload, confirmR2Ready, products, collections } =
+    useStore();
   const { t } = useLocale();
-  const cloudMedia = r2Ready;
+  const cloudMedia = staffCloudUpload;
   const [draft, setDraft] = useState<SiteContent>(() => normalizeSiteContent(site));
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1628,7 +1610,8 @@ function SitePane() {
     setVideoError(null);
     const file = files?.[0];
     if (!file) return;
-    if (!isAllowedStaffVideoMime(file.type)) {
+    const videoMime = staffVideoMimeFromFile(file);
+    if (!isAllowedStaffVideoMime(videoMime)) {
       setVideoError(t("staff.hero.notVideo"));
       return;
     }
@@ -1639,23 +1622,9 @@ function SitePane() {
     try {
       if (cloudMedia) {
         setVideoBusy(true);
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("kind", "hero");
-        const res = await fetch("/api/staff/upload-media", {
-          method: "POST",
-          body: fd,
-          credentials: "same-origin",
-        });
-        const body = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
-        if (res.ok && body.ok && typeof body.url === "string") {
-          setDraft((d) => ({ ...d, heroVideo: body.url }));
-        } else if (res.status === 401 || body.error === "unauthorized") {
-          setVideoError(translateStaffMediaUploadErr("unauthorized", t));
-        } else {
-          const code = typeof body.error === "string" && body.error.length > 0 ? body.error : "unknown";
-          setVideoError(translateStaffMediaUploadErr(code, t));
-        }
+        const up = await uploadStaffMediaFile(file, "hero", { onSuccess: confirmR2Ready });
+        if (up.ok) setDraft((d) => ({ ...d, heroVideo: up.url }));
+        else setVideoError(translateStaffUploadError(up.code, t));
       } else {
         setVideoError(t("staff.site.r2RequiredForVideo"));
       }

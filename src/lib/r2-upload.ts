@@ -15,12 +15,19 @@ export type MuhraMediaR2Bucket = {
   get(key: string): Promise<MuhraMediaR2ObjectBody | null>;
 };
 
+function isR2BucketLike(v: unknown): v is MuhraMediaR2Bucket {
+  return Boolean(v && typeof v === "object" && typeof (v as MuhraMediaR2Bucket).put === "function");
+}
+
 function bucketFromEnv(env: Record<string, unknown>): MuhraMediaR2Bucket | undefined {
-  for (const key of ["MUHRA_MEDIA", "muhra_media"] as const) {
+  const preferred = ["MUHRA_MEDIA", "muhra_media", "muhra_media_preview"] as const;
+  for (const key of preferred) {
     const b = env[key];
-    if (b && typeof b === "object" && typeof (b as MuhraMediaR2Bucket).put === "function") {
-      return b as MuhraMediaR2Bucket;
-    }
+    if (isR2BucketLike(b)) return b;
+  }
+  for (const [key, val] of Object.entries(env)) {
+    if (!/media|r2/i.test(key)) continue;
+    if (isR2BucketLike(val)) return val;
   }
   return undefined;
 }
@@ -35,9 +42,7 @@ export async function getMuhraMediaR2Binding(): Promise<MuhraMediaR2Bucket | und
   return undefined;
 }
 
-export function isR2ConfiguredAtRuntime(): boolean {
-  return Boolean(process.env.R2_PUBLIC_BASE_URL?.trim());
-}
+export { isR2PublicConfigured as isR2ConfiguredAtRuntime } from "@/lib/r2-config";
 
 export async function uploadStaffBlobToR2(
   bucket: MuhraMediaR2Bucket,
