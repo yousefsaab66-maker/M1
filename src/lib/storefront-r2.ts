@@ -7,7 +7,7 @@ import {
 import { normalizeSiteContent } from "@/lib/site-display";
 import { isStorableMediaUrl, sanitizeSiteContentForServer } from "@/lib/site-content-storage";
 import { getMuhraMediaR2Binding } from "@/lib/r2-upload";
-import { readSiteSettingsFromR2, SITE_SETTINGS_R2_KEY } from "@/lib/site-settings-r2";
+import { SITE_SETTINGS_R2_KEY } from "@/lib/site-settings-r2";
 
 export const STOREFRONT_R2_KEY = "site/storefront.json";
 
@@ -38,12 +38,6 @@ function sanitizeCollectionsForServer(
   return { ok: true, collections };
 }
 
-async function readLegacySiteOnly(): Promise<SiteContent | null> {
-  const legacy = await readSiteSettingsFromR2();
-  if (legacy.ok && legacy.site) return legacy.site;
-  return null;
-}
-
 export async function readStorefrontFromR2(): Promise<ReadStorefrontR2Result> {
   const bucket = await getMuhraMediaR2Binding();
   if (!bucket) return { ok: false, error: "r2_not_configured" };
@@ -69,16 +63,20 @@ export async function readStorefrontFromR2(): Promise<ReadStorefrontR2Result> {
       }
     }
 
-    const legacySite = await readLegacySiteOnly();
-    if (legacySite) {
-      return {
-        ok: true,
-        data: {
-          site: legacySite,
-          collections: SEED_COLLECTIONS,
-          updatedAt: new Date().toISOString(),
-        },
-      };
+    const legacyObj = await bucket.get(SITE_SETTINGS_R2_KEY);
+    if (legacyObj) {
+      const legacyParsed = JSON.parse(await legacyObj.text()) as SiteContent;
+      if (legacyParsed && typeof legacyParsed === "object") {
+        return {
+          ok: true,
+          data: {
+            site: normalizeSiteContent(legacyParsed),
+            collections: SEED_COLLECTIONS,
+            updatedAt:
+              legacyObj.uploaded instanceof Date ? legacyObj.uploaded.toISOString() : new Date().toISOString(),
+          },
+        };
+      }
     }
 
     return { ok: true, data: null };

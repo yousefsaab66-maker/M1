@@ -108,6 +108,8 @@ type StoreCtx = {
   signIn: (name: string, email?: string) => void;
   signOut: () => void;
   hydrated: boolean;
+  /** أول جلب شبكة للكتالوج + الواجهة اكتمل (أو فشل). */
+  storeReady: boolean;
 };
 
 const StoreContext = createContext<StoreCtx | null>(null);
@@ -291,9 +293,10 @@ export function StoreProvider({
   const [supabaseReady, setSupabaseReady] = useState(false);
   const [r2Ready, setR2Ready] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [storeReady, setStoreReady] = useState(false);
 
   const [products, setProductsState] = useState<Product[]>(() =>
-    bootstrapFromServer ? initialRemoteProducts! : SEED_PRODUCTS,
+    bootstrapFromServer ? initialRemoteProducts! : [],
   );
   const [collections, setCollectionsState] = useState<Collection[]>(SEED_COLLECTIONS);
   const [journal, setJournalState] = useState<JournalArticle[]>(SEED_JOURNAL);
@@ -421,8 +424,7 @@ export function StoreProvider({
       applyLocalCatalogFromStorage();
     };
 
-    queueMicrotask(() => {
-      /* لو انتظرنا الشبكة قبل hydrate، صفحات مثل السلة أو الـ staff تبدو «متوقفة» إذا علّق /api على Cloudflare. */
+    const loadRemote = () => {
       hydrateSiteAndUi();
 
       if (bootstrapFromServer) {
@@ -437,7 +439,10 @@ export function StoreProvider({
           setProductsState(snapBootstrap);
           setRemoteCatalog(true);
         } else {
-          setProductsState(readJSON<Product[]>(KEY_PRODUCTS, SEED_PRODUCTS));
+          const local = readJSON<Product[]>(KEY_PRODUCTS, []);
+          if (local.length > 0) {
+            setProductsState(local);
+          }
           setRemoteCatalog(false);
         }
         setOrders(readJSON<Order[]>(KEY_ORDERS, []));
@@ -448,7 +453,7 @@ export function StoreProvider({
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
-          const catalogRes = await fetchCatalogJson(2, ac.signal);
+          const catalogRes = await fetchCatalogJson(1, ac.signal);
           if (gen !== catalogApplyGenRef.current) return;
 
           if (catalogRes.ok) {
@@ -473,8 +478,17 @@ export function StoreProvider({
           }
         } finally {
           clearTimeout(timer);
+          if (gen === catalogApplyGenRef.current) setStoreReady(true);
         }
       })();
+    };
+
+    queueMicrotask(() => {
+      if (typeof requestIdleCallback === "function") {
+        requestIdleCallback(() => loadRemote(), { timeout: 3000 });
+      } else {
+        setTimeout(loadRemote, 80);
+      }
     });
   }, []);
 
@@ -838,6 +852,7 @@ export function StoreProvider({
       signIn,
       signOut,
       hydrated,
+      storeReady,
     }),
     [
       products,
@@ -878,6 +893,7 @@ export function StoreProvider({
       signIn,
       signOut,
       hydrated,
+      storeReady,
     ],
   );
 

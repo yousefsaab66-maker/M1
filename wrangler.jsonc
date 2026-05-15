@@ -11,10 +11,9 @@
 	"assets": {
 		"directory": ".open-next/assets",
 		"binding": "ASSETS",
-		// Without this, Cloudflare can serve matching files from ASSETS at the edge without
-		// running the Worker — Next middleware + no-store headers never apply → stale HTML after deploy.
-		// If stale pages persist, run `npm run cf:purge` (needs CLOUDFLARE_ZONE_ID + CLOUDFLARE_API_TOKEN) or add a zone Cache Rule to bypass cache for non-static paths.
-		"run_worker_first": true
+		// `true` runs the Worker before every static asset (/_next/static, fonts, …) and often causes Error 1102.
+		// HTML cache headers come from `src/middleware.ts`; purge with `npm run cf:purge` after deploy if needed.
+		"run_worker_first": false
 	},
 	"services": [
 		{

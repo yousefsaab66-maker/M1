@@ -11,6 +11,7 @@ import { SafeImage } from "@/components/SafeImage";
 import { FadeIn, SectionTitle } from "@/components/Section";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
+import { CatalogLoadingSkeleton } from "@/components/layout/CatalogLoadingSkeleton";
 import {
   HOME_CATEGORY_STRIP,
   atelierImage,
@@ -22,7 +23,7 @@ import {
 
 export default function HomePage() {
   const { t } = useLocale();
-  const { products, collections, journal, site } = useStore();
+  const { products, collections, journal, site, storeReady } = useStore();
   const reduce = useReducedMotion();
 
   const iconic = useMemo(() => featuredHomeProducts(products, site), [products, site]);
@@ -31,6 +32,10 @@ export default function HomePage() {
     [collections, site],
   );
   const maisonImage = atelierImage(site);
+
+  if (!storeReady && products.length === 0) {
+    return <CatalogLoadingSkeleton variant="embedded" />;
+  }
 
   return (
     <div className="flex flex-col">

@@ -64,14 +64,10 @@ export const viewport: Viewport = {
   ],
 };
 
-/** Fresh HTML/RSC payloads — pairs with middleware `CDN-Cache-Control` on Workers. */
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 /**
  * Catalog is loaded in the browser via `/api/catalog/products` (StoreProvider), not here.
- * Fetching the full product list inside the root layout was blowing Cloudflare Worker CPU/memory
- * limits (Error 1102) when serializing large RSC payloads.
+ * Do not set `force-dynamic` on the root layout — it forces every page through a heavy Worker
+ * render and triggers Error 1102 on Cloudflare. Cache busting is handled by `middleware.ts`.
  */
 export default function RootLayout({
   children,
