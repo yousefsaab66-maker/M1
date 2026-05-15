@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import type { SiteContent } from "@/lib/catalog";
-import { upsertSiteContent } from "@/lib/storefront-query";
+import type { Collection, SiteContent } from "@/lib/catalog";
+import { upsertStorefront } from "@/lib/storefront-query";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 
 export const dynamic = "force-dynamic";
@@ -12,31 +12,37 @@ async function requireStaff(): Promise<boolean> {
   return Boolean(verifyStaffSession(jar.get(STAFF_COOKIE_NAME)?.value, secret));
 }
 
-/** Staff site settings — persisted in Supabase for all visitors/devices. */
+/** Persist site settings and/or collections to R2 (all devices). */
 export async function PUT(req: Request) {
   if (!(await requireStaff())) {
     return NextResponse.json({ ok: false, error: "unauthorized" } as const, { status: 401 });
   }
 
-  let payload: SiteContent;
+  let body: { site?: SiteContent; collections?: Collection[] };
   try {
-    payload = (await req.json()) as SiteContent;
+    body = (await req.json()) as { site?: SiteContent; collections?: Collection[] };
   } catch {
     return NextResponse.json({ ok: false, error: "invalid_json" } as const, { status: 400 });
   }
 
-  const result = await upsertSiteContent(payload);
+  if (!body.site && !body.collections) {
+    return NextResponse.json({ ok: false, error: "empty_patch" } as const, { status: 400 });
+  }
+
+  const result = await upsertStorefront({
+    site: body.site,
+    collections: body.collections,
+  });
+
   if (!result.ok) {
     const status =
       result.error === "embedded_media"
         ? 400
-        : result.error === "r2_not_configured" ||
-            result.error === "r2_write_failed" ||
-            result.error === "backend_not_configured" ||
-            result.error === "table_missing"
+        : result.error === "r2_not_configured" || result.error === "r2_write_failed"
           ? 503
           : 500;
     return NextResponse.json({ ok: false, error: result.error } as const, { status });
   }
+
   return NextResponse.json({ ok: true, updatedAt: result.updatedAt } as const);
 }

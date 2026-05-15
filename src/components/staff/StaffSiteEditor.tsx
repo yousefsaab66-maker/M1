@@ -16,7 +16,7 @@ function translateUploadErr(code: string, t: (key: string) => string): string {
 
 async function uploadStaffImage(
   file: File,
-  scope: "site" | "products" = "site",
+  scope: "site" | "collections" | "products" = "site",
 ): Promise<{ ok: true; url: string } | { ok: false; code: string }> {
   const fd = new FormData();
   fd.append("file", file);
@@ -42,6 +42,7 @@ export function StaffSingleImageField({
   value,
   onChange,
   cloudUpload,
+  uploadScope = "site",
   onClear,
   compact,
 }: {
@@ -49,6 +50,7 @@ export function StaffSingleImageField({
   value: string;
   onChange: (url: string) => void;
   cloudUpload: boolean;
+  uploadScope?: "site" | "collections";
   onClear?: () => void;
   compact?: boolean;
 }) {
@@ -75,7 +77,7 @@ export function StaffSingleImageField({
     }
     setBusy(true);
     try {
-      const up = await uploadStaffImage(file, "site");
+      const up = await uploadStaffImage(file, uploadScope);
       if (up.ok) onChange(up.url);
       else setError(translateUploadErr(up.code, t));
     } finally {

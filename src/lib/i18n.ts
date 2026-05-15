@@ -490,6 +490,9 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.pay.zaincash": "ZainCash",
     "staff.collections.titleCount": "Collections ({n})",
     "staff.collections.hint": "Edit collection details for the storefront. Slugs stay read-only.",
+    "staff.collections.hintSync":
+      "Upload cover images via Upload (R2), then click Save — settings sync to all devices. Featured collection on the homepage is under Site tab.",
+    "staff.collections.save": "Save collections",
     "staff.collections.fieldName": "Name",
     "staff.collections.fieldTagline": "Tagline",
     "staff.collections.fieldDescription": "Description",
@@ -2118,6 +2121,9 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.pay.zaincash": "زين كاش",
     "staff.collections.titleCount": "المجموعات ({n})",
     "staff.collections.hint": "تعديل بيانات المجموعات كما تظهر في المتجر. المسارات slug للقراءة فقط.",
+    "staff.collections.hintSync":
+      "ارفع صور الغلاف عبر «رفع» (R2) ثم «حفظ» — تظهر على كل الأجهزة. المجموعة المميزة في الصفحة الرئيسية من تبويب Site.",
+    "staff.collections.save": "حفظ المجموعات",
     "staff.collections.fieldName": "الاسم",
     "staff.collections.fieldTagline": "السطر التعريفي",
     "staff.collections.fieldDescription": "الوصف",

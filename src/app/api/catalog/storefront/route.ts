@@ -8,13 +8,19 @@ const NO_STORE_JSON = {
   "CDN-Cache-Control": "no-store",
 } as const;
 
+/** Site + collections in one R2 read (light on Workers — avoids 1102 from many parallel calls). */
 export async function GET() {
   const result = await fetchStorefront();
   if (result.kind === "error") {
     return NextResponse.json({ error: result.message }, { status: 500, headers: NO_STORE_JSON });
   }
   return NextResponse.json(
-    { site: result.site, collections: result.collections, updatedAt: result.updatedAt },
+    {
+      site: result.site,
+      collections: result.collections,
+      updatedAt: result.updatedAt,
+      source: result.source,
+    },
     { headers: NO_STORE_JSON },
   );
 }

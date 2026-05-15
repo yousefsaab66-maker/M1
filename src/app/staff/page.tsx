@@ -41,7 +41,12 @@ import { formatDate, formatPrice, slugify } from "@/lib/format";
 import { formatIqd } from "@/lib/iraq";
 import { ensureProductOrderable, productGallerySources, productImageAt } from "@/lib/product-media";
 import { MUHRA_MAX_IMAGE_UPLOAD_BYTES, MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES, isAllowedStaffVideoMime } from "@/lib/supabase/storage-constants";
-import { StaffCategoriesEditor, StaffHomepageEditor, StaffSection } from "@/components/staff/StaffSiteEditor";
+import {
+  StaffCategoriesEditor,
+  StaffHomepageEditor,
+  StaffSection,
+  StaffSingleImageField,
+} from "@/components/staff/StaffSiteEditor";
 import { normalizeSiteContent } from "@/lib/site-display";
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -1398,69 +1403,105 @@ function FragmentRow({ children }: { children: React.ReactNode }) {
 }
 
 function CollectionsPane() {
-  const { collections, setCollections } = useStore();
+  const { collections, saveCollections, r2Ready } = useStore();
   const { t } = useLocale();
+  const cloudUpload = r2Ready;
+  const [draft, setDraft] = useState<Collection[]>(() => collections);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    queueMicrotask(() => setDraft(collections));
+  }, [collections]);
+
+  const patchCollection = (id: string, patch: Partial<Collection>) => {
+    setDraft((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  };
+
+  const saveDraft = async () => {
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const result = await saveCollections(draft);
+      if (result.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2200);
+      } else {
+        setSaveError(siteSaveErrorMessage(result.error, t));
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <section>
-      <h2 className="font-display break-words text-2xl sm:text-3xl">{t("staff.collections.titleCount").replace("{n}", String(collections.length))}</h2>
-      <p className="mt-2 opacity-70 text-sm">{t("staff.collections.hint")}</p>
-      <div className="mt-6 grid gap-4">
-        {collections.map((c) => (
-          <details key={c.id} className="staff-card">
+    <section className="min-w-0 pb-8">
+      <header className="mb-6">
+        <h2 className="font-display break-words text-2xl sm:text-3xl">
+          {t("staff.collections.titleCount").replace("{n}", String(draft.length))}
+        </h2>
+        <p className="mt-2 text-sm opacity-70">{t("staff.collections.hintSync")}</p>
+      </header>
+      <div className="mt-6 grid min-w-0 gap-4">
+        {draft.map((c) => (
+          <details key={c.id} className="staff-card min-w-0 p-4 sm:p-5">
             <summary className="cursor-pointer">
               <span className="font-display text-xl">{c.name}</span>
-              <span className="ms-3 opacity-60 text-sm">/{c.slug}</span>
+              <span className="ms-3 text-sm opacity-60">/{c.slug}</span>
             </summary>
-            <div className="mt-4 grid gap-4">
+            <div className="mt-4 grid min-w-0 gap-4">
               <Field label={t("staff.collections.fieldName")}>
                 <input
-                  className="staff-input"
+                  className="staff-input w-full"
                   value={c.name}
-                  onChange={(e) =>
-                    setCollections(collections.map((x) => (x.id === c.id ? { ...x, name: e.target.value } : x)))
-                  }
+                  onChange={(e) => patchCollection(c.id, { name: e.target.value })}
                 />
               </Field>
               <Field label={t("staff.collections.fieldTagline")}>
                 <input
-                  className="staff-input"
+                  className="staff-input w-full"
                   value={c.tagline}
-                  onChange={(e) =>
-                    setCollections(collections.map((x) => (x.id === c.id ? { ...x, tagline: e.target.value } : x)))
-                  }
+                  onChange={(e) => patchCollection(c.id, { tagline: e.target.value })}
                 />
               </Field>
               <Field label={t("staff.collections.fieldDescription")}>
                 <textarea
-                  className="staff-input"
+                  className="staff-input w-full"
                   rows={4}
                   value={c.description}
-                  onChange={(e) =>
-                    setCollections(collections.map((x) => (x.id === c.id ? { ...x, description: e.target.value } : x)))
-                  }
+                  onChange={(e) => patchCollection(c.id, { description: e.target.value })}
                 />
               </Field>
-              <Field label={t("staff.collections.fieldCover")}>
-                <input
-                  className="staff-input"
-                  value={c.coverImage}
-                  onChange={(e) =>
-                    setCollections(collections.map((x) => (x.id === c.id ? { ...x, coverImage: e.target.value } : x)))
-                  }
-                />
-              </Field>
-              <Field label={t("staff.collections.fieldEditorial")}>
-                <input
-                  className="staff-input"
-                  value={c.editorialImage}
-                  onChange={(e) =>
-                    setCollections(collections.map((x) => (x.id === c.id ? { ...x, editorialImage: e.target.value } : x)))
-                  }
-                />
-              </Field>
+              <StaffSingleImageField
+                label={t("staff.collections.fieldCover")}
+                value={c.coverImage}
+                cloudUpload={cloudUpload}
+                uploadScope="collections"
+                onChange={(coverImage) => patchCollection(c.id, { coverImage })}
+                onClear={() => patchCollection(c.id, { coverImage: "" })}
+              />
+              <StaffSingleImageField
+                label={t("staff.collections.fieldEditorial")}
+                value={c.editorialImage}
+                cloudUpload={cloudUpload}
+                uploadScope="collections"
+                onChange={(editorialImage) => patchCollection(c.id, { editorialImage })}
+                onClear={() => patchCollection(c.id, { editorialImage: "" })}
+              />
             </div>
           </details>
         ))}
+      </div>
+      {saveError && (
+        <p className="mt-4 text-xs" style={{ color: "var(--color-bordeaux)" }}>
+          {saveError}
+        </p>
+      )}
+      <div className="mt-8 flex justify-end">
+        <button type="button" disabled={saving} className="btn-primary min-w-[8rem]" onClick={() => void saveDraft()}>
+          {saving ? t("staff.site.saving") : saved ? t("staff.site.saved") : t("staff.collections.save")}
+        </button>
       </div>
     </section>
   );

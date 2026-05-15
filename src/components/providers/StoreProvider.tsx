@@ -70,7 +70,8 @@ type StoreCtx = {
   setSite: (s: SiteContent) => void;
   /** حفظ إعدادات الموقع في Supabase + التخزين المحلي (للظهور على كل الأجهزة). */
   saveSite: (s: SiteContent) => Promise<{ ok: true } | { ok: false; error: string }>;
-  refreshSite: () => Promise<void>;
+  saveCollections: (c: Collection[]) => Promise<{ ok: true } | { ok: false; error: string }>;
+  refreshStorefront: () => Promise<void>;
   resetCatalog: () => void;
 
   bag: BagItem[];
@@ -208,41 +209,69 @@ async function fetchCatalogJson(
   return { ok: false };
 }
 
-async function fetchSiteJson(
-  attempts = 2,
+async function fetchStorefrontJson(
   signal?: AbortSignal,
-): Promise<{ ok: true; site: SiteContent; updatedAt: string | null } | { ok: false }> {
-  for (let i = 0; i < attempts; i += 1) {
-    try {
-      const r = await fetch(`/api/catalog/site?_=${Date.now()}`, { ...CATALOG_FETCH_OPTS, signal });
-      if (r.ok) {
-        const d = (await r.json()) as { site?: SiteContent | null; updatedAt?: string | null };
-        if (d.site && typeof d.site === "object") {
-          return {
-            ok: true,
-            site: normalizeSiteContent(d.site),
-            updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : null,
-          };
-        }
-        return { ok: false };
-      }
-      if ((r.status === 503 || r.status === 502 || r.status === 504 || r.status === 524) && i < attempts - 1) {
-        await delay(350 * (i + 1));
-        continue;
-      }
-      return { ok: false };
-    } catch (e) {
-      if (signal?.aborted || (e instanceof DOMException && e.name === "AbortError")) {
-        return { ok: false };
-      }
-      if (i < attempts - 1) {
-        await delay(400 * (i + 1));
-        continue;
-      }
+): Promise<
+  | {
+      ok: true;
+      site: SiteContent;
+      collections: Collection[];
+      updatedAt: string | null;
+      source: "r2" | "none";
+    }
+  | { ok: false }
+> {
+  try {
+    const r = await fetch(`/api/catalog/storefront?_=${Date.now()}`, { ...CATALOG_FETCH_OPTS, signal });
+    if (!r.ok) return { ok: false };
+    const d = (await r.json()) as {
+      site?: SiteContent | null;
+      collections?: Collection[] | null;
+      updatedAt?: string | null;
+      source?: "r2" | "none";
+    };
+    if (d.site && typeof d.site === "object" && Array.isArray(d.collections)) {
+      return {
+        ok: true,
+        site: normalizeSiteContent(d.site),
+        collections: d.collections,
+        updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : null,
+        source: d.source === "r2" ? "r2" : "none",
+      };
+    }
+    return { ok: false };
+  } catch (e) {
+    if (signal?.aborted || (e instanceof DOMException && e.name === "AbortError")) {
       return { ok: false };
     }
+    return { ok: false };
   }
-  return { ok: false };
+}
+
+async function putStorefrontJson(
+  body: { site?: SiteContent; collections?: Collection[] },
+): Promise<{ ok: true; updatedAt: string } | { ok: false; error: string }> {
+  try {
+    const res = await fetch("/api/staff/storefront", {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      updatedAt?: string;
+    };
+    if (res.ok && data.ok) {
+      return { ok: true, updatedAt: data.updatedAt ?? new Date().toISOString() };
+    }
+    if (res.status === 401 || data.error === "unauthorized") return { ok: false, error: "unauthorized" };
+    return { ok: false, error: typeof data.error === "string" ? data.error : "generic" };
+  } catch {
+    return { ok: false, error: "network" };
+  }
 }
 
 /** لا نُبقي واجهة المستخدم معلّقة بانتظار Workers بطيئة أو معلّقة (أوّل تحميل قد يكون بارد على CF). */
@@ -313,14 +342,30 @@ export function StoreProvider({
     }
   }, []);
 
-  const refreshSite = useCallback(async () => {
+  const applyCollections = useCallback((c: Collection[]) => {
+    setCollectionsState(c);
+    writeJSON(KEY_COLLECTIONS, c);
+  }, []);
+
+  const applyStorefront = useCallback(
+    (site: SiteContent, collections: Collection[], remoteUpdatedAt?: string | null) => {
+      applySite(site, remoteUpdatedAt);
+      applyCollections(collections);
+    },
+    [applySite, applyCollections],
+  );
+
+  const refreshStorefront = useCallback(async () => {
     try {
-      const res = await fetchSiteJson(2);
-      if (res.ok) applySite(res.site, res.updatedAt);
+      const res = await fetchStorefrontJson();
+      if (res.ok) {
+        applyStorefront(res.site, res.collections, res.updatedAt);
+        if (res.source === "r2") setR2Ready(true);
+      }
     } catch {
       /* ignore */
     }
-  }, [applySite]);
+  }, [applyStorefront]);
 
   const mergeRemoteProduct = useCallback((p: Product) => {
     /* Bumps generation so init/refresh that started before this merge cannot overwrite fresher UI + snapshot. */
@@ -403,22 +448,7 @@ export function StoreProvider({
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
-          const [healthOutcome, r2Outcome, catalogRes, siteRes] = await Promise.all([
-            fetch("/api/health/supabase", { ...CATALOG_FETCH_OPTS, signal: ac.signal })
-              .then((r) => (r.ok ? (r.json() as Promise<{ ready?: unknown }>) : Promise.resolve({})))
-              .catch(() => ({})),
-
-            fetch("/api/health/r2", { ...CATALOG_FETCH_OPTS, signal: ac.signal })
-              .then((r) => (r.ok ? (r.json() as Promise<{ ready?: unknown }>) : Promise.resolve({})))
-              .catch(() => ({})),
-
-            fetchCatalogJson(3, ac.signal),
-            fetchSiteJson(2, ac.signal),
-          ]);
-
-          setSupabaseReady((healthOutcome as { ready?: boolean }).ready === true);
-          setR2Ready((r2Outcome as { ready?: boolean }).ready === true);
-
+          const catalogRes = await fetchCatalogJson(2, ac.signal);
           if (gen !== catalogApplyGenRef.current) return;
 
           if (catalogRes.ok) {
@@ -426,14 +456,20 @@ export function StoreProvider({
             clearStaleLocalProductCache();
             setRemoteCatalog(true);
             setProductsState(catalogRes.products);
+            setSupabaseReady(true);
           } else {
             recoverCatalogAfterNetworkFailure();
           }
 
-          if (siteRes.ok) {
-            applySite(siteRes.site, siteRes.updatedAt);
+          const storefrontRes = await fetchStorefrontJson(ac.signal);
+          if (gen !== catalogApplyGenRef.current) return;
+
+          if (storefrontRes.ok) {
+            applyStorefront(storefrontRes.site, storefrontRes.collections, storefrontRes.updatedAt);
+            if (storefrontRes.source === "r2") setR2Ready(true);
           } else {
             applySite(readJSON<SiteContent>(KEY_SITE, SEED_SITE));
+            applyCollections(readJSON<Collection[]>(KEY_COLLECTIONS, SEED_COLLECTIONS));
           }
         } finally {
           clearTimeout(timer);
@@ -442,26 +478,32 @@ export function StoreProvider({
     });
   }, []);
 
-  /** الجوال يبقى التطبيق بالخلفية؛ عند الرجوع نحدّث الكتالوج حتى يظهر آخر منتج من Supabase. */
+  /** تحديث خفيف عند الرجوع للتطبيق — تسلسلي لتقليل 1102 على Cloudflare. */
+  const remoteRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRemoteRefresh = useCallback(() => {
+    if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
+    remoteRefreshTimerRef.current = setTimeout(() => {
+      void (async () => {
+        await refreshCatalog();
+        await refreshStorefront();
+      })();
+    }, 1200);
+  }, [refreshCatalog, refreshStorefront]);
+
   useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState === "visible") {
-        void refreshCatalog();
-        void refreshSite();
-      }
+      if (document.visibilityState === "visible") scheduleRemoteRefresh();
     };
-    const onOnline = () => {
-      void refreshCatalog();
-      void refreshSite();
-    };
+    const onOnline = () => scheduleRemoteRefresh();
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("online", onOnline);
     return () => {
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("online", onOnline);
       catalogRefreshAbortRef.current?.abort();
+      if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
     };
-  }, [refreshCatalog, refreshSite]);
+  }, [scheduleRemoteRefresh]);
 
   const setProducts = useCallback(
     (p: Product[]) => {
@@ -493,43 +535,29 @@ export function StoreProvider({
   const saveSite = useCallback(
     async (s: SiteContent): Promise<{ ok: true } | { ok: false; error: string }> => {
       const sanitized = sanitizeSiteContentForServer(s);
-      if (!sanitized.ok) {
-        return { ok: false, error: "embedded_media" };
+      if (!sanitized.ok) return { ok: false, error: "embedded_media" };
+      const result = await putStorefrontJson({ site: sanitized.site });
+      if (result.ok) {
+        applySite(sanitized.site, result.updatedAt);
+        setR2Ready(true);
+        return { ok: true };
       }
-      const next = sanitized.site;
-      try {
-        const res = await fetch("/api/staff/site", {
-          method: "PUT",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(next),
-          cache: "no-store",
-        });
-        const body = (await res.json().catch(() => ({}))) as {
-          ok?: boolean;
-          error?: string;
-          updatedAt?: string;
-        };
-        if (res.ok && body.ok) {
-          applySite(next, body.updatedAt ?? new Date().toISOString());
-          return { ok: true };
-        }
-        if (res.status === 401 || body.error === "unauthorized") {
-          return { ok: false, error: "unauthorized" };
-        }
-        if (body.error === "table_missing") return { ok: false, error: "table_missing" };
-        if (body.error === "embedded_media") return { ok: false, error: "embedded_media" };
-        if (body.error === "r2_not_configured") return { ok: false, error: "r2_not_configured" };
-        if (body.error === "r2_write_failed") return { ok: false, error: "r2_write_failed" };
-        if (body.error === "backend_not_configured") {
-          return { ok: false, error: "backend_not_configured" };
-        }
-        return { ok: false, error: typeof body.error === "string" ? body.error : "generic" };
-      } catch {
-        return { ok: false, error: "network" };
-      }
+      return { ok: false, error: result.error };
     },
     [applySite],
+  );
+
+  const saveCollections = useCallback(
+    async (c: Collection[]): Promise<{ ok: true } | { ok: false; error: string }> => {
+      const result = await putStorefrontJson({ collections: c });
+      if (result.ok) {
+        applyCollections(c);
+        setR2Ready(true);
+        return { ok: true };
+      }
+      return { ok: false, error: result.error };
+    },
+    [applyCollections],
   );
 
   const resetCatalog = useCallback(() => {
@@ -783,7 +811,8 @@ export function StoreProvider({
       setBoutiques,
       setSite,
       saveSite,
-      refreshSite,
+      saveCollections,
+      refreshStorefront,
       resetCatalog,
       bag,
       addToBag,
@@ -822,7 +851,8 @@ export function StoreProvider({
       setBoutiques,
       setSite,
       saveSite,
-      refreshSite,
+      saveCollections,
+      refreshStorefront,
       resetCatalog,
       bag,
       addToBag,
