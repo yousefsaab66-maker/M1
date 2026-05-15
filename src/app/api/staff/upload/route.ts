@@ -92,8 +92,10 @@ export async function POST(req: Request) {
         : mime === "image/gif"
           ? "gif"
           : "jpg";
+  const scopeRaw = typeof formData.get("scope") === "string" ? (formData.get("scope") as string).trim() : "";
+  const scope = scopeRaw === "site" ? "site" : "products";
   const slug = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const objectPath = `products/${slug}-${baseName.replace(/\.[^.]+$/, "")}.${ext}`;
+  const objectPath = `${scope}/${slug}-${baseName.replace(/\.[^.]+$/, "")}.${ext}`;
 
   try {
     await uploadStaffBlobToR2(r2Bucket!, objectPath, buf, mime);

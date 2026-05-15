@@ -15,7 +15,7 @@ import {
 export const dynamic = "force-dynamic";
 
 /** Site media (hero video, journal cover image, …). Product catalogue images use `POST /api/staff/upload`. */
-const MEDIA_KINDS = ["hero", "journal", "product"] as const;
+const MEDIA_KINDS = ["hero", "journal", "product", "site"] as const;
 type MediaKind = (typeof MEDIA_KINDS)[number];
 
 const IMAGE_LIMIT = 45;
@@ -51,6 +51,7 @@ function imageExt(mime: string): string {
 function objectPrefixForKind(kind: MediaKind): string {
   if (kind === "hero") return "hero";
   if (kind === "journal") return "journal";
+  if (kind === "site") return "site";
   return "products";
 }
 
@@ -102,6 +103,10 @@ export async function POST(req: Request) {
   }
 
   if (kind === "product" && isVideo) {
+    return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400 });
+  }
+
+  if (kind === "site" && isVideo) {
     return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400 });
   }
 

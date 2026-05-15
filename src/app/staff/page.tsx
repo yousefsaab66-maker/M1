@@ -1616,8 +1616,7 @@ function SitePane() {
           setVideoError(translateStaffMediaUploadErr(code, t));
         }
       } else {
-        const dataUrl = await readFileAsDataUrl(file);
-        if (dataUrl) setDraft((d) => ({ ...d, heroVideo: dataUrl }));
+        setVideoError(t("staff.site.r2RequiredForVideo"));
       }
     } catch {
       setVideoError(t("staff.images.uploadErr.unknown"));

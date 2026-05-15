@@ -27,8 +27,13 @@ export async function PUT(req: Request) {
 
   const result = await upsertSiteContent(payload);
   if (!result.ok) {
-    const status = result.error === "backend_not_configured" ? 503 : result.error === "table_missing" ? 503 : 500;
+    const status =
+      result.error === "embedded_media"
+        ? 400
+        : result.error === "backend_not_configured" || result.error === "table_missing"
+          ? 503
+          : 500;
     return NextResponse.json({ ok: false, error: result.error } as const, { status });
   }
-  return NextResponse.json({ ok: true } as const);
+  return NextResponse.json({ ok: true, updatedAt: result.updatedAt } as const);
 }

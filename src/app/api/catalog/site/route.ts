@@ -16,5 +16,8 @@ export async function GET() {
   if (result.kind === "error") {
     return NextResponse.json({ error: result.message }, { status: 500, headers: NO_STORE_JSON });
   }
-  return NextResponse.json({ site: result.site }, { headers: NO_STORE_JSON });
+  return NextResponse.json(
+    { site: result.site, updatedAt: result.updatedAt },
+    { headers: NO_STORE_JSON },
+  );
 }

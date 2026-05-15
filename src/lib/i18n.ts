@@ -530,6 +530,9 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.site.saveErr.table_missing": "Database table missing: run supabase/migrations/20260515120000_muhra_site_settings.sql in Supabase SQL Editor, then save again.",
     "staff.site.saveErr.backend_not_configured": "Supabase is not configured on the server (SUPABASE_URL + service role).",
     "staff.site.saveErr.generic": "Could not save site settings. Try again.",
+    "staff.site.saveErr.embedded_media":
+      "Some images or video are stored only in this browser. Use Upload (R2) for each image and the hero video, then save again.",
+    "staff.site.r2RequiredForVideo": "Hero video must be uploaded to cloud storage (R2). Check Worker R2 binding and R2_PUBLIC_BASE_URL.",
     "staff.site.categoriesTitle": "Catalogue categories",
     "staff.site.categoriesIntro": "Custom names and tile images for category filters and the homepage strip. Empty fields use the built-in catalogue labels and images.",
     "staff.site.categoryLabel": "Display name",
@@ -2151,6 +2154,9 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.site.saveErr.table_missing": "جدول قاعدة البيانات غير موجود: نفّذ ملف supabase/migrations/20260515120000_muhra_site_settings.sql في Supabase ثم احفظ مرة أخرى.",
     "staff.site.saveErr.backend_not_configured": "Supabase غير مضبوط على السيرفر (SUPABASE_URL + service role).",
     "staff.site.saveErr.generic": "تعذّر حفظ إعدادات الموقع. أعد المحاولة.",
+    "staff.site.saveErr.embedded_media":
+      "بعض الصور أو الفيديو محفوظة في هذا المتصفح فقط. ارفع كل صورة وفيديو الهيرو عبر زر «رفع» (R2) ثم احفظ من جديد.",
+    "staff.site.r2RequiredForVideo": "فيديو الهيرو يجب رفعه إلى التخزين السحابي (R2). تحقق من ربط R2 على الـ Worker و R2_PUBLIC_BASE_URL.",
     "staff.site.categoriesTitle": "فئات الكتالوج",
     "staff.site.categoriesIntro": "أسماء وصور مخصّصة لفلاتر الفئات وشريط الصفحة الرئيسية. الحقول الفارغة تستخدم تسميات وصور الكتالوج المدمجة.",
     "staff.site.categoryLabel": "الاسم الظاهر",

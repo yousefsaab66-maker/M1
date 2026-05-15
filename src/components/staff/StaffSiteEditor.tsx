@@ -14,9 +14,13 @@ function translateUploadErr(code: string, t: (key: string) => string): string {
   return txt === key ? t("staff.images.uploadErr.unknown") : txt;
 }
 
-async function uploadStaffImage(file: File): Promise<{ ok: true; url: string } | { ok: false; code: string }> {
+async function uploadStaffImage(
+  file: File,
+  scope: "site" | "products" = "site",
+): Promise<{ ok: true; url: string } | { ok: false; code: string }> {
   const fd = new FormData();
   fd.append("file", file);
+  fd.append("scope", scope);
   const res = await fetch("/api/staff/upload", { method: "POST", body: fd, credentials: "same-origin" });
   const body = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
   if (res.ok && body.ok && typeof body.url === "string") return { ok: true, url: body.url };
@@ -71,7 +75,7 @@ export function StaffSingleImageField({
     }
     setBusy(true);
     try {
-      const up = await uploadStaffImage(file);
+      const up = await uploadStaffImage(file, "site");
       if (up.ok) onChange(up.url);
       else setError(translateUploadErr(up.code, t));
     } finally {

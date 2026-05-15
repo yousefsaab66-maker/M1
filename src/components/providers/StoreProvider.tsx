@@ -25,6 +25,7 @@ import {
 import type { BagItem, Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
 import { SHIPPING_FEE_IQD, toIqd, type GovernorateCode } from "@/lib/iraq";
 import { normalizeSiteContent } from "@/lib/site-display";
+import { sanitizeSiteContentForServer } from "@/lib/site-content-storage";
 
 export type {
   BagItem,
@@ -44,6 +45,7 @@ const KEY_COLLECTIONS = "muhra-collections-v1";
 const KEY_JOURNAL = "muhra-journal-v1";
 const KEY_BOUTIQUES = "muhra-boutiques-v3";
 const KEY_SITE = "muhra-site-v1";
+const KEY_SITE_REMOTE_AT = "muhra-site-remote-at-v1";
 const KEY_BAG = "muhra-bag-v1";
 const KEY_WISH = "muhra-wishlist-v1";
 const KEY_ORDERS = "muhra-orders-v1";
@@ -209,14 +211,18 @@ async function fetchCatalogJson(
 async function fetchSiteJson(
   attempts = 2,
   signal?: AbortSignal,
-): Promise<{ ok: true; site: SiteContent } | { ok: false }> {
+): Promise<{ ok: true; site: SiteContent; updatedAt: string | null } | { ok: false }> {
   for (let i = 0; i < attempts; i += 1) {
     try {
       const r = await fetch(`/api/catalog/site?_=${Date.now()}`, { ...CATALOG_FETCH_OPTS, signal });
       if (r.ok) {
-        const d = (await r.json()) as { site?: SiteContent | null };
+        const d = (await r.json()) as { site?: SiteContent | null; updatedAt?: string | null };
         if (d.site && typeof d.site === "object") {
-          return { ok: true, site: normalizeSiteContent(d.site) };
+          return {
+            ok: true,
+            site: normalizeSiteContent(d.site),
+            updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : null,
+          };
         }
         return { ok: false };
       }
@@ -294,16 +300,23 @@ export function StoreProvider({
     }
   }, []);
 
-  const applySite = useCallback((s: SiteContent) => {
+  const applySite = useCallback((s: SiteContent, remoteUpdatedAt?: string | null) => {
     const next = normalizeSiteContent(s);
     setSiteState(next);
     writeJSON(KEY_SITE, next);
+    if (remoteUpdatedAt) {
+      try {
+        localStorage.setItem(KEY_SITE_REMOTE_AT, remoteUpdatedAt);
+      } catch {
+        /* ignore */
+      }
+    }
   }, []);
 
   const refreshSite = useCallback(async () => {
     try {
       const res = await fetchSiteJson(2);
-      if (res.ok) applySite(res.site);
+      if (res.ok) applySite(res.site, res.updatedAt);
     } catch {
       /* ignore */
     }
@@ -340,7 +353,6 @@ export function StoreProvider({
       setCollectionsState(readJSON<Collection[]>(KEY_COLLECTIONS, SEED_COLLECTIONS));
       setJournalState(readJSON<JournalArticle[]>(KEY_JOURNAL, SEED_JOURNAL));
       setBoutiquesState(readJSON<Boutique[]>(KEY_BOUTIQUES, SEED_BOUTIQUES));
-      setSiteState(normalizeSiteContent(readJSON<SiteContent>(KEY_SITE, SEED_SITE)));
       setBag(readJSON<BagItem[]>(KEY_BAG, []));
       setWishlist(readJSON<string[]>(KEY_WISH, []));
       setUser(readJSON<UserProfile | null>(KEY_USER, null));
@@ -418,7 +430,11 @@ export function StoreProvider({
             recoverCatalogAfterNetworkFailure();
           }
 
-          if (siteRes.ok) applySite(siteRes.site);
+          if (siteRes.ok) {
+            applySite(siteRes.site, siteRes.updatedAt);
+          } else {
+            applySite(readJSON<SiteContent>(KEY_SITE, SEED_SITE));
+          }
         } finally {
           clearTimeout(timer);
         }
@@ -476,8 +492,11 @@ export function StoreProvider({
 
   const saveSite = useCallback(
     async (s: SiteContent): Promise<{ ok: true } | { ok: false; error: string }> => {
-      const next = normalizeSiteContent(s);
-      applySite(next);
+      const sanitized = sanitizeSiteContentForServer(s);
+      if (!sanitized.ok) {
+        return { ok: false, error: "embedded_media" };
+      }
+      const next = sanitized.site;
       try {
         const res = await fetch("/api/staff/site", {
           method: "PUT",
@@ -486,12 +505,20 @@ export function StoreProvider({
           body: JSON.stringify(next),
           cache: "no-store",
         });
-        const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-        if (res.ok && body.ok) return { ok: true };
+        const body = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          updatedAt?: string;
+        };
+        if (res.ok && body.ok) {
+          applySite(next, body.updatedAt ?? new Date().toISOString());
+          return { ok: true };
+        }
         if (res.status === 401 || body.error === "unauthorized") {
           return { ok: false, error: "unauthorized" };
         }
         if (body.error === "table_missing") return { ok: false, error: "table_missing" };
+        if (body.error === "embedded_media") return { ok: false, error: "embedded_media" };
         if (body.error === "backend_not_configured") {
           return { ok: false, error: "backend_not_configured" };
         }
