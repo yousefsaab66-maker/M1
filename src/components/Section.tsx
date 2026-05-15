@@ -17,21 +17,23 @@ export function SectionTitle({
   align = "center",
 }: SectionTitleProps) {
   const ref = useRef<HTMLDivElement>(null);
-  /** `useInView` can be true on the client while SSR assumed false → hydration mismatch. Gate until after mount. */
-  const [hasMounted, setHasMounted] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const inView = useInView(ref, { once: true, margin: "0px 0px -8% 0px" });
+  const reduce = useReducedMotion();
+
   useEffect(() => {
-    setHasMounted(true);
+    if (inView) setRevealed(true);
+  }, [inView]);
+
+  /** If IntersectionObserver never fires after reload, still show content. */
+  useEffect(() => {
+    const t = window.setTimeout(() => setRevealed(true), 800);
+    return () => window.clearTimeout(t);
   }, []);
-  const inViewRaw = useInView(ref, { once: true, margin: "-15% 0px" });
-  const inView = hasMounted && inViewRaw;
-  const reduceRaw = useReducedMotion();
-  const reduce = hasMounted && reduceRaw;
-  const initial = reduce ? false : { opacity: 0, y: 30 };
-  const animate = reduce
-    ? undefined
-    : inView
-      ? { opacity: 1, y: 0 }
-      : { opacity: 0, y: 30 };
+
+  const show = Boolean(reduce) || revealed;
+  const initial = show ? false : { opacity: 0, y: 30 };
+  const animate = show ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 };
   return (
     <div
       ref={ref}
@@ -79,26 +81,27 @@ export function FadeIn({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [hasMounted, setHasMounted] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const inView = useInView(ref, { once: true, margin: "0px 0px -8% 0px" });
+  const reduce = useReducedMotion();
+
   useEffect(() => {
-    setHasMounted(true);
+    if (inView) setRevealed(true);
+  }, [inView]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setRevealed(true), 800);
+    return () => window.clearTimeout(t);
   }, []);
-  const inViewRaw = useInView(ref, { once: true, margin: "-15% 0px" });
-  const inView = hasMounted && inViewRaw;
-  const reduceRaw = useReducedMotion();
-  const reduce = hasMounted && reduceRaw;
+
+  const show = Boolean(reduce) || revealed;
+
   return (
     <motion.div
       ref={ref}
       className={className}
-      initial={reduce ? false : { opacity: 0, y: 28 }}
-      animate={
-        reduce
-          ? undefined
-          : inView
-            ? { opacity: 1, y: 0 }
-            : { opacity: 0, y: 28 }
-      }
+      initial={show ? false : { opacity: 0, y: 28 }}
+      animate={show ? { opacity: 1, y: 0 } : { opacity: 0, y: 28 }}
       transition={{ duration: 1.05, ease: [0.22, 0.61, 0.36, 1], delay }}
     >
       {children}

@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -440,7 +441,7 @@ export function StoreProvider({
     }
   }, [supabaseReady]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
 
@@ -554,7 +555,7 @@ export function StoreProvider({
       })();
     };
 
-    queueMicrotask(() => loadRemote());
+    loadRemote();
   }, []);
 
   /** تحديث خفيف عند الرجوع للتطبيق — تسلسلي لتقليل 1102 على Cloudflare. */

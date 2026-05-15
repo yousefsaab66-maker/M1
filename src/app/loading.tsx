@@ -1,4 +1,6 @@
-/** Avoid a full-page skeleton on every refresh; StoreProvider hydrates from localStorage immediately. */
+import { CatalogLoadingSkeleton } from "@/components/layout/CatalogLoadingSkeleton";
+
+/** Shown during refresh / route transitions — never an empty main. */
 export default function Loading() {
-  return null;
+  return <CatalogLoadingSkeleton variant="embedded" />;
 }
