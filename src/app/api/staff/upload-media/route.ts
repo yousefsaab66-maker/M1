@@ -3,13 +3,10 @@ import { NextResponse } from "next/server";
 import { getMuhraMediaR2Binding, uploadStaffBlobToR2 } from "@/lib/r2-upload";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
-import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin";
 import {
   buildR2PublicObjectUrl,
-  mapSupabaseStorageUploadError,
   MUHRA_MAX_IMAGE_UPLOAD_BYTES,
   MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES,
-  MUHRA_PRODUCT_IMAGES_BUCKET,
   isAllowedStaffImageMime,
   isAllowedStaffVideoMime,
   sanitizeStorageFileName,
@@ -69,8 +66,9 @@ export async function POST(req: Request) {
   const r2PublicBase = process.env.R2_PUBLIC_BASE_URL?.trim();
   const useR2 = Boolean(r2Bucket && r2PublicBase);
 
-  if (r2Bucket && !r2PublicBase && !isSupabaseBackendConfigured()) {
-    return NextResponse.json({ ok: false, error: "r2_public_base_missing" }, { status: 503 });
+  if (!useR2) {
+    const err = r2Bucket && !r2PublicBase ? "r2_public_base_missing" : "r2_media_required";
+    return NextResponse.json({ ok: false, error: err }, { status: 503 });
   }
 
   let formData: FormData;
@@ -125,11 +123,6 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!useR2 && !isSupabaseBackendConfigured()) {
-    const err = isVideo ? "r2_only" : "not_configured";
-    return NextResponse.json({ ok: false, error: err }, { status: 503, headers: rlHeaders });
-  }
-
   const buf = Buffer.from(await file.arrayBuffer());
   const baseName = sanitizeStorageFileName(typeof file.name === "string" ? file.name : "media");
   const slug = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -138,42 +131,15 @@ export async function POST(req: Request) {
   const prefix = objectPrefixForKind(kind);
   const objectPath = `${prefix}/${slug}-${stem}.${ext}`;
 
-  if (useR2 && r2Bucket && r2PublicBase) {
-    try {
-      await uploadStaffBlobToR2(r2Bucket, objectPath, buf, mime);
-    } catch (e) {
-      const detail = e instanceof Error ? e.message : String(e);
-      return NextResponse.json(
-        { ok: false, error: "r2_upload_failed", detail },
-        { status: 502, headers: rlHeaders },
-      );
-    }
-    const url = buildR2PublicObjectUrl(r2PublicBase, objectPath);
-    return NextResponse.json({ ok: true, url, path: objectPath }, { headers: rlHeaders });
-  }
-
-  const sb = supabaseAdmin();
-  const bucket = MUHRA_PRODUCT_IMAGES_BUCKET;
-  const { error: uploadError } = await sb.storage.from(bucket).upload(objectPath, buf, {
-    contentType: mime,
-    cacheControl: "31536000",
-    upsert: false,
-  });
-
-  if (uploadError) {
-    const code = mapSupabaseStorageUploadError(uploadError.message ?? "");
-    if (isVideo && code === "mime_not_allowed") {
-      return NextResponse.json(
-        { ok: false, error: "video_not_supported_without_r2" },
-        { status: 415, headers: rlHeaders },
-      );
-    }
+  try {
+    await uploadStaffBlobToR2(r2Bucket!, objectPath, buf, mime);
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
-      { ok: false, error: code, detail: uploadError.message },
+      { ok: false, error: "r2_upload_failed", detail },
       { status: 502, headers: rlHeaders },
     );
   }
-
-  const { data } = sb.storage.from(bucket).getPublicUrl(objectPath);
-  return NextResponse.json({ ok: true, url: data.publicUrl, path: objectPath }, { headers: rlHeaders });
+  const url = buildR2PublicObjectUrl(r2PublicBase!, objectPath);
+  return NextResponse.json({ ok: true, url, path: objectPath }, { headers: rlHeaders });
 }

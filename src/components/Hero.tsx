@@ -209,7 +209,7 @@ export function Hero() {
           animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 1.4, ease: [0.22, 0.61, 0.36, 1], delay: 0.25 }}
         >
-          {t("hero.headline")}
+          {site.heroHeadline?.trim() || t("hero.headline")}
         </motion.h1>
         <motion.p
           className="mx-auto mt-6 max-w-xl text-base leading-relaxed opacity-90 md:text-lg"
@@ -217,7 +217,7 @@ export function Hero() {
           animate={reduceMotion ? undefined : { opacity: 0.9, y: 0 }}
           transition={{ duration: 1.2, ease: [0.22, 0.61, 0.36, 1], delay: 0.5 }}
         >
-          {t("hero.sub")}
+          {site.heroSubhead?.trim() || t("hero.sub")}
         </motion.p>
         <motion.div
           className="mt-12 flex flex-wrap items-center justify-center gap-4"

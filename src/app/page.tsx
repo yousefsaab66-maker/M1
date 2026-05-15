@@ -11,30 +11,26 @@ import { SafeImage } from "@/components/SafeImage";
 import { FadeIn, SectionTitle } from "@/components/Section";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
-
-const CATEGORIES: {
-  key: "necklaces" | "rings" | "earrings" | "bracelets";
-  image: string;
-}[] = [
-  { key: "necklaces", image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=1200&q=80" },
-  { key: "rings", image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=1200&q=80" },
-  { key: "earrings", image: "https://images.unsplash.com/photo-1635767798638-3e25273a8236?auto=format&fit=crop&w=1200&q=80" },
-  { key: "bracelets", image: "https://images.unsplash.com/photo-1573408301185-9146fe634ad0?auto=format&fit=crop&w=1200&q=80" },
-];
+import {
+  HOME_CATEGORY_STRIP,
+  atelierImage,
+  categoryImage,
+  categoryLabel,
+  featuredCollection,
+  featuredHomeProducts,
+} from "@/lib/site-display";
 
 export default function HomePage() {
   const { t } = useLocale();
-  const { products, collections, journal } = useStore();
+  const { products, collections, journal, site } = useStore();
   const reduce = useReducedMotion();
 
-  const iconic = useMemo(
-    () =>
-      products
-        .filter((p) => p.collection === "muhra-heritage" || p.isNew || p.isHighJewelry)
-        .slice(0, 6),
-    [products],
+  const iconic = useMemo(() => featuredHomeProducts(products, site), [products, site]);
+  const featuredCollectionBlock = useMemo(
+    () => featuredCollection(collections, site),
+    [collections, site],
   );
-  const featuredCollection = collections.find((c) => c.slug === "muhra-aurora") ?? collections[0];
+  const maisonImage = atelierImage(site);
 
   return (
     <div className="flex flex-col">
@@ -46,16 +42,16 @@ export default function HomePage() {
           <p className="eyebrow text-center">{t("nav.collections")}</p>
         </FadeIn>
         <div className="mx-auto mt-8 grid max-w-[1400px] grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
-          {CATEGORIES.map((c, i) => (
-            <FadeIn key={c.key} delay={i * 0.08}>
+          {HOME_CATEGORY_STRIP.map((key, i) => (
+            <FadeIn key={key} delay={i * 0.08}>
               <Link
-                href={`/products?category=${c.key}` as never}
+                href={`/products?category=${key}` as never}
                 className="product-image-zoom relative block aspect-[3/4] overflow-hidden"
                 style={{ background: "var(--surface-2)" }}
               >
                 <Image
-                  src={c.image}
-                  alt={t(`category.${c.key}`)}
+                  src={categoryImage(key, site)}
+                  alt={categoryLabel(key, site, t)}
                   fill
                   sizes="(min-width: 768px) 25vw, 50vw"
                   className="object-cover"
@@ -69,7 +65,7 @@ export default function HomePage() {
                 />
                 <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5 text-[var(--color-ivory)]">
                   <h3 className="font-display text-2xl md:text-3xl" style={{ color: "var(--color-ivory)" }}>
-                    {t(`category.${c.key}`)}
+                    {categoryLabel(key, site, t)}
                   </h3>
                   <ArrowUpRight className="h-5 w-5 opacity-80" strokeWidth={1.3} />
                 </div>
@@ -82,14 +78,14 @@ export default function HomePage() {
       <div className="divider-gold mx-auto my-10 w-[40%]" />
 
       {/* Featured collection split */}
-      {featuredCollection && (
+      {featuredCollectionBlock && (
         <section className="page-gutter py-20 md:py-28">
           <div className="mx-auto grid max-w-[1400px] items-center gap-12 lg:grid-cols-2 lg:gap-20">
             <FadeIn>
               <div className="product-image-zoom relative aspect-[4/5] overflow-hidden" style={{ background: "var(--surface-2)" }}>
                 <SafeImage
-                  src={featuredCollection.editorialImage}
-                  alt={featuredCollection.name}
+                  src={featuredCollectionBlock.editorialImage}
+                  alt={featuredCollectionBlock.name}
                   fill
                   sizes="(min-width: 1024px) 50vw, 100vw"
                   className="object-cover"
@@ -100,14 +96,14 @@ export default function HomePage() {
               <div>
                 <p className="eyebrow">{t("common.newCollection")}</p>
                 <h3 className="font-display mt-5 text-4xl leading-[1.05] md:text-6xl">
-                  {featuredCollection.name}
+                  {featuredCollectionBlock.name}
                 </h3>
-                <p className="mt-3 text-base italic opacity-75">{featuredCollection.tagline}</p>
+                <p className="mt-3 text-base italic opacity-75">{featuredCollectionBlock.tagline}</p>
                 <p className="mt-7 max-w-md text-base leading-relaxed opacity-85">
-                  {featuredCollection.description}
+                  {featuredCollectionBlock.description}
                 </p>
                 <div className="mt-10 flex flex-wrap items-center gap-4">
-                  <Link href={`/collections/${featuredCollection.slug}` as never} className="btn-primary">
+                  <Link href={`/collections/${featuredCollectionBlock.slug}` as never} className="btn-primary">
                     {t("common.explore")}
                   </Link>
                   <Link
@@ -174,7 +170,7 @@ export default function HomePage() {
               transition={{ duration: 1.2, ease: [0.22, 0.61, 0.36, 1] }}
             >
               <Image
-                src="https://images.unsplash.com/photo-1622398925373-3f91b1e275f5?auto=format&fit=crop&w=1600&q=80"
+                src={maisonImage}
                 alt={t("home.atelier.parisCaption")}
                 fill
                 sizes="(min-width: 1024px) 50vw, 100vw"

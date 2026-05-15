@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useInView, useReducedMotion } from "framer-motion";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface SectionTitleProps {
   eyebrow?: string;
@@ -17,8 +17,15 @@ export function SectionTitle({
   align = "center",
 }: SectionTitleProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-15% 0px" });
-  const reduce = useReducedMotion();
+  /** `useInView` can be true on the client while SSR assumed false → hydration mismatch. Gate until after mount. */
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+  const inViewRaw = useInView(ref, { once: true, margin: "-15% 0px" });
+  const inView = hasMounted && inViewRaw;
+  const reduceRaw = useReducedMotion();
+  const reduce = hasMounted && reduceRaw;
   const initial = reduce ? false : { opacity: 0, y: 30 };
   const animate = reduce
     ? undefined
@@ -72,8 +79,14 @@ export function FadeIn({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-15% 0px" });
-  const reduce = useReducedMotion();
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+  const inViewRaw = useInView(ref, { once: true, margin: "-15% 0px" });
+  const inView = hasMounted && inViewRaw;
+  const reduceRaw = useReducedMotion();
+  const reduce = hasMounted && reduceRaw;
   return (
     <motion.div
       ref={ref}

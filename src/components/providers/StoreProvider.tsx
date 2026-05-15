@@ -24,6 +24,7 @@ import {
 } from "@/lib/catalog";
 import type { BagItem, Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
 import { SHIPPING_FEE_IQD, toIqd, type GovernorateCode } from "@/lib/iraq";
+import { normalizeSiteContent } from "@/lib/site-display";
 
 export type {
   BagItem,
@@ -205,18 +206,28 @@ async function fetchCatalogJson(
 /** لا نُبقي واجهة المستخدم معلّقة بانتظار Workers بطيئة أو معلّقة (أوّل تحميل قد يكون بارد على CF). */
 const STORE_INIT_NETWORK_MS = 45_000;
 
-export function StoreProvider({ children }: { children: React.ReactNode }) {
+export function StoreProvider({
+  children,
+  initialRemoteProducts,
+}: {
+  children: React.ReactNode;
+  /** من `RootLayout` بعد جلب Supabase — يمنع أول طلاء بمنتجات الـ demo المدمجة. */
+  initialRemoteProducts?: Product[];
+}) {
+  const bootstrapFromServer = initialRemoteProducts !== undefined;
   /** يُحدَّد وقت التشغيل من `/api/catalog/products` حتى يعمل الكتالوج لو غاب NEXT_PUBLIC وقت بناء الاستضافة. */
-  const [remoteCatalog, setRemoteCatalog] = useState(false);
+  const [remoteCatalog, setRemoteCatalog] = useState(() => bootstrapFromServer);
   const [supabaseReady, setSupabaseReady] = useState(false);
   const [r2Ready, setR2Ready] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
-  const [products, setProductsState] = useState<Product[]>(SEED_PRODUCTS);
+  const [products, setProductsState] = useState<Product[]>(() =>
+    bootstrapFromServer ? initialRemoteProducts! : SEED_PRODUCTS,
+  );
   const [collections, setCollectionsState] = useState<Collection[]>(SEED_COLLECTIONS);
   const [journal, setJournalState] = useState<JournalArticle[]>(SEED_JOURNAL);
   const [boutiques, setBoutiquesState] = useState<Boutique[]>(SEED_BOUTIQUES);
-  const [site, setSiteState] = useState<SiteContent>(SEED_SITE);
+  const [site, setSiteState] = useState<SiteContent>(() => normalizeSiteContent(SEED_SITE));
 
   const [bag, setBag] = useState<BagItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
@@ -226,19 +237,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const initialized = useRef(false);
   /** Supersedes in-flight catalog GETs so an older request cannot overwrite a newer one (init vs staff save, double refresh). */
   const catalogApplyGenRef = useRef(0);
+  /** Aborts the previous `refreshCatalog` when a new one starts (visibility/online spam, staff double-clicks). */
+  const catalogRefreshAbortRef = useRef<AbortController | null>(null);
 
   const refreshCatalog = useCallback(async () => {
+    catalogRefreshAbortRef.current?.abort();
+    const ac = new AbortController();
+    catalogRefreshAbortRef.current = ac;
     const gen = (catalogApplyGenRef.current += 1);
-    const res = await fetchCatalogJson(2);
-    if (gen !== catalogApplyGenRef.current) return;
-    if (!res.ok) return;
-    writeCatalogSnapshot(res.products);
-    clearStaleLocalProductCache();
-    setRemoteCatalog(true);
-    setProductsState(res.products);
+    try {
+      const res = await fetchCatalogJson(2, ac.signal);
+      if (gen !== catalogApplyGenRef.current) return;
+      if (!res.ok) return;
+      writeCatalogSnapshot(res.products);
+      clearStaleLocalProductCache();
+      setRemoteCatalog(true);
+      setProductsState(res.products);
+    } finally {
+      if (catalogRefreshAbortRef.current === ac) catalogRefreshAbortRef.current = null;
+    }
   }, []);
 
   const mergeRemoteProduct = useCallback((p: Product) => {
+    /* Bumps generation so init/refresh that started before this merge cannot overwrite fresher UI + snapshot. */
+    catalogApplyGenRef.current += 1;
     setProductsState((prev) => {
       const i = prev.findIndex((x) => x.id === p.id);
       const next = i >= 0 ? prev.map((x, j) => (j === i ? p : x)) : [...prev, p];
@@ -267,7 +289,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setCollectionsState(readJSON<Collection[]>(KEY_COLLECTIONS, SEED_COLLECTIONS));
       setJournalState(readJSON<JournalArticle[]>(KEY_JOURNAL, SEED_JOURNAL));
       setBoutiquesState(readJSON<Boutique[]>(KEY_BOUTIQUES, SEED_BOUTIQUES));
-      setSiteState(readJSON<SiteContent>(KEY_SITE, SEED_SITE));
+      setSiteState(normalizeSiteContent(readJSON<SiteContent>(KEY_SITE, SEED_SITE)));
       setBag(readJSON<BagItem[]>(KEY_BAG, []));
       setWishlist(readJSON<string[]>(KEY_WISH, []));
       setUser(readJSON<UserProfile | null>(KEY_USER, null));
@@ -294,15 +316,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     queueMicrotask(() => {
       /* لو انتظرنا الشبكة قبل hydrate، صفحات مثل السلة أو الـ staff تبدو «متوقفة» إذا علّق /api على Cloudflare. */
       hydrateSiteAndUi();
-      const snapBootstrap = readCatalogSnapshot();
-      if (snapBootstrap && snapBootstrap.length > 0) {
-        setProductsState(snapBootstrap);
+
+      if (bootstrapFromServer) {
+        writeCatalogSnapshot(initialRemoteProducts!);
+        clearStaleLocalProductCache();
         setRemoteCatalog(true);
+        setProductsState(initialRemoteProducts!);
+        setOrders(readJSON<Order[]>(KEY_ORDERS, []));
       } else {
-        setProductsState(readJSON<Product[]>(KEY_PRODUCTS, SEED_PRODUCTS));
-        setRemoteCatalog(false);
+        const snapBootstrap = readCatalogSnapshot();
+        if (snapBootstrap && snapBootstrap.length > 0) {
+          setProductsState(snapBootstrap);
+          setRemoteCatalog(true);
+        } else {
+          setProductsState(readJSON<Product[]>(KEY_PRODUCTS, SEED_PRODUCTS));
+          setRemoteCatalog(false);
+        }
+        setOrders(readJSON<Order[]>(KEY_ORDERS, []));
       }
-      setOrders(readJSON<Order[]>(KEY_ORDERS, []));
 
       void (async () => {
         const gen = (catalogApplyGenRef.current += 1);
@@ -352,6 +383,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => {
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("online", onOnline);
+      catalogRefreshAbortRef.current?.abort();
     };
   }, [refreshCatalog]);
 
@@ -376,8 +408,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     writeJSON(KEY_BOUTIQUES, b);
   }, []);
   const setSite = useCallback((s: SiteContent) => {
-    setSiteState(s);
-    writeJSON(KEY_SITE, s);
+    const next = normalizeSiteContent(s);
+    setSiteState(next);
+    writeJSON(KEY_SITE, next);
   }, []);
 
   const resetCatalog = useCallback(() => {
@@ -385,7 +418,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setCollections(SEED_COLLECTIONS);
     setJournal(SEED_JOURNAL);
     setBoutiques(SEED_BOUTIQUES);
-    setSite(SEED_SITE);
+    setSite(normalizeSiteContent(SEED_SITE));
   }, [setProducts, setCollections, setJournal, setBoutiques, setSite]);
 
   const addToBag = useCallback(

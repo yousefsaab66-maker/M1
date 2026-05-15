@@ -21,31 +21,55 @@ const DEFAULT_CREDS: Record<Role, { username: string; password: string }> = {
   admin: { username: "admin", password: "admin123" },
 };
 
-async function establishStaffHttpSession(username: string, password: string): Promise<boolean> {
+export type StaffSessionError =
+  | "network"
+  | "invalid_credentials"
+  | "rate_limited"
+  | "server_misconfigured"
+  | "invalid_json"
+  | "unknown";
+
+export async function establishStaffHttpSession(
+  username: string,
+  password: string,
+): Promise<{ ok: true } | { ok: false; error: StaffSessionError }> {
   let res: Response;
   try {
     res = await fetch("/api/staff/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username: username.trim(), password }),
     });
   } catch {
-    return false;
+    return { ok: false, error: "network" };
   }
-  if (!res.ok) return false;
+  let body: { ok?: boolean; error?: string } = {};
   try {
-    const body = (await res.json()) as { ok?: boolean };
-    return body.ok === true;
+    body = (await res.json()) as { ok?: boolean; error?: string };
   } catch {
-    return false;
+    body = {};
   }
+  if (res.ok && body.ok === true) return { ok: true };
+  const code = body.error;
+  if (code === "invalid_credentials") return { ok: false, error: "invalid_credentials" };
+  if (code === "rate_limited") return { ok: false, error: "rate_limited" };
+  if (code === "server_misconfigured") return { ok: false, error: "server_misconfigured" };
+  if (code === "invalid_json") return { ok: false, error: "invalid_json" };
+  if (res.status === 401) return { ok: false, error: "invalid_credentials" };
+  if (res.status === 429) return { ok: false, error: "rate_limited" };
+  if (res.status === 500) return { ok: false, error: "server_misconfigured" };
+  return { ok: false, error: "unknown" };
 }
 
 type AuthCtx = {
   authedRole: Role | null;
   signedInAs: { staff: string | null; admin: string | null };
-  signIn: (role: Role, username: string, password: string) => Promise<boolean>;
+  signIn: (
+    role: Role,
+    username: string,
+    password: string,
+  ) => Promise<boolean | StaffSessionError>;
   signOut: (role: Role) => void;
   changeCredentials: (
     role: Role,
@@ -91,29 +115,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  const signIn = useCallback(
-    async (role: Role, username: string, password: string) => {
-      try {
-        const stored = localStorage.getItem(KEY_HASH(role));
-        const storedUser = localStorage.getItem(KEY_USER(role)) ?? DEFAULT_CREDS[role].username;
-        if (!stored) return false;
-        if (username.toLowerCase().trim() !== storedUser.toLowerCase().trim()) return false;
-        const h = await hashCredential(username, password);
-        if (h !== stored) return false;
-        if (role === "staff") {
-          const serverOk = await establishStaffHttpSession(username, password);
-          if (!serverOk) return false;
-        }
-        sessionStorage.setItem(KEY_SESSION(role), username);
-        if (role === "staff") setStaffSession(username);
-        else setAdminSession(username);
+  const signIn = useCallback(async (role: Role, username: string, password: string) => {
+    try {
+      const cleanUser = username.trim();
+      if (role === "staff") {
+        const server = await establishStaffHttpSession(cleanUser, password);
+        if (!server.ok) return server.error;
+        const h = await hashCredential(cleanUser, password);
+        localStorage.setItem(KEY_USER(role), cleanUser);
+        localStorage.setItem(KEY_HASH(role), h);
+        sessionStorage.setItem(KEY_SESSION(role), cleanUser);
+        setStaffSession(cleanUser);
         return true;
-      } catch {
-        return false;
       }
-    },
-    [],
-  );
+      const stored = localStorage.getItem(KEY_HASH(role));
+      const storedUser = localStorage.getItem(KEY_USER(role)) ?? DEFAULT_CREDS[role].username;
+      if (!stored) return false;
+      if (cleanUser.toLowerCase() !== storedUser.toLowerCase().trim()) return false;
+      const h = await hashCredential(cleanUser, password);
+      if (h !== stored) return false;
+      sessionStorage.setItem(KEY_SESSION(role), cleanUser);
+      setAdminSession(cleanUser);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
 
   const signOut = useCallback((role: Role) => {
     try {
@@ -143,8 +170,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const cleanUser = newUsername.trim() || storedUser;
         const cleanPwd = newPassword || currentPassword;
         if (role === "staff") {
-          const serverOk = await establishStaffHttpSession(cleanUser, cleanPwd);
-          if (!serverOk) return false;
+          const server = await establishStaffHttpSession(cleanUser, cleanPwd);
+          if (!server.ok) return false;
         }
         const newHash = await hashCredential(cleanUser, cleanPwd);
         localStorage.setItem(KEY_USER(role), cleanUser);

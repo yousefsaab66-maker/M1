@@ -70,6 +70,22 @@ export interface Boutique {
   image: string;
 }
 
+export type CategoryOverride = {
+  /** Display name override (catalogue chips + homepage strip). */
+  label?: string;
+  /** Tile / chip image URL (R2 or https). */
+  image?: string;
+};
+
+export type HomepageConfig = {
+  /** Product ids for «Iconic creations» — order preserved. */
+  featuredProductIds?: string[];
+  /** Collection slug for the homepage featured split block. */
+  featuredCollectionSlug?: string;
+  /** Maison story column image on the homepage. */
+  atelierImage?: string;
+};
+
 export interface SiteContent {
   brandName: string;
   tagline: string;
@@ -82,6 +98,9 @@ export interface SiteContent {
    * `HERO_VIDEO_URL` constant is used.
    */
   heroVideo?: string;
+  /** Per-category labels and images (staff-managed, stored in localStorage). */
+  categories?: Partial<Record<Category, CategoryOverride>>;
+  homepage?: HomepageConfig;
 }
 
 const u = (id: string, w: number = 1600) =>
@@ -629,4 +648,10 @@ export const SITE_CONTENT: SiteContent = {
   heroHeadline: "The Art of Adornment",
   heroSubhead:
     "An archive of high jewelry, watches and bridal — composed by the Maison since 1919.",
+  categories: {},
+  homepage: {
+    featuredProductIds: [],
+    featuredCollectionSlug: "",
+    atelierImage: "",
+  },
 };

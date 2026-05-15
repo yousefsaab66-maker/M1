@@ -41,6 +41,8 @@ import { formatDate, formatPrice, slugify } from "@/lib/format";
 import { formatIqd } from "@/lib/iraq";
 import { ensureProductOrderable, productGallerySources, productImageAt } from "@/lib/product-media";
 import { MUHRA_MAX_IMAGE_UPLOAD_BYTES, MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES, isAllowedStaffVideoMime } from "@/lib/supabase/storage-constants";
+import { StaffCategoriesEditor, StaffHomepageEditor, StaffSection } from "@/components/staff/StaffSiteEditor";
+import { normalizeSiteContent } from "@/lib/site-display";
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -250,7 +252,7 @@ function ProductsPane() {
     mergeRemoteProduct,
   } = useStore();
   const { t } = useLocale();
-  const mediaCloudUpload = supabaseReady || r2Ready;
+  const mediaCloudUpload = r2Ready;
   const router = useRouter();
   const [editing, setEditing] = useState<Product | null>(null);
   const [creating, setCreating] = useState(false);
@@ -1559,17 +1561,17 @@ function translateStaffMediaUploadErr(code: string, t: (key: string) => string):
 }
 
 function SitePane() {
-  const { site, setSite, resetCatalog, supabaseReady, r2Ready } = useStore();
+  const { site, setSite, resetCatalog, r2Ready, products, collections } = useStore();
   const { t } = useLocale();
-  const cloudMedia = supabaseReady || r2Ready;
-  const [draft, setDraft] = useState<SiteContent>(site);
+  const cloudMedia = r2Ready;
+  const [draft, setDraft] = useState<SiteContent>(() => normalizeSiteContent(site));
   const [saved, setSaved] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [videoBusy, setVideoBusy] = useState(false);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
     queueMicrotask(() => {
-      setDraft(site);
+      setDraft(normalizeSiteContent(site));
     });
   }, [site]);
 
@@ -1617,47 +1619,59 @@ function SitePane() {
     }
   };
 
+  const saveDraft = () => {
+    setSite(draft);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2200);
+  };
+
   return (
-    <section>
-      <h2 className="font-display break-words text-2xl sm:text-3xl">{t("staff.site.title")}</h2>
-      <p className="mt-2 opacity-70 text-sm">{t("staff.site.intro")}</p>
+    <section className="min-w-0 pb-8">
+      <header className="mb-6">
+        <h2 className="font-display break-words text-2xl sm:text-3xl">{t("staff.site.title")}</h2>
+        <p className="mt-2 text-sm opacity-70">{t("staff.site.intro")}</p>
+      </header>
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          setSite(draft);
-          setSaved(true);
-          setTimeout(() => setSaved(false), 2200);
+          saveDraft();
         }}
-        className="mt-6 staff-card grid gap-4"
+        className="min-w-0"
       >
-        <Field label={t("staff.site.brandName")}>
-          <input className="staff-input" value={draft.brandName} onChange={(e) => setDraft({ ...draft, brandName: e.target.value })} />
-        </Field>
-        <Field label={t("staff.site.tagline")}>
-          <input className="staff-input" value={draft.tagline} onChange={(e) => setDraft({ ...draft, tagline: e.target.value })} />
-        </Field>
-        <Field label={t("staff.site.heroHeadline")}>
-          <input className="staff-input" value={draft.heroHeadline} onChange={(e) => setDraft({ ...draft, heroHeadline: e.target.value })} />
-        </Field>
-        <Field label={t("staff.site.heroSubhead")}>
-          <textarea className="staff-input" rows={2} value={draft.heroSubhead} onChange={(e) => setDraft({ ...draft, heroSubhead: e.target.value })} />
-        </Field>
-        <Field label={t("staff.site.supportEmail")}>
-          <input className="staff-input" type="email" value={draft.supportEmail} onChange={(e) => setDraft({ ...draft, supportEmail: e.target.value })} />
-        </Field>
+        <div className="staff-card grid min-w-0 gap-4 p-5 sm:p-6">
+          <p className="eyebrow text-[10px]">{t("staff.site.brandBlockTitle")}</p>
+          <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+            <Field label={t("staff.site.brandName")}>
+              <input className="staff-input w-full" value={draft.brandName} onChange={(e) => setDraft({ ...draft, brandName: e.target.value })} />
+            </Field>
+            <Field label={t("staff.site.tagline")}>
+              <input className="staff-input w-full" value={draft.tagline} onChange={(e) => setDraft({ ...draft, tagline: e.target.value })} />
+            </Field>
+            <Field label={t("staff.site.heroHeadline")}>
+              <input className="staff-input w-full" value={draft.heroHeadline} onChange={(e) => setDraft({ ...draft, heroHeadline: e.target.value })} />
+            </Field>
+            <Field label={t("staff.site.supportEmail")}>
+              <input className="staff-input w-full" type="email" value={draft.supportEmail} onChange={(e) => setDraft({ ...draft, supportEmail: e.target.value })} />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label={t("staff.site.heroSubhead")}>
+                <textarea className="staff-input w-full" rows={2} value={draft.heroSubhead} onChange={(e) => setDraft({ ...draft, heroSubhead: e.target.value })} />
+              </Field>
+            </div>
+          </div>
 
         <div className="hairline my-2" />
         <div>
           <p className="staff-label">{t("staff.hero.title")}</p>
           <Field label={t("staff.hero.url")}>
             <input
-              className="staff-input"
+              className="staff-input w-full"
               value={draft.heroVideo ?? ""}
               placeholder={t("staff.site.heroUrlPlaceholder")}
               onChange={(e) => setDraft({ ...draft, heroVideo: e.target.value })}
             />
           </Field>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <input
               ref={videoInputRef}
               type="file"
@@ -1681,7 +1695,7 @@ function SitePane() {
             >
               <RotateCcw className="h-4 w-4" strokeWidth={1.4} /> {t("staff.hero.reset")}
             </button>
-            <span className="text-[11px] opacity-65 max-w-md">{t("staff.hero.uploadHint")}</span>
+            <span className="w-full text-[11px] leading-relaxed opacity-65 sm:w-auto">{t("staff.hero.uploadHint")}</span>
           </div>
           {videoError && (
             <p className="mt-2 text-xs" style={{ color: "var(--color-bordeaux)" }}>
@@ -1704,12 +1718,30 @@ function SitePane() {
             </div>
           )}
         </div>
+        </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <button type="button" onClick={() => { if (confirm(t("staff.site.resetCatalogConfirm"))) resetCatalog(); }} className="btn-ghost">
+        <StaffCategoriesEditor draft={draft} setDraft={setDraft} cloudUpload={cloudMedia} />
+        <StaffHomepageEditor
+          draft={draft}
+          setDraft={setDraft}
+          products={products}
+          collections={collections}
+          cloudUpload={cloudMedia}
+        />
+
+        <div className="sticky bottom-0 z-10 mt-8 flex flex-wrap items-center justify-between gap-3 border-t bg-[var(--background)] py-4" style={{ borderColor: "var(--line)" }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm(t("staff.site.resetCatalogConfirm"))) resetCatalog();
+            }}
+            className="btn-ghost text-[10px] sm:text-[11px]"
+          >
             {t("staff.site.resetCatalog")}
           </button>
-          <button type="submit" className="btn-primary">{saved ? t("staff.site.saved") : t("staff.site.save")}</button>
+          <button type="submit" className="btn-primary min-w-[8rem]">
+            {saved ? t("staff.site.saved") : t("staff.site.save")}
+          </button>
         </div>
       </form>
     </section>

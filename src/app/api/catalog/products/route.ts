@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { rowToProduct, type ProductRow } from "@/lib/catalog-db";
-import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin";
+import { fetchCatalogProducts } from "@/lib/catalog-products-query";
 
 export const dynamic = "force-dynamic";
 
@@ -11,19 +10,12 @@ const NO_STORE_JSON = {
 } as const;
 
 export async function GET() {
-  if (!isSupabaseBackendConfigured()) {
+  const result = await fetchCatalogProducts();
+  if (result.kind === "not_configured") {
     return NextResponse.json({ error: "backend_not_configured" }, { status: 503, headers: NO_STORE_JSON });
   }
-  try {
-    const sb = supabaseAdmin();
-    const { data, error } = await sb.from("products").select("*").order("created_at", { ascending: false });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500, headers: NO_STORE_JSON });
-    return NextResponse.json(
-      { products: (data ?? []).map((r) => rowToProduct(r as ProductRow)) },
-      { headers: NO_STORE_JSON },
-    );
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
-    return NextResponse.json({ error: msg }, { status: 500, headers: NO_STORE_JSON });
+  if (result.kind === "error") {
+    return NextResponse.json({ error: result.message }, { status: 500, headers: NO_STORE_JSON });
   }
+  return NextResponse.json({ products: result.products }, { headers: NO_STORE_JSON });
 }

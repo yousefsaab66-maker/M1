@@ -6,7 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
 } from "react";
 import { DICTS, RTL_LOCALES, type Locale } from "@/lib/i18n";
 
@@ -20,6 +20,44 @@ type LocaleCtx = {
 const LocaleContext = createContext<LocaleCtx | null>(null);
 const STORAGE_KEY = "muhra-locale-v1";
 
+const localeListeners = new Set<() => void>();
+
+function subscribeLocale(onStoreChange: () => void) {
+  localeListeners.add(onStoreChange);
+  if (typeof window === "undefined") {
+    return () => {
+      localeListeners.delete(onStoreChange);
+    };
+  }
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === STORAGE_KEY || e.key === null) onStoreChange();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    localeListeners.delete(onStoreChange);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function notifyLocaleListeners() {
+  localeListeners.forEach((fn) => fn());
+}
+
+function readLocaleFromStorage(): Locale {
+  if (typeof window === "undefined") return "en";
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored && stored in DICTS) return stored as Locale;
+  } catch {
+    /* ignore */
+  }
+  return "en";
+}
+
+function getServerLocaleSnapshot(): Locale {
+  return "en";
+}
+
 function applyLocaleToDocument(locale: Locale) {
   if (typeof document === "undefined") return;
   document.documentElement.setAttribute("lang", locale);
@@ -29,34 +67,29 @@ function applyLocaleToDocument(locale: Locale) {
   );
 }
 
+/**
+ * Locale from localStorage must not win on the very first client render during hydration,
+ * or RTL/LTR + translated strings diverge from the server HTML (flex-row-reverse vs flex-row, etc.).
+ * `useSyncExternalStore` + `getServerSnapshot` keeps the first paint aligned with SSR, then updates.
+ */
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("en");
-  const [hydrated, setHydrated] = useState(false);
+  const locale = useSyncExternalStore(
+    subscribeLocale,
+    readLocaleFromStorage,
+    getServerLocaleSnapshot,
+  );
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored && stored in DICTS) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setLocaleState(stored as Locale);
-        applyLocaleToDocument(stored as Locale);
-      } else {
-        applyLocaleToDocument("en");
-      }
-    } catch {
-      applyLocaleToDocument("en");
-    }
-    setHydrated(true);
-  }, []);
+    applyLocaleToDocument(locale);
+  }, [locale]);
 
   const setLocale = useCallback((l: Locale) => {
-    setLocaleState(l);
-    applyLocaleToDocument(l);
     try {
       localStorage.setItem(STORAGE_KEY, l);
     } catch {
-      // ignore
+      /* ignore */
     }
+    notifyLocaleListeners();
   }, []);
 
   const translate = useCallback(
@@ -76,9 +109,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <LocaleContext.Provider value={value}>
-      <span data-hydrated={hydrated} className="contents">
-        {children}
-      </span>
+      <span className="contents">{children}</span>
     </LocaleContext.Provider>
   );
 }

@@ -7,15 +7,7 @@ import { SectionTitle } from "@/components/Section";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
 import type { Category, Material, Stone } from "@/lib/catalog";
-
-const CATEGORIES: Category[] = [
-  "necklaces",
-  "rings",
-  "earrings",
-  "bracelets",
-  "watches",
-  "bridal",
-];
+import { CATALOG_CATEGORIES, categoryLabel } from "@/lib/site-display";
 const MATERIALS: Material[] = ["gold", "white-gold", "rose-gold", "platinum", "silver"];
 const STONES: Stone[] = ["diamond", "emerald", "ruby", "sapphire", "pearl", "topaz", "amethyst"];
 
@@ -23,7 +15,7 @@ type Sort = "featured" | "priceAsc" | "priceDesc" | "new";
 
 export function ProductsCatalog() {
   const { t } = useLocale();
-  const { products } = useStore();
+  const { products, site } = useStore();
   const sp = useSearchParams();
 
   const [category, setCategory] = useState<Category | null>(null);
@@ -34,7 +26,7 @@ export function ProductsCatalog() {
   useEffect(() => {
     const cat = sp.get("category") as Category | null;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (cat && CATEGORIES.includes(cat)) setCategory(cat);
+    if (cat && CATALOG_CATEGORIES.includes(cat)) setCategory(cat);
   }, [sp]);
 
   const filtered = useMemo(() => {
@@ -73,14 +65,14 @@ export function ProductsCatalog() {
               >
                 {t("filter.sort.featured")}
               </button>
-              {CATEGORIES.map((c) => (
+              {CATALOG_CATEGORIES.map((c) => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => setCategory(c)}
                   className={`chip ${category === c ? "chip-active" : ""}`}
                 >
-                  {t(`category.${c}`)}
+                  {categoryLabel(c, site, t)}
                 </button>
               ))}
             </div>

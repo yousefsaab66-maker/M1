@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
-import { Providers } from "@/components/providers/Providers";
-import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { Header } from "@/components/layout/Header";
+import { Providers } from "@/components/providers/Providers";
 
 const serif = Cormorant_Garamond({
   variable: "--font-serif",
@@ -64,6 +64,15 @@ export const viewport: Viewport = {
   ],
 };
 
+/** Fresh HTML/RSC payloads — pairs with middleware `CDN-Cache-Control` on Workers. */
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+/**
+ * Catalog is loaded in the browser via `/api/catalog/products` (StoreProvider), not here.
+ * Fetching the full product list inside the root layout was blowing Cloudflare Worker CPU/memory
+ * limits (Error 1102) when serializing large RSC payloads.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{
