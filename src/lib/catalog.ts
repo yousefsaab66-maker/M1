@@ -98,7 +98,7 @@ export interface SiteContent {
    * `HERO_VIDEO_URL` constant is used.
    */
   heroVideo?: string;
-  /** Per-category labels and images (staff-managed, stored in localStorage). */
+  /** Per-category labels and images (staff-managed, synced via Supabase `site_settings`). */
   categories?: Partial<Record<Category, CategoryOverride>>;
   homepage?: HomepageConfig;
 }

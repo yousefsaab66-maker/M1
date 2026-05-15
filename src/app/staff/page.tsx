@@ -1560,12 +1560,20 @@ function translateStaffMediaUploadErr(code: string, t: (key: string) => string):
   return txt === key ? t("staff.images.uploadErr.unknown") : txt;
 }
 
+function siteSaveErrorMessage(code: string, t: (key: string) => string): string {
+  const key = `staff.site.saveErr.${code}`;
+  const txt = t(key);
+  return txt === key ? t("staff.site.saveErr.generic") : txt;
+}
+
 function SitePane() {
-  const { site, setSite, resetCatalog, r2Ready, products, collections } = useStore();
+  const { site, saveSite, resetCatalog, r2Ready, products, collections } = useStore();
   const { t } = useLocale();
   const cloudMedia = r2Ready;
   const [draft, setDraft] = useState<SiteContent>(() => normalizeSiteContent(site));
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [videoBusy, setVideoBusy] = useState(false);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
@@ -1619,10 +1627,20 @@ function SitePane() {
     }
   };
 
-  const saveDraft = () => {
-    setSite(draft);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2200);
+  const saveDraft = async () => {
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const result = await saveSite(draft);
+      if (result.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2200);
+      } else {
+        setSaveError(siteSaveErrorMessage(result.error, t));
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -1634,7 +1652,7 @@ function SitePane() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          saveDraft();
+          void saveDraft();
         }}
         className="min-w-0"
       >
@@ -1729,9 +1747,16 @@ function SitePane() {
           cloudUpload={cloudMedia}
         />
 
+        {saveError && (
+          <p className="mt-4 text-xs" style={{ color: "var(--color-bordeaux)" }}>
+            {saveError}
+          </p>
+        )}
+
         <div className="sticky bottom-0 z-10 mt-8 flex flex-wrap items-center justify-between gap-3 border-t bg-[var(--background)] py-4" style={{ borderColor: "var(--line)" }}>
           <button
             type="button"
+            disabled={saving}
             onClick={() => {
               if (confirm(t("staff.site.resetCatalogConfirm"))) resetCatalog();
             }}
@@ -1739,8 +1764,8 @@ function SitePane() {
           >
             {t("staff.site.resetCatalog")}
           </button>
-          <button type="submit" className="btn-primary min-w-[8rem]">
-            {saved ? t("staff.site.saved") : t("staff.site.save")}
+          <button type="submit" disabled={saving} className="btn-primary min-w-[8rem]">
+            {saving ? t("staff.site.saving") : saved ? t("staff.site.saved") : t("staff.site.save")}
           </button>
         </div>
       </form>

@@ -66,6 +66,9 @@ type StoreCtx = {
   setJournal: (j: JournalArticle[]) => void;
   setBoutiques: (b: Boutique[]) => void;
   setSite: (s: SiteContent) => void;
+  /** حفظ إعدادات الموقع في Supabase + التخزين المحلي (للظهور على كل الأجهزة). */
+  saveSite: (s: SiteContent) => Promise<{ ok: true } | { ok: false; error: string }>;
+  refreshSite: () => Promise<void>;
   resetCatalog: () => void;
 
   bag: BagItem[];
@@ -203,6 +206,39 @@ async function fetchCatalogJson(
   return { ok: false };
 }
 
+async function fetchSiteJson(
+  attempts = 2,
+  signal?: AbortSignal,
+): Promise<{ ok: true; site: SiteContent } | { ok: false }> {
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const r = await fetch(`/api/catalog/site?_=${Date.now()}`, { ...CATALOG_FETCH_OPTS, signal });
+      if (r.ok) {
+        const d = (await r.json()) as { site?: SiteContent | null };
+        if (d.site && typeof d.site === "object") {
+          return { ok: true, site: normalizeSiteContent(d.site) };
+        }
+        return { ok: false };
+      }
+      if ((r.status === 503 || r.status === 502 || r.status === 504 || r.status === 524) && i < attempts - 1) {
+        await delay(350 * (i + 1));
+        continue;
+      }
+      return { ok: false };
+    } catch (e) {
+      if (signal?.aborted || (e instanceof DOMException && e.name === "AbortError")) {
+        return { ok: false };
+      }
+      if (i < attempts - 1) {
+        await delay(400 * (i + 1));
+        continue;
+      }
+      return { ok: false };
+    }
+  }
+  return { ok: false };
+}
+
 /** لا نُبقي واجهة المستخدم معلّقة بانتظار Workers بطيئة أو معلّقة (أوّل تحميل قد يكون بارد على CF). */
 const STORE_INIT_NETWORK_MS = 45_000;
 
@@ -257,6 +293,21 @@ export function StoreProvider({
       if (catalogRefreshAbortRef.current === ac) catalogRefreshAbortRef.current = null;
     }
   }, []);
+
+  const applySite = useCallback((s: SiteContent) => {
+    const next = normalizeSiteContent(s);
+    setSiteState(next);
+    writeJSON(KEY_SITE, next);
+  }, []);
+
+  const refreshSite = useCallback(async () => {
+    try {
+      const res = await fetchSiteJson(2);
+      if (res.ok) applySite(res.site);
+    } catch {
+      /* ignore */
+    }
+  }, [applySite]);
 
   const mergeRemoteProduct = useCallback((p: Product) => {
     /* Bumps generation so init/refresh that started before this merge cannot overwrite fresher UI + snapshot. */
@@ -340,7 +391,7 @@ export function StoreProvider({
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
-          const [healthOutcome, r2Outcome, catalogRes] = await Promise.all([
+          const [healthOutcome, r2Outcome, catalogRes, siteRes] = await Promise.all([
             fetch("/api/health/supabase", { ...CATALOG_FETCH_OPTS, signal: ac.signal })
               .then((r) => (r.ok ? (r.json() as Promise<{ ready?: unknown }>) : Promise.resolve({})))
               .catch(() => ({})),
@@ -350,6 +401,7 @@ export function StoreProvider({
               .catch(() => ({})),
 
             fetchCatalogJson(3, ac.signal),
+            fetchSiteJson(2, ac.signal),
           ]);
 
           setSupabaseReady((healthOutcome as { ready?: boolean }).ready === true);
@@ -365,6 +417,8 @@ export function StoreProvider({
           } else {
             recoverCatalogAfterNetworkFailure();
           }
+
+          if (siteRes.ok) applySite(siteRes.site);
         } finally {
           clearTimeout(timer);
         }
@@ -375,9 +429,15 @@ export function StoreProvider({
   /** الجوال يبقى التطبيق بالخلفية؛ عند الرجوع نحدّث الكتالوج حتى يظهر آخر منتج من Supabase. */
   useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState === "visible") void refreshCatalog();
+      if (document.visibilityState === "visible") {
+        void refreshCatalog();
+        void refreshSite();
+      }
     };
-    const onOnline = () => void refreshCatalog();
+    const onOnline = () => {
+      void refreshCatalog();
+      void refreshSite();
+    };
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("online", onOnline);
     return () => {
@@ -385,7 +445,7 @@ export function StoreProvider({
       window.removeEventListener("online", onOnline);
       catalogRefreshAbortRef.current?.abort();
     };
-  }, [refreshCatalog]);
+  }, [refreshCatalog, refreshSite]);
 
   const setProducts = useCallback(
     (p: Product[]) => {
@@ -407,11 +467,41 @@ export function StoreProvider({
     setBoutiquesState(b);
     writeJSON(KEY_BOUTIQUES, b);
   }, []);
-  const setSite = useCallback((s: SiteContent) => {
-    const next = normalizeSiteContent(s);
-    setSiteState(next);
-    writeJSON(KEY_SITE, next);
-  }, []);
+  const setSite = useCallback(
+    (s: SiteContent) => {
+      applySite(s);
+    },
+    [applySite],
+  );
+
+  const saveSite = useCallback(
+    async (s: SiteContent): Promise<{ ok: true } | { ok: false; error: string }> => {
+      const next = normalizeSiteContent(s);
+      applySite(next);
+      try {
+        const res = await fetch("/api/staff/site", {
+          method: "PUT",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(next),
+          cache: "no-store",
+        });
+        const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (res.ok && body.ok) return { ok: true };
+        if (res.status === 401 || body.error === "unauthorized") {
+          return { ok: false, error: "unauthorized" };
+        }
+        if (body.error === "table_missing") return { ok: false, error: "table_missing" };
+        if (body.error === "backend_not_configured") {
+          return { ok: false, error: "backend_not_configured" };
+        }
+        return { ok: false, error: typeof body.error === "string" ? body.error : "generic" };
+      } catch {
+        return { ok: false, error: "network" };
+      }
+    },
+    [applySite],
+  );
 
   const resetCatalog = useCallback(() => {
     setProducts(SEED_PRODUCTS);
@@ -663,6 +753,8 @@ export function StoreProvider({
       setJournal,
       setBoutiques,
       setSite,
+      saveSite,
+      refreshSite,
       resetCatalog,
       bag,
       addToBag,
@@ -700,6 +792,8 @@ export function StoreProvider({
       setJournal,
       setBoutiques,
       setSite,
+      saveSite,
+      refreshSite,
       resetCatalog,
       bag,
       addToBag,
