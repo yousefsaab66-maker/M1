@@ -83,7 +83,6 @@ export async function POST(req: Request) {
 
   const buf = Buffer.from(await file.arrayBuffer());
 
-  const baseName = sanitizeStorageFileName(typeof file.name === "string" ? file.name : "image");
   const ext =
     mime === "image/png"
       ? "png"
@@ -96,7 +95,7 @@ export async function POST(req: Request) {
   const scopePrefix =
     scopeRaw === "collections" ? "site/collections" : scopeRaw === "site" ? "site" : "products";
   const slug = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const objectPath = `${scopePrefix}/${slug}-${baseName.replace(/\.[^.]+$/, "")}.${ext}`;
+  const objectPath = `${scopePrefix}/${slug}.${ext}`;
 
   try {
     await uploadStaffBlobToR2(r2Bucket!, objectPath, buf, mime);

@@ -26,6 +26,7 @@ import type { BagItem, Order, OrderStatus, PlaceOrderInput } from "@/lib/commerc
 import { SHIPPING_FEE_IQD, toIqd, type GovernorateCode } from "@/lib/iraq";
 import { normalizeSiteContent } from "@/lib/site-display";
 import { sanitizeSiteContentForServer } from "@/lib/site-content-storage";
+import { fetchStorefrontForClient } from "@/lib/storefront-client";
 
 export type {
   BagItem,
@@ -211,43 +212,16 @@ async function fetchCatalogJson(
   return { ok: false };
 }
 
-async function fetchStorefrontJson(
-  signal?: AbortSignal,
-): Promise<
-  | {
-      ok: true;
-      site: SiteContent;
-      collections: Collection[];
-      updatedAt: string | null;
-      source: "r2" | "none";
-    }
-  | { ok: false }
-> {
-  try {
-    const r = await fetch(`/api/catalog/storefront?_=${Date.now()}`, { ...CATALOG_FETCH_OPTS, signal });
-    if (!r.ok) return { ok: false };
-    const d = (await r.json()) as {
-      site?: SiteContent | null;
-      collections?: Collection[] | null;
-      updatedAt?: string | null;
-      source?: "r2" | "none";
-    };
-    if (d.site && typeof d.site === "object" && Array.isArray(d.collections)) {
-      return {
-        ok: true,
-        site: normalizeSiteContent(d.site),
-        collections: d.collections,
-        updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : null,
-        source: d.source === "r2" ? "r2" : "none",
-      };
-    }
-    return { ok: false };
-  } catch (e) {
-    if (signal?.aborted || (e instanceof DOMException && e.name === "AbortError")) {
-      return { ok: false };
-    }
-    return { ok: false };
-  }
+async function fetchStorefrontJson(signal?: AbortSignal) {
+  const res = await fetchStorefrontForClient(signal);
+  if (!res.ok) return { ok: false as const };
+  return {
+    ok: true as const,
+    site: res.site,
+    collections: res.collections,
+    updatedAt: res.updatedAt,
+    source: res.source,
+  };
 }
 
 async function putStorefrontJson(
@@ -398,7 +372,7 @@ export function StoreProvider({
     initialized.current = true;
 
     const hydrateSiteAndUi = () => {
-      setCollectionsState(readJSON<Collection[]>(KEY_COLLECTIONS, SEED_COLLECTIONS));
+      /* site + collections come from R2 only — do not read localStorage here (causes stale UI on other devices). */
       setJournalState(readJSON<JournalArticle[]>(KEY_JOURNAL, SEED_JOURNAL));
       setBoutiquesState(readJSON<Boutique[]>(KEY_BOUTIQUES, SEED_BOUTIQUES));
       setBag(readJSON<BagItem[]>(KEY_BAG, []));
@@ -453,6 +427,20 @@ export function StoreProvider({
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
+          const storefrontRes = await fetchStorefrontJson(ac.signal);
+          if (gen !== catalogApplyGenRef.current) return;
+
+          if (storefrontRes.ok) {
+            applyStorefront(storefrontRes.site, storefrontRes.collections, storefrontRes.updatedAt);
+            if (storefrontRes.source === "r2") setR2Ready(true);
+          } else {
+            applySite(readJSON<SiteContent>(KEY_SITE, SEED_SITE));
+            applyCollections(readJSON<Collection[]>(KEY_COLLECTIONS, SEED_COLLECTIONS));
+          }
+
+          if (gen !== catalogApplyGenRef.current) return;
+          setStoreReady(true);
+
           const catalogRes = await fetchCatalogJson(1, ac.signal);
           if (gen !== catalogApplyGenRef.current) return;
 
@@ -465,31 +453,13 @@ export function StoreProvider({
           } else {
             recoverCatalogAfterNetworkFailure();
           }
-
-          const storefrontRes = await fetchStorefrontJson(ac.signal);
-          if (gen !== catalogApplyGenRef.current) return;
-
-          if (storefrontRes.ok) {
-            applyStorefront(storefrontRes.site, storefrontRes.collections, storefrontRes.updatedAt);
-            if (storefrontRes.source === "r2") setR2Ready(true);
-          } else {
-            applySite(readJSON<SiteContent>(KEY_SITE, SEED_SITE));
-            applyCollections(readJSON<Collection[]>(KEY_COLLECTIONS, SEED_COLLECTIONS));
-          }
         } finally {
           clearTimeout(timer);
-          if (gen === catalogApplyGenRef.current) setStoreReady(true);
         }
       })();
     };
 
-    queueMicrotask(() => {
-      if (typeof requestIdleCallback === "function") {
-        requestIdleCallback(() => loadRemote(), { timeout: 3000 });
-      } else {
-        setTimeout(loadRemote, 80);
-      }
-    });
+    queueMicrotask(() => loadRemote());
   }, []);
 
   /** تحديث خفيف عند الرجوع للتطبيق — تسلسلي لتقليل 1102 على Cloudflare. */
@@ -550,28 +520,28 @@ export function StoreProvider({
     async (s: SiteContent): Promise<{ ok: true } | { ok: false; error: string }> => {
       const sanitized = sanitizeSiteContentForServer(s);
       if (!sanitized.ok) return { ok: false, error: "embedded_media" };
-      const result = await putStorefrontJson({ site: sanitized.site });
+      const result = await putStorefrontJson({ site: sanitized.site, collections });
       if (result.ok) {
-        applySite(sanitized.site, result.updatedAt);
+        applyStorefront(sanitized.site, collections, result.updatedAt);
         setR2Ready(true);
         return { ok: true };
       }
       return { ok: false, error: result.error };
     },
-    [applySite],
+    [applyStorefront, collections],
   );
 
   const saveCollections = useCallback(
     async (c: Collection[]): Promise<{ ok: true } | { ok: false; error: string }> => {
-      const result = await putStorefrontJson({ collections: c });
+      const result = await putStorefrontJson({ collections: c, site });
       if (result.ok) {
-        applyCollections(c);
+        applyStorefront(site, c, result.updatedAt);
         setR2Ready(true);
         return { ok: true };
       }
       return { ok: false, error: result.error };
     },
-    [applyCollections],
+    [applyStorefront, site],
   );
 
   const resetCatalog = useCallback(() => {
