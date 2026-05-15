@@ -1,24 +1,29 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+const NO_STORE = {
+  "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate",
+  "CDN-Cache-Control": "no-store",
+} as const;
+
 /**
- * Strong anti-stale for HTML + RSC + API navigations on Cloudflare (edge may otherwise
- * reuse responses briefly). Hashed assets stay excluded via `matcher`.
- *
- * `CDN-Cache-Control` is honored by Cloudflare’s edge in addition to `Cache-Control`.
+ * Only non-cacheable staff/auth API routes get no-store. Catalog JSON is cacheable at the edge
+ * (see `/api/catalog/products` Cache-Control) to reduce Worker invocations (Error 1102).
  */
-export function middleware(_request: NextRequest) {
+export function middleware(request: NextRequest) {
   const res = NextResponse.next();
-  res.headers.set(
-    "Cache-Control",
-    "private, no-cache, no-store, max-age=0, must-revalidate",
-  );
-  res.headers.set("CDN-Cache-Control", "no-store");
+  const path = request.nextUrl.pathname;
+  const isPublicCatalog =
+    path === "/api/catalog/products" ||
+    path === "/api/catalog/storefront" ||
+    path === "/api/health/r2";
+  if (!isPublicCatalog) {
+    res.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
+    res.headers.set("CDN-Cache-Control", NO_STORE["CDN-Cache-Control"]);
+  }
   return res;
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|_next/webpack|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|ttf|eot|json|webmanifest)$).*)",
-  ],
+  matcher: ["/api/:path*"],
 };

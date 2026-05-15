@@ -28,8 +28,8 @@ import { normalizeSiteContent } from "@/lib/site-display";
 import { sanitizeSiteContentForServer } from "@/lib/site-content-storage";
 import { isR2PublicConfiguredClient } from "@/lib/r2-config";
 import {
-  fetchCatalogBootstrapClient,
   fetchStorefrontForClient,
+  fetchStorefrontFromPublicCdn,
   remoteStorefrontIsNewer,
 } from "@/lib/storefront-client";
 
@@ -252,44 +252,46 @@ function readLocalSiteRemoteAt(): string | null {
   }
 }
 
-function applyBootstrapPayload(
+function applyRemoteCatalog(
   gen: number,
-  payload: {
-    products: Product[];
-    site: SiteContent | null;
-    collections: Collection[] | null;
-    updatedAt: string | null;
-    r2Ready: boolean;
-  },
+  products: Product[],
   handlers: {
-    applyStorefront: (site: SiteContent, collections: Collection[], remoteUpdatedAt?: string | null) => void;
-    setR2Ready: (v: boolean) => void;
     setRemoteCatalog: (v: boolean) => void;
     setSupabaseReady: (v: boolean) => void;
     setProductsState: (p: Product[]) => void;
-    recoverCatalogAfterNetworkFailure: () => void;
     catalogApplyGenRef: { current: number };
   },
 ) {
-  if (gen !== handlers.catalogApplyGenRef.current) return;
+  if (gen !== handlers.catalogApplyGenRef.current || products.length === 0) return;
+  writeCatalogSnapshot(products);
+  clearStaleLocalProductCache();
+  handlers.setRemoteCatalog(true);
+  handlers.setProductsState(products);
+  handlers.setSupabaseReady(true);
+}
 
-  if (payload.r2Ready) handlers.setR2Ready(true);
-
-  if (payload.products.length > 0) {
-    writeCatalogSnapshot(payload.products);
-    clearStaleLocalProductCache();
-    handlers.setRemoteCatalog(true);
-    handlers.setProductsState(payload.products);
-    handlers.setSupabaseReady(true);
+function applyRemoteStorefrontIfNewer(
+  gen: number,
+  site: SiteContent | null,
+  collections: Collection[] | null,
+  updatedAt: string | null,
+  handlers: {
+    applyStorefront: (site: SiteContent, collections: Collection[], remoteUpdatedAt?: string | null) => void;
+    setR2Ready: (v: boolean) => void;
+    catalogApplyGenRef: { current: number };
+  },
+) {
+  if (gen !== handlers.catalogApplyGenRef.current || !site || !collections) return;
+  const localAt = readLocalSiteRemoteAt();
+  if (remoteStorefrontIsNewer(updatedAt, localAt)) {
+    handlers.applyStorefront(site, collections, updatedAt);
+    if (updatedAt) handlers.setR2Ready(true);
   }
+}
 
-  if (payload.site && payload.collections) {
-    const localAt = readLocalSiteRemoteAt();
-    if (remoteStorefrontIsNewer(payload.updatedAt, localAt)) {
-      handlers.applyStorefront(payload.site, payload.collections, payload.updatedAt);
-      if (payload.updatedAt) handlers.setR2Ready(true);
-    }
-  }
+function shouldProbeR2OnLoad(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.location.pathname.startsWith("/staff");
 }
 
 async function putStorefrontJson(
@@ -500,32 +502,46 @@ export function StoreProvider({
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
-          const [bootstrap, r2Probe] = await Promise.all([
-            fetchCatalogBootstrapClient(ac.signal),
-            probeR2Ready(ac.signal),
+          const probeR2 = shouldProbeR2OnLoad() ? probeR2Ready(ac.signal) : Promise.resolve(false);
+          const storefrontCdn = fetchStorefrontFromPublicCdn(ac.signal);
+          const catalogReq = fetchCatalogJson(2, ac.signal);
+
+          const [r2Probe, storefrontRes, catalogRes] = await Promise.all([
+            probeR2,
+            storefrontCdn,
+            catalogReq,
           ]);
           if (r2Probe) setR2Ready(true);
 
-          if (bootstrap.ok) {
-            applyBootstrapPayload(
-              gen,
-              {
-                products: bootstrap.products,
-                site: bootstrap.site,
-                collections: bootstrap.collections,
-                updatedAt: bootstrap.updatedAt,
-                r2Ready: bootstrap.r2Ready || r2Probe,
-              },
-              {
-                applyStorefront,
-                setR2Ready,
-                setRemoteCatalog,
-                setSupabaseReady,
-                setProductsState,
-                recoverCatalogAfterNetworkFailure,
-                catalogApplyGenRef,
-              },
-            );
+          let site = storefrontRes.ok ? storefrontRes.site : null;
+          let collections = storefrontRes.ok ? storefrontRes.collections : null;
+          let updatedAt = storefrontRes.ok ? storefrontRes.updatedAt : null;
+
+          if (!storefrontRes.ok) {
+            const apiSf = await fetchStorefrontJson(ac.signal);
+            if (apiSf.ok) {
+              site = apiSf.site;
+              collections = apiSf.collections;
+              updatedAt = apiSf.updatedAt;
+              if (apiSf.source === "r2") setR2Ready(true);
+            }
+          } else if (storefrontRes.source === "r2") {
+            setR2Ready(true);
+          }
+
+          applyRemoteStorefrontIfNewer(gen, site, collections, updatedAt, {
+            applyStorefront,
+            setR2Ready,
+            catalogApplyGenRef,
+          });
+
+          if (catalogRes.ok) {
+            applyRemoteCatalog(gen, catalogRes.products, {
+              setRemoteCatalog,
+              setSupabaseReady,
+              setProductsState,
+              catalogApplyGenRef,
+            });
           } else if (gen === catalogApplyGenRef.current) {
             recoverCatalogAfterNetworkFailure();
           }
@@ -548,29 +564,25 @@ export function StoreProvider({
     remoteRefreshTimerRef.current = setTimeout(() => {
       void (async () => {
         const gen = (catalogApplyGenRef.current += 1);
-        const bootstrap = await fetchCatalogBootstrapClient();
-        if (!bootstrap.ok) return;
-        applyBootstrapPayload(
-          gen,
-          {
-            products: bootstrap.products,
-            site: bootstrap.site,
-            collections: bootstrap.collections,
-            updatedAt: bootstrap.updatedAt,
-            r2Ready: bootstrap.r2Ready,
-          },
-          {
+        const storefrontRes = await fetchStorefrontFromPublicCdn();
+        if (storefrontRes.ok) {
+          applyRemoteStorefrontIfNewer(gen, storefrontRes.site, storefrontRes.collections, storefrontRes.updatedAt, {
             applyStorefront,
             setR2Ready,
+            catalogApplyGenRef,
+          });
+        }
+        const catalogRes = await fetchCatalogJson(1);
+        if (catalogRes.ok) {
+          applyRemoteCatalog(gen, catalogRes.products, {
             setRemoteCatalog,
             setSupabaseReady,
             setProductsState,
-            recoverCatalogAfterNetworkFailure: () => {},
             catalogApplyGenRef,
-          },
-        );
+          });
+        }
       })();
-    }, 3000);
+    }, 5000);
   }, [applyStorefront]);
 
   useEffect(() => {

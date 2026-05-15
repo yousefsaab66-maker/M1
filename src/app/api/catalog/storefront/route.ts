@@ -3,6 +3,11 @@ import { fetchStorefront } from "@/lib/storefront-query";
 
 export const dynamic = "force-dynamic";
 
+const STOREFRONT_JSON_CACHE = {
+  "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
+  "CDN-Cache-Control": "max-age=60",
+} as const;
+
 const NO_STORE_JSON = {
   "Cache-Control": "private, no-store, max-age=0, must-revalidate",
   "CDN-Cache-Control": "no-store",
@@ -21,6 +26,6 @@ export async function GET() {
       updatedAt: result.updatedAt,
       source: result.source,
     },
-    { headers: NO_STORE_JSON },
+    { headers: STOREFRONT_JSON_CACHE },
   );
 }
