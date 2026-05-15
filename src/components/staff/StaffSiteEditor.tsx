@@ -39,15 +39,43 @@ export function StaffSingleImageField({
   const { t } = useLocale();
   const { staffCloudUpload, confirmR2Ready } = useStore();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const uploadGenRef = useRef(0);
+  const uploadAbortRef = useRef<AbortController | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const useCloud = cloudUpload || staffCloudUpload;
 
+  const resetFileInput = () => {
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const openFilePicker = () => {
+    if (busy || !useCloud) return;
+    resetFileInput();
+    inputRef.current?.click();
+  };
+
+  const isImageFile = (file: File) =>
+    file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name);
+
+  const handleClear = () => {
+    uploadGenRef.current += 1;
+    uploadAbortRef.current?.abort();
+    uploadAbortRef.current = null;
+    setError(null);
+    resetFileInput();
+    onClear?.();
+  };
+
   const onFiles = async (files: FileList | null) => {
     const file = files?.[0];
-    if (!file) return;
+    if (!file || busy) return;
+    const gen = (uploadGenRef.current += 1);
+    uploadAbortRef.current?.abort();
+    const ac = new AbortController();
+    uploadAbortRef.current = ac;
     setError(null);
-    if (!file.type.startsWith("image/")) {
+    if (!isImageFile(file)) {
       setError(t("staff.images.notImage").replace("{name}", file.name));
       return;
     }
@@ -61,12 +89,19 @@ export function StaffSingleImageField({
     }
     setBusy(true);
     try {
-      const up = await uploadStaffImageFile(file, uploadScope, { onSuccess: confirmR2Ready });
+      const up = await uploadStaffImageFile(file, uploadScope, {
+        onSuccess: confirmR2Ready,
+        signal: ac.signal,
+      });
+      if (gen !== uploadGenRef.current) return;
       if (up.ok) onChange(up.url);
-      else setError(translateStaffUploadError(up.code, t));
+      else if (up.code !== "aborted") setError(translateStaffUploadError(up.code, t));
     } finally {
-      setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
+      if (gen === uploadGenRef.current) {
+        setBusy(false);
+        uploadAbortRef.current = null;
+      }
+      resetFileInput();
     }
   };
 
@@ -101,15 +136,15 @@ export function StaffSingleImageField({
         />
         <button
           type="button"
-          disabled={busy || !cloudUpload}
+          disabled={busy || !useCloud}
           className="btn-ghost shrink-0 text-[10px] sm:text-[11px]"
-          onClick={() => inputRef.current?.click()}
+          onClick={openFilePicker}
         >
           <Upload className="h-4 w-4 shrink-0" strokeWidth={1.4} />
           <span className="truncate">{busy ? t("staff.images.uploading") : t("staff.images.upload")}</span>
         </button>
         {onClear && (
-          <button type="button" className="btn-ghost shrink-0 text-[10px] sm:text-[11px]" onClick={onClear}>
+          <button type="button" className="btn-ghost shrink-0 text-[10px] sm:text-[11px]" onClick={handleClear}>
             <RotateCcw className="h-4 w-4 shrink-0" strokeWidth={1.4} />
             <span>{t("staff.site.clearImage")}</span>
           </button>

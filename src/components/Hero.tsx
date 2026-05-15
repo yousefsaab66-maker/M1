@@ -143,6 +143,7 @@ export function Hero() {
       />
       {videoOk && (
         <video
+          key={videoSrc}
           ref={videoRef}
           className="absolute inset-0 h-full w-full object-cover"
           src={videoSrc}

@@ -28,7 +28,7 @@ function resultFromResponse(
 export async function uploadStaffImageFile(
   file: File,
   scope: "site" | "collections" | "products" = "products",
-  opts?: { onSuccess?: () => void },
+  opts?: { onSuccess?: () => void; signal?: AbortSignal },
 ): Promise<StaffUploadResult> {
   let prepared: File;
   try {
@@ -38,6 +38,7 @@ export async function uploadStaffImageFile(
   }
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (opts?.signal?.aborted) return { ok: false, code: "aborted" };
     const fd = new FormData();
     fd.append("file", prepared);
     fd.append("scope", scope);
@@ -49,8 +50,10 @@ export async function uploadStaffImageFile(
         body: fd,
         credentials: "same-origin",
         cache: "no-store",
+        signal: opts?.signal,
       });
     } catch {
+      if (opts?.signal?.aborted) return { ok: false, code: "aborted" };
       if (attempt < 2) {
         await delay(500 * (attempt + 1));
         continue;

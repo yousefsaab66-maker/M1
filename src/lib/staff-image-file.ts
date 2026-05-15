@@ -53,6 +53,8 @@ export async function prepareStaffImageForUpload(file: File): Promise<File> {
     const blob = await new Promise<Blob | null>((resolve) => {
       canvas.toBlob((b) => resolve(b), "image/jpeg", JPEG_QUALITY);
     });
+    canvas.width = 0;
+    canvas.height = 0;
     if (!blob || blob.size === 0) return file;
     const base = file.name.replace(/\.[^.]+$/, "") || "image";
     return new File([blob], `${base}.jpg`, { type: "image/jpeg", lastModified: Date.now() });

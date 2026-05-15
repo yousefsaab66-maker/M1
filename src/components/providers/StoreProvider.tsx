@@ -561,6 +561,9 @@ export function StoreProvider({
   /** تحديث خفيف عند الرجوع للتطبيق — تسلسلي لتقليل 1102 على Cloudflare. */
   const remoteRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleRemoteRefresh = useCallback(() => {
+    if (typeof window !== "undefined" && window.location.pathname.startsWith("/staff")) {
+      return;
+    }
     if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
     remoteRefreshTimerRef.current = setTimeout(() => {
       void (async () => {
@@ -636,12 +639,11 @@ export function StoreProvider({
       if (result.ok) {
         applyStorefront(sanitized.site, collections, result.updatedAt);
         setR2Ready(true);
-        void refreshStorefront();
         return { ok: true };
       }
       return { ok: false, error: result.error };
     },
-    [applyStorefront, collections, refreshStorefront],
+    [applyStorefront, collections],
   );
 
   const saveCollections = useCallback(
@@ -650,12 +652,11 @@ export function StoreProvider({
       if (result.ok) {
         applyStorefront(site, c, result.updatedAt);
         setR2Ready(true);
-        void refreshStorefront();
         return { ok: true };
       }
       return { ok: false, error: result.error };
     },
-    [applyStorefront, site, refreshStorefront],
+    [applyStorefront, site],
   );
 
   const resetCatalog = useCallback(() => {

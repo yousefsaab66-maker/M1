@@ -1050,6 +1050,17 @@ function ImagesField({
     const next = images.slice();
     next.splice(idx, 1);
     onChange(next);
+    resetFileInput();
+  };
+
+  const resetFileInput = () => {
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const openFilePicker = () => {
+    if (busy) return;
+    resetFileInput();
+    fileInputRef.current?.click();
   };
 
   const hintKey = useCloud ? "staff.images.uploadHintCloud" : "staff.images.uploadHint";
@@ -1085,7 +1096,7 @@ function ImagesField({
         <button
           type="button"
           disabled={busy}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={openFilePicker}
           className="btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Upload className="h-4 w-4" strokeWidth={1.4} /> {busy ? t("staff.images.uploading") : t("staff.images.upload")}
@@ -1398,10 +1409,6 @@ function CollectionsPane() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  useEffect(() => {
-    queueMicrotask(() => setDraft(collections));
-  }, [collections]);
-
   const patchCollection = (id: string, patch: Partial<Collection>) => {
     setDraft((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   };
@@ -1413,6 +1420,7 @@ function CollectionsPane() {
       const result = await saveCollections(draft);
       if (result.ok) {
         setSaved(true);
+        setDraft(draft);
         setTimeout(() => setSaved(false), 2200);
       } else {
         setSaveError(siteSaveErrorMessage(result.error, t));
@@ -1600,11 +1608,6 @@ function SitePane() {
   const [videoError, setVideoError] = useState<string | null>(null);
   const [videoBusy, setVideoBusy] = useState(false);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
-  useEffect(() => {
-    queueMicrotask(() => {
-      setDraft(normalizeSiteContent(site));
-    });
-  }, [site]);
 
   const onVideoFile = async (files: FileList | null) => {
     setVideoError(null);
@@ -1643,6 +1646,7 @@ function SitePane() {
       const result = await saveSite(draft);
       if (result.ok) {
         setSaved(true);
+        setDraft(normalizeSiteContent(draft));
         setTimeout(() => setSaved(false), 2200);
       } else {
         setSaveError(siteSaveErrorMessage(result.error, t));
@@ -1710,14 +1714,22 @@ function SitePane() {
             <button
               type="button"
               disabled={videoBusy}
-              onClick={() => videoInputRef.current?.click()}
+              onClick={() => {
+                if (videoInputRef.current) {
+                  videoInputRef.current.value = "";
+                  videoInputRef.current.click();
+                }
+              }}
               className="btn-ghost"
             >
               <Upload className="h-4 w-4" strokeWidth={1.4} /> {t("staff.hero.upload")}
             </button>
             <button
               type="button"
-              onClick={() => setDraft({ ...draft, heroVideo: "" })}
+              onClick={() => {
+                if (videoInputRef.current) videoInputRef.current.value = "";
+                setDraft({ ...draft, heroVideo: "" });
+              }}
               className="btn-ghost"
             >
               <RotateCcw className="h-4 w-4" strokeWidth={1.4} /> {t("staff.hero.reset")}
