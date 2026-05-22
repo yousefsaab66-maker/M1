@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Heart, Plus, Minus } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
@@ -16,10 +16,23 @@ import type { Product } from "@/lib/catalog";
 export default function ProductPage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug;
-  const { products } = useStore();
+  const { products, mergeRemoteProduct } = useStore();
   const { t } = useLocale();
 
   const product = useMemo(() => products.find((p) => p.slug === slug), [products, slug]);
+
+  useEffect(() => {
+    if (!slug || !product) return;
+    if (product.description.trim() && product.story.trim()) return;
+    const ac = new AbortController();
+    void fetch(`/api/catalog/products?slug=${encodeURIComponent(slug)}`, { signal: ac.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { product?: Product } | null) => {
+        if (d?.product) mergeRemoteProduct(d.product);
+      })
+      .catch(() => {});
+    return () => ac.abort();
+  }, [slug, product, mergeRemoteProduct]);
   const related = useMemo(() => {
     if (!product) return [];
     if (product.related && product.related.length > 0) {

@@ -107,7 +107,7 @@ const u = (id: string, w: number = 1600) =>
   `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
 
 export const HERO_VIDEO_URL = "https://assets.mixkit.co/videos/4053/4053-720.mp4";
-export const HERO_VIDEO_FALLBACK = "https://videos.pexels.com/video-files/3209828/3209828-uhd_2560_1440_25fps.mp4";
+export const HERO_VIDEO_FALLBACK = "https://videos.pexels.com/video-files/3209828/3209828-hd_1280_720_25fps.mp4";
 export const HERO_POSTER = u("1599643478518-a784e5dc4c8f", 2400);
 
 export const COLLECTIONS: Collection[] = [
