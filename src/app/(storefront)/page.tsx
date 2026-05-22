@@ -20,6 +20,24 @@ import {
   featuredHomeProducts,
 } from "@/lib/site-display";
 
+function BelowFoldReveal({
+  children,
+  delay = 0,
+  className,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  const reduce = useReducedMotion();
+  if (reduce) return <div className={className}>{children}</div>;
+  return (
+    <FadeIn delay={delay} className={className}>
+      {children}
+    </FadeIn>
+  );
+}
+
 export default function HomePage() {
   const { t } = useLocale();
   const { products, collections, journal, site } = useStore();
@@ -38,13 +56,11 @@ export default function HomePage() {
 
       {/* Category strip */}
       <section className="page-gutter py-20 md:py-28">
-        <FadeIn>
-          <p className="eyebrow text-center">{t("nav.collections")}</p>
-        </FadeIn>
+        <p className="eyebrow text-center">{t("nav.collections")}</p>
         <div className="mx-auto mt-8 grid max-w-[1400px] grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
-          {HOME_CATEGORY_STRIP.map((key, i) => (
-            <FadeIn key={key} delay={i * 0.08}>
+          {HOME_CATEGORY_STRIP.map((key) => (
               <Link
+                key={key}
                 href={`/products?category=${key}` as never}
                 className="product-image-zoom relative block aspect-[3/4] overflow-hidden"
                 style={{ background: "var(--surface-2)" }}
@@ -70,7 +86,6 @@ export default function HomePage() {
                   <ArrowUpRight className="h-5 w-5 opacity-80" strokeWidth={1.3} />
                 </div>
               </Link>
-            </FadeIn>
           ))}
         </div>
       </section>
@@ -81,7 +96,7 @@ export default function HomePage() {
       {featuredCollectionBlock && (
         <section className="page-gutter py-20 md:py-28">
           <div className="mx-auto grid max-w-[1400px] items-center gap-12 lg:grid-cols-2 lg:gap-20">
-            <FadeIn>
+            <BelowFoldReveal>
               <div className="product-image-zoom relative aspect-[4/5] overflow-hidden" style={{ background: "var(--surface-2)" }}>
                 <SafeImage
                   src={featuredCollectionBlock.editorialImage}
@@ -91,8 +106,8 @@ export default function HomePage() {
                   className="object-cover"
                 />
               </div>
-            </FadeIn>
-            <FadeIn delay={0.15}>
+            </BelowFoldReveal>
+            <BelowFoldReveal delay={0.15}>
               <div>
                 <p className="eyebrow">{t("common.newCollection")}</p>
                 <h3 className="font-display mt-5 text-4xl leading-[1.05] md:text-6xl">
@@ -114,7 +129,7 @@ export default function HomePage() {
                   </Link>
                 </div>
               </div>
-            </FadeIn>
+            </BelowFoldReveal>
           </div>
         </section>
       )}
@@ -124,13 +139,11 @@ export default function HomePage() {
       {/* Iconic creations */}
       <section className="page-gutter py-20 md:py-28">
         <SectionTitle eyebrow={t("common.iconic")} title={t("common.iconic")} subtitle={t("hero.sub")} />
-        <FadeIn>
-          <div className="mx-auto mt-16 grid max-w-[1400px] grid-cols-2 gap-x-5 gap-y-14 md:grid-cols-3 lg:grid-cols-4 lg:gap-x-8">
-            {iconic.slice(0, 8).map((p, i) => (
-              <ProductCard key={p.id} product={p} index={i} />
-            ))}
-          </div>
-        </FadeIn>
+        <div className="mx-auto mt-16 grid max-w-[1400px] grid-cols-2 gap-x-5 gap-y-14 md:grid-cols-3 lg:grid-cols-4 lg:gap-x-8">
+          {iconic.slice(0, 8).map((p, i) => (
+            <ProductCard key={p.id} product={p} index={i} />
+          ))}
+        </div>
         <div className="mt-14 flex justify-center">
           <Link href={"/products" as never} className="btn-ghost">
             {t("common.viewAll")} <ArrowRight className="h-4 w-4" strokeWidth={1.4} />
@@ -141,7 +154,7 @@ export default function HomePage() {
       {/* Maison story two column */}
       <section className="page-gutter py-20 md:py-28" style={{ background: "var(--surface)" }}>
         <div className="mx-auto grid max-w-[1400px] items-center gap-14 lg:grid-cols-2 lg:gap-24">
-          <FadeIn>
+          <BelowFoldReveal>
             <div>
               <p className="eyebrow">{t("common.maison")}</p>
               <h3 className="font-display mt-5 text-4xl leading-[1.05] md:text-5xl">
@@ -159,8 +172,8 @@ export default function HomePage() {
                 </Link>
               </div>
             </div>
-          </FadeIn>
-          <FadeIn delay={0.15}>
+          </BelowFoldReveal>
+          <BelowFoldReveal delay={0.15}>
             <motion.div
               className="relative aspect-[4/5]"
               style={{ background: "var(--surface-2)" }}
@@ -187,15 +200,14 @@ export default function HomePage() {
                 {t("home.atelier.parisCaption")}
               </p>
             </motion.div>
-          </FadeIn>
+          </BelowFoldReveal>
         </div>
       </section>
 
       {/* Journal teaser */}
       <section className="page-gutter py-20 md:py-28">
         <div className="mx-auto max-w-[1400px]">
-          <FadeIn>
-            <div className="flex items-end justify-between gap-6">
+          <div className="flex items-end justify-between gap-6">
               <div>
                 <p className="eyebrow">{t("nav.journal")}</p>
                 <h3 className="font-display mt-3 text-3xl md:text-4xl">{t("home.fromMaison")}</h3>
@@ -204,11 +216,9 @@ export default function HomePage() {
                 {t("common.viewAll")} →
               </Link>
             </div>
-          </FadeIn>
           <div className="mt-12 grid gap-10 md:grid-cols-3">
-            {journal.slice(0, 3).map((a, i) => (
-              <FadeIn key={a.id} delay={i * 0.08}>
-                <Link href={`/journal/${a.slug}` as never} className="group block">
+            {journal.slice(0, 3).map((a) => (
+                <Link key={a.id} href={`/journal/${a.slug}` as never} className="group block">
                   <div className="product-image-zoom relative aspect-[4/5] overflow-hidden" style={{ background: "var(--surface-2)" }}>
                     <SafeImage src={a.image} alt={a.title} fill sizes="(min-width: 768px) 33vw, 100vw" className="object-cover" />
                   </div>
@@ -218,7 +228,6 @@ export default function HomePage() {
                   <h4 className="font-display mt-2 text-2xl gold-underline">{a.title}</h4>
                   <p className="mt-3 text-sm leading-relaxed opacity-75">{a.excerpt}</p>
                 </Link>
-              </FadeIn>
             ))}
           </div>
         </div>
@@ -265,7 +274,7 @@ export default function HomePage() {
       {/* Newsletter band */}
       <section className="page-gutter py-24 md:py-32">
         <div className="mx-auto max-w-3xl text-center">
-          <FadeIn>
+          <BelowFoldReveal>
             <p className="eyebrow">{t("common.newsletter")}</p>
             <h3 className="font-display mt-5 text-4xl leading-[1.05] md:text-5xl">
               {t("home.newsletter.title")}
@@ -274,7 +283,7 @@ export default function HomePage() {
               {t("common.newsletter.copy")}
             </p>
             <NewsletterForm />
-          </FadeIn>
+          </BelowFoldReveal>
         </div>
       </section>
     </div>
