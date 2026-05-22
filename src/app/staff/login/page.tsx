@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SectionTitle } from "@/components/Section";
 import { useAuth, type StaffSessionError } from "@/components/providers/AuthProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
@@ -14,13 +14,17 @@ function staffLoginErrorMessage(code: StaffSessionError | false, t: (key: string
 }
 
 export default function StaffLoginPage() {
-  const { signIn, signedInAs } = useAuth();
+  const { signIn, signedInAs, hydrated } = useAuth();
   const { t } = useLocale();
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (hydrated && signedInAs.staff) router.replace("/staff");
+  }, [hydrated, signedInAs.staff, router]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,11 +39,8 @@ export default function StaffLoginPage() {
     setError(staffLoginErrorMessage(result === false ? false : result, t));
   };
 
-  if (signedInAs.staff) {
-    if (typeof window !== "undefined") {
-      router.replace("/staff");
-    }
-    return null;
+  if (hydrated && signedInAs.staff) {
+    return <div className="px-6 py-32 text-center opacity-70">…</div>;
   }
 
   return (

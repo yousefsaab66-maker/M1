@@ -16,6 +16,14 @@ const KEY_HASH = (role: Role) => `muhra-${role}-hash-v1`;
 const KEY_USER = (role: Role) => `muhra-${role}-user-v1`;
 const KEY_SESSION = (role: Role) => `muhra-${role}-session-v1`;
 
+function clearClientStaffSession() {
+  try {
+    sessionStorage.removeItem(KEY_SESSION("staff"));
+  } catch {
+    // ignore
+  }
+}
+
 const DEFAULT_CREDS: Record<Role, { username: string; password: string }> = {
   staff: { username: "staff", password: "staff12345678" },
   admin: { username: "admin", password: "admin123" },
@@ -101,16 +109,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch {
           // ignore
         }
-        try {
-          const sess = sessionStorage.getItem(KEY_SESSION(role));
-          if (sess) {
-            if (role === "staff") setStaffSession(sess);
-            else setAdminSession(sess);
+        if (role === "admin") {
+          try {
+            const sess = sessionStorage.getItem(KEY_SESSION(role));
+            if (sess) setAdminSession(sess);
+          } catch {
+            // ignore
           }
+        }
+      }
+
+      let staffUser: string | null = null;
+      try {
+        const res = await fetch("/api/staff/session", { credentials: "include" });
+        const body = (await res.json()) as { ok?: boolean; user?: string | null };
+        if (res.ok && body.ok && body.user) staffUser = body.user;
+      } catch {
+        // ignore
+      }
+      if (staffUser) {
+        try {
+          sessionStorage.setItem(KEY_SESSION("staff"), staffUser);
         } catch {
           // ignore
         }
+        setStaffSession(staffUser);
+      } else {
+        clearClientStaffSession();
+        setStaffSession(null);
       }
+
       setHydrated(true);
     })();
   }, []);
