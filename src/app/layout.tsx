@@ -8,14 +8,14 @@ import { Providers } from "@/components/providers/Providers";
 const serif = Cormorant_Garamond({
   variable: "--font-serif",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "600"],
   display: "swap",
 });
 
 const sans = Inter({
   variable: "--font-sans",
   subsets: ["latin", "latin-ext"],
-  weight: ["300", "400", "500", "600"],
+  weight: ["400", "600"],
   display: "swap",
 });
 

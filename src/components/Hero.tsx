@@ -18,9 +18,15 @@ export function Hero() {
   const [videoOk, setVideoOk] = useState(true);
   const override = site.heroVideo?.trim() ? site.heroVideo : null;
   const [videoSrc, setVideoSrc] = useState<string>(override ?? HERO_VIDEO_URL);
+  const [loadVideo, setLoadVideo] = useState(false);
   const [muted, setMuted] = useState(true);
   const [showToast, setShowToast] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setLoadVideo(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   // Sync source when the staff-managed override changes.
   useEffect(() => {
@@ -141,7 +147,7 @@ export function Hero() {
         }}
         aria-hidden
       />
-      {videoOk && (
+      {videoOk && loadVideo && (
         <video
           key={videoSrc}
           ref={videoRef}
@@ -151,7 +157,7 @@ export function Hero() {
           muted
           loop
           playsInline
-          preload="auto"
+          preload="metadata"
           poster={HERO_POSTER}
           aria-hidden
         />
