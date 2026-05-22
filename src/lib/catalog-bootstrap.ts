@@ -1,5 +1,5 @@
 import type { Collection, SiteContent } from "@/lib/catalog";
-import { fetchCatalogProducts } from "@/lib/catalog-products-query";
+import { fetchCatalogProductsForList } from "@/lib/catalog-products-query";
 import { readStorefrontFromR2 } from "@/lib/storefront-r2";
 
 export type CatalogBootstrapResult = {
@@ -15,7 +15,7 @@ export type CatalogBootstrapResult = {
 /** One Worker invocation — products + storefront in parallel (fewer 1102s than two browser round-trips). */
 export async function fetchCatalogBootstrap(): Promise<CatalogBootstrapResult> {
   const [productsResult, storefrontR2] = await Promise.all([
-    fetchCatalogProducts(),
+    fetchCatalogProductsForList(),
     readStorefrontFromR2(),
   ]);
 
