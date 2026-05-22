@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { Collection, SiteContent } from "@/lib/catalog";
+import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
 import { upsertStorefront } from "@/lib/storefront-query";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 
@@ -44,5 +45,13 @@ export async function PUT(req: Request) {
     return NextResponse.json({ ok: false, error: result.error } as const, { status });
   }
 
-  return NextResponse.json({ ok: true, updatedAt: result.updatedAt } as const);
+  return NextResponse.json(
+    { ok: true, updatedAt: result.updatedAt } as const,
+    {
+      headers: {
+        ...NO_STORE_JSON_HEADERS,
+        "X-Muhra-Cache-Hint": "purge-storefront-after-deploy",
+      },
+    },
+  );
 }

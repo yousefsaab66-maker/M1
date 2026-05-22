@@ -458,6 +458,11 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.errorUnauthorized": "Staff session expired. Sign in again.",
     "staff.products.errorPayloadImages":
       "Images are too large as embedded data for cloud save. Upload each image with «Upload from computer» (R2) so URLs are https://, or remove pasted base64 from the image URLs field.",
+    "staff.products.embeddedBannerTitle": "{n} product(s) with embedded images",
+    "staff.products.embeddedBannerBody":
+      "These products still store base64 in the database. The public catalog serves a placeholder instead (avoids Cloudflare 1102). Re-upload each image via «Upload» so URLs are https://media…, then save. Diagnostic: GET /api/staff/catalog-embedded",
+    "staff.products.embeddedBadge": "embedded",
+    "staff.products.embeddedRowHint": "Inline base64 in DB — re-upload to R2",
     "staff.form.newTitle": "New product",
     "staff.form.editTitle": "Edit product",
     "staff.form.name": "Name",
@@ -2091,6 +2096,11 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.errorUnauthorized": "انتهت جلسة الموظفين. سجّل الدخول من جديد.",
     "staff.products.errorPayloadImages":
       "صور كبيرة كنص مضمّن (base64) تمنع الحفظ على السحابة. ارفع كل صورة بزر «رفع من الجهاز» حتى تصير الروابط https، أو احذف النصوص الطويلة من حقل روابط الصور.",
+    "staff.products.embeddedBannerTitle": "{n} منتج(ات) فيها صور مضمّنة",
+    "staff.products.embeddedBannerBody":
+      "هذه المنتجات ما زالت تحفظ base64 في قاعدة البيانات. الكتالوج العام يعرض صورة بديلة فقط (لتجنّب خطأ Cloudflare 1102). أعد رفع كل صورة عبر «رفع» حتى تصير الروابط https://media… ثم احفظ. تشخيص: GET /api/staff/catalog-embedded",
+    "staff.products.embeddedBadge": "مضمّن",
+    "staff.products.embeddedRowHint": "صور base64 في القاعدة — أعد الرفع إلى R2",
     "staff.form.newTitle": "منتج جديد",
     "staff.form.editTitle": "تعديل المنتج",
     "staff.form.name": "الاسم",

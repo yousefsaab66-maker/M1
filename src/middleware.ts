@@ -6,12 +6,10 @@ const NO_STORE = {
   "CDN-Cache-Control": "no-store",
 } as const;
 
-/**
- * Only non-cacheable staff/auth API routes get no-store. Catalog JSON is cacheable at the edge
- * (see `/api/catalog/products` Cache-Control) to reduce Worker invocations (Error 1102).
- */
-export function middleware(request: NextRequest) {
-  const res = NextResponse.next();
+const CANONICAL_HOST = (process.env.MUHRA_CANONICAL_HOST ?? "www.muhrajewelry.com").toLowerCase();
+const APEX_HOST = "muhrajewelry.com";
+
+function applyApiCacheHeaders(request: NextRequest, res: NextResponse): NextResponse {
   const path = request.nextUrl.pathname;
   const isPublicCatalog =
     path === "/api/catalog/products" ||
@@ -24,6 +22,26 @@ export function middleware(request: NextRequest) {
   return res;
 }
 
+/**
+ * - Apex → www (single canonical host; avoids split cookies / intermittent www Worker timeouts).
+ * - Staff API routes: no-store (catalog JSON cache is set on `/api/catalog/products` response).
+ */
+export function middleware(request: NextRequest) {
+  const host = (request.headers.get("host") ?? request.nextUrl.host).split(":")[0]?.toLowerCase() ?? "";
+
+  if (host === APEX_HOST && CANONICAL_HOST !== APEX_HOST) {
+    const url = request.nextUrl.clone();
+    url.protocol = "https:";
+    url.host = CANONICAL_HOST;
+    return NextResponse.redirect(url, 308);
+  }
+
+  return applyApiCacheHeaders(request, NextResponse.next());
+}
+
 export const config = {
-  matcher: ["/api/:path*"],
+  matcher: [
+    "/api/:path*",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.[\\w]+$).*)",
+  ],
 };

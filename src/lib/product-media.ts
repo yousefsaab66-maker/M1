@@ -60,6 +60,28 @@ export function ensureProductOrderable(p: Product): Product {
 const MAX_DATA_URL_CHARS_PER_IMAGE = 64 * 1024;
 const MAX_TOTAL_DATA_URL_CHARS = 400 * 1024;
 
+/** True when DB still holds inline base64 (not the small SVG placeholder). */
+export function productHasEmbeddedImages(p: Product): boolean {
+  return (p.images ?? []).some((u) => {
+    const t = u.trim();
+    return t.startsWith("data:") && t !== MUHRA_PLACEHOLDER_IMAGE;
+  });
+}
+
+/**
+ * Public catalog API: replace huge inline `data:` images with the small SVG placeholder.
+ * Preserves image order and count so bag/checkout slug resolution stay stable.
+ */
+export function sanitizeProductForCatalogApi(p: Product): Product {
+  const images = (p.images ?? []).map((u) => {
+    const t = u.trim();
+    if (!t) return t;
+    if (t.startsWith("data:")) return t === MUHRA_PLACEHOLDER_IMAGE ? t : MUHRA_PLACEHOLDER_IMAGE;
+    return normalizeCatalogImageUrl(t);
+  });
+  return { ...p, images };
+}
+
 /** Returns an error code if the payload is unsafe to send through a Worker to Supabase. */
 export function validateProductPayloadForServerSave(p: Product): string | null {
   let total = 0;

@@ -323,6 +323,8 @@ async function putStorefrontJson(
 
 /** لا نُبقي واجهة المستخدم معلّقة بانتظار Workers بطيئة أو معلّقة (أوّل تحميل قد يكون بارد على CF). */
 const STORE_INIT_NETWORK_MS = 45_000;
+/** كتالوج المنتجات فقط — لا ننتظره إلى نهاية مهلة الواجهة كاملة. */
+const CATALOG_INIT_MS = 22_000;
 
 export function StoreProvider({
   children,
@@ -503,22 +505,18 @@ export function StoreProvider({
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
-          const probeR2 = shouldProbeR2OnLoad() ? probeR2Ready(ac.signal) : Promise.resolve(false);
-          const storefrontCdn = fetchStorefrontFromPublicCdn(ac.signal);
-          const catalogReq = fetchCatalogJson(2, ac.signal);
+          if (shouldProbeR2OnLoad()) {
+            void probeR2Ready(ac.signal).then((ok) => {
+              if (ok && gen === catalogApplyGenRef.current) setR2Ready(true);
+            });
+          }
 
-          const [r2Probe, storefrontRes, catalogRes] = await Promise.all([
-            probeR2,
-            storefrontCdn,
-            catalogReq,
-          ]);
-          if (r2Probe) setR2Ready(true);
-
+          const storefrontRes = await fetchStorefrontFromPublicCdn(ac.signal);
           let site = storefrontRes.ok ? storefrontRes.site : null;
           let collections = storefrontRes.ok ? storefrontRes.collections : null;
           let updatedAt = storefrontRes.ok ? storefrontRes.updatedAt : null;
 
-          if (!storefrontRes.ok) {
+          if (!storefrontRes.ok && !ac.signal.aborted) {
             const apiSf = await fetchStorefrontJson(ac.signal);
             if (apiSf.ok) {
               site = apiSf.site;
@@ -526,8 +524,8 @@ export function StoreProvider({
               updatedAt = apiSf.updatedAt;
               if (apiSf.source === "r2") setR2Ready(true);
             }
-          } else if (storefrontRes.source === "r2") {
-            setR2Ready(true);
+          } else if (storefrontRes.ok) {
+            if (storefrontRes.source === "r2") setR2Ready(true);
           }
 
           applyRemoteStorefrontIfNewer(gen, site, collections, updatedAt, {
@@ -535,6 +533,11 @@ export function StoreProvider({
             setR2Ready,
             catalogApplyGenRef,
           });
+
+          const catalogAc = new AbortController();
+          const catalogTimer = setTimeout(() => catalogAc.abort(), CATALOG_INIT_MS);
+          const catalogRes = await fetchCatalogJson(2, catalogAc.signal);
+          clearTimeout(catalogTimer);
 
           if (catalogRes.ok) {
             applyRemoteCatalog(gen, catalogRes.products, {

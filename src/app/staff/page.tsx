@@ -39,7 +39,13 @@ import type {
 } from "@/lib/catalog";
 import { formatDate, formatPrice, slugify } from "@/lib/format";
 import { formatIqd } from "@/lib/iraq";
-import { ensureProductOrderable, productGallerySources, productImageAt } from "@/lib/product-media";
+import {
+  ensureProductOrderable,
+  productGallerySources,
+  productHasEmbeddedImages,
+  productImageAt,
+} from "@/lib/product-media";
+import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import {
   MUHRA_MAX_IMAGE_UPLOAD_BYTES,
   MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES,
@@ -274,6 +280,10 @@ function ProductsPane() {
   const [orderHint, setOrderHint] = useState<Product | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [imageQuickEdit, setImageQuickEdit] = useState<Product | null>(null);
+  const embeddedCount = useMemo(
+    () => products.filter(productHasEmbeddedImages).length,
+    [products],
+  );
 
   const persistProduct = async (p: Product): Promise<boolean> => {
     setSaveError(null);
@@ -381,6 +391,20 @@ function ProductsPane() {
         </p>
       )}
 
+      {embeddedCount > 0 && (
+        <div
+          className="mt-4 staff-card border border-amber-600/40 bg-amber-500/10 text-start"
+          role="status"
+        >
+          <p className="text-[11px] font-medium uppercase tracking-eyebrow text-amber-900 dark:text-amber-200/95">
+            {t("staff.products.embeddedBannerTitle").replace("{n}", String(embeddedCount))}
+          </p>
+          <p className="mt-2 text-sm leading-relaxed opacity-90 text-amber-950 dark:text-amber-50/90">
+            {t("staff.products.embeddedBannerBody")}
+          </p>
+        </div>
+      )}
+
       {!remoteCatalog && (
         <div
           className="mt-6 staff-card border border-amber-600/40 bg-amber-500/10 text-start"
@@ -472,7 +496,17 @@ function ProductsPane() {
                     style={{ borderColor: "var(--line)" }}
                   />
                 </td>
-                <td className="font-display text-base">{p.name}</td>
+                <td className="font-display text-base">
+                  {p.name}
+                  {productHasEmbeddedImages(p) && (
+                    <span
+                      className="ms-2 inline-block text-[10px] uppercase tracking-eyebrow text-amber-800 dark:text-amber-200/90"
+                      title={t("staff.products.embeddedRowHint")}
+                    >
+                      {t("staff.products.embeddedBadge")}
+                    </span>
+                  )}
+                </td>
                 <td className="opacity-80">{p.collection}</td>
                 <td className="opacity-80 capitalize">{p.category}</td>
                 <td className="max-w-[140px] text-sm opacity-90">
@@ -1073,11 +1107,21 @@ function ImagesField({
           className="staff-input"
           rows={3}
           value={images.join("\n")}
+          dir="ltr"
+          style={{ textAlign: "left" }}
           onChange={(e) =>
             onChange(
               e.target.value
                 .split("\n")
-                .map((s) => s.trim())
+                .map((s) => normalizeStaffMediaUrl(s.trim()))
+                .filter(Boolean),
+            )
+          }
+          onBlur={(e) =>
+            onChange(
+              e.target.value
+                .split("\n")
+                .map((s) => normalizeStaffMediaUrl(s.trim()))
                 .filter(Boolean),
             )
           }

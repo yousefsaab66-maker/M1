@@ -31,3 +31,9 @@ npm run build
 ## Staff / إدارة
 
 مسار لوحة الموظفين: `/staff/login` — بيانات الدخول الافتراضية مُعرّفة في التطبيق (ديمو فقط).
+
+### Cloudflare / كتالوج
+
+- بعد تعديل منتجات أو إعدادات الواجهة على الإنتاج: `npm run cf:purge` (أو `cf:purge:local` مع `.env.local`).
+- منتجات فيها صور `data:` (base64) في Supabase: `GET /api/staff/catalog-embedded` (جلسة موظف) — أعد رفع الصور إلى R2 من لوحة المنتجات.
+- ربط R2 واحد في `wrangler.jsonc`: `MUHRA_MEDIA` → bucket `muhra-media`.
