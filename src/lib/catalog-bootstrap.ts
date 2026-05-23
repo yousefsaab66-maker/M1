@@ -1,4 +1,4 @@
-import type { Collection, SiteContent } from "@/lib/catalog";
+import type { Boutique, Collection, JournalArticle, SiteContent } from "@/lib/catalog";
 import { fetchCatalogProductsForList } from "@/lib/catalog-products-query";
 import { readStorefrontFromR2 } from "@/lib/storefront-r2";
 
@@ -7,6 +7,8 @@ export type CatalogBootstrapResult = {
   storefront: {
     site: SiteContent | null;
     collections: Collection[] | null;
+    journal: JournalArticle[] | null;
+    boutiques: Boutique[] | null;
     updatedAt: string | null;
     source: "r2" | "none";
   };
@@ -33,6 +35,8 @@ export async function fetchCatalogBootstrap(): Promise<CatalogBootstrapResult> {
       storefront: {
         site: storefrontR2.data.site,
         collections: storefrontR2.data.collections,
+        journal: storefrontR2.data.journal,
+        boutiques: storefrontR2.data.boutiques,
         updatedAt: storefrontR2.data.updatedAt,
         source: "r2",
       },
@@ -41,6 +45,13 @@ export async function fetchCatalogBootstrap(): Promise<CatalogBootstrapResult> {
 
   return {
     products,
-    storefront: { site: null, collections: null, updatedAt: null, source: "none" },
+    storefront: {
+      site: null,
+      collections: null,
+      journal: null,
+      boutiques: null,
+      updatedAt: null,
+      source: "none",
+    },
   };
 }

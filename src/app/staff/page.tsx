@@ -16,6 +16,7 @@ import {
   Newspaper,
   Pencil,
   Plus,
+  MapPin,
   RotateCcw,
   Settings,
   ShoppingBag,
@@ -28,6 +29,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore, type OrderStatus } from "@/components/providers/StoreProvider";
 import type {
+  Boutique,
   Category,
   Collection,
   Currency,
@@ -46,21 +48,14 @@ import {
   productImageAt,
 } from "@/lib/product-media";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
+import { MUHRA_MAX_IMAGE_UPLOAD_BYTES } from "@/lib/supabase/storage-constants";
+import { translateStaffUploadError, uploadStaffImageFile } from "@/lib/staff-upload-client";
 import {
-  MUHRA_MAX_IMAGE_UPLOAD_BYTES,
-  MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES,
-  isAllowedStaffVideoMime,
-  staffVideoMimeFromFile,
-} from "@/lib/supabase/storage-constants";
-import {
-  translateStaffUploadError,
-  uploadStaffImageFile,
-  uploadStaffMediaFile,
-} from "@/lib/staff-upload-client";
-import {
+  StaffAllImagesEditor,
+  StaffBoutiquesEditor,
   StaffCategoriesEditor,
   StaffHomepageEditor,
-  StaffSection,
+  StaffSiteTextsEditor,
   StaffSingleImageField,
 } from "@/components/staff/StaffSiteEditor";
 import { normalizeSiteContent } from "@/lib/site-display";
@@ -74,7 +69,15 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-type TabId = "dashboard" | "products" | "orders" | "collections" | "journal" | "site" | "security";
+type TabId =
+  | "dashboard"
+  | "products"
+  | "orders"
+  | "collections"
+  | "journal"
+  | "boutiques"
+  | "site"
+  | "security";
 
 export default function StaffPage() {
   const { signedInAs, signOut, hydrated } = useAuth();
@@ -91,6 +94,7 @@ export default function StaffPage() {
         { id: "orders" as const, label: t("staff.nav.orders"), icon: ClipboardList },
         { id: "collections" as const, label: t("staff.nav.collections"), icon: ArchiveRestore },
         { id: "journal" as const, label: t("staff.nav.journal"), icon: Newspaper },
+        { id: "boutiques" as const, label: t("staff.nav.boutiques"), icon: MapPin },
         { id: "site" as const, label: t("staff.nav.site"), icon: Settings },
         { id: "security" as const, label: t("staff.nav.security"), icon: KeyRound },
       ] satisfies { id: TabId; label: string; icon: typeof LayoutDashboard }[],
@@ -151,6 +155,7 @@ export default function StaffPage() {
             {tab === "orders" && <OrdersPane />}
             {tab === "collections" && <CollectionsPane />}
             {tab === "journal" && <JournalPane />}
+            {tab === "boutiques" && <BoutiquesPane />}
             {tab === "site" && <SitePane />}
             {tab === "security" && <SecurityPane />}
           </div>
@@ -1445,7 +1450,7 @@ function FragmentRow({ children }: { children: React.ReactNode }) {
 }
 
 function CollectionsPane() {
-  const { collections, saveCollections, staffCloudUpload } = useStore();
+  const { collections, site, journal, boutiques, saveStorefront, staffCloudUpload } = useStore();
   const { t } = useLocale();
   const cloudUpload = staffCloudUpload;
   const [draft, setDraft] = useState<Collection[]>(() => collections);
@@ -1461,7 +1466,7 @@ function CollectionsPane() {
     setSaveError(null);
     setSaving(true);
     try {
-      const result = await saveCollections(draft);
+      const result = await saveStorefront({ site, collections: draft, journal, boutiques });
       if (result.ok) {
         setSaved(true);
         setDraft(draft);
@@ -1481,6 +1486,7 @@ function CollectionsPane() {
           {t("staff.collections.titleCount").replace("{n}", String(draft.length))}
         </h2>
         <p className="mt-2 text-sm opacity-70">{t("staff.collections.hintSync")}</p>
+        <p className="mt-1 text-xs opacity-60">{t("staff.saveOnSiteTab")}</p>
       </header>
       <div className="mt-6 grid min-w-0 gap-4">
         {draft.map((c) => (
@@ -1547,7 +1553,7 @@ function CollectionsPane() {
 }
 
 function JournalPane() {
-  const { journal, setJournal } = useStore();
+  const { journal, setJournal, staffCloudUpload } = useStore();
   const { t } = useLocale();
   const onAdd = () => {
     const article: JournalArticle = {
@@ -1570,7 +1576,10 @@ function JournalPane() {
   return (
     <section>
       <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <h2 className="font-display min-w-0 break-words text-2xl sm:text-3xl">{t("staff.journal.titleCount").replace("{n}", String(journal.length))}</h2>
+        <div>
+          <h2 className="font-display min-w-0 break-words text-2xl sm:text-3xl">{t("staff.journal.titleCount").replace("{n}", String(journal.length))}</h2>
+          <p className="mt-2 text-xs opacity-60">{t("staff.saveOnSiteTab")}</p>
+        </div>
         <button type="button" onClick={onAdd} className="btn-ghost">
           <Plus className="h-4 w-4" strokeWidth={1.4} /> {t("staff.journal.newArticle")}
         </button>
@@ -1612,9 +1621,14 @@ function JournalPane() {
               <Field label={t("staff.journal.fieldCategory")}>
                 <input className="staff-input" value={a.category} onChange={(e) => setJournal(journal.map((x) => (x.id === a.id ? { ...x, category: e.target.value } : x)))} />
               </Field>
-              <Field label={t("staff.journal.fieldImage")}>
-                <input className="staff-input" value={a.image} onChange={(e) => setJournal(journal.map((x) => (x.id === a.id ? { ...x, image: e.target.value } : x)))} />
-              </Field>
+              <StaffSingleImageField
+                label={t("staff.journal.fieldImage")}
+                value={a.image}
+                cloudUpload={staffCloudUpload}
+                mediaKind="journal"
+                onChange={(image) => setJournal(journal.map((x) => (x.id === a.id ? { ...x, image } : x)))}
+                onClear={() => setJournal(journal.map((x) => (x.id === a.id ? { ...x, image: "" } : x)))}
+              />
               <Field label={t("staff.journal.fieldExcerpt")}>
                 <textarea className="staff-input" rows={2} value={a.excerpt} onChange={(e) => setJournal(journal.map((x) => (x.id === a.id ? { ...x, excerpt: e.target.value } : x)))} />
               </Field>
@@ -1640,54 +1654,53 @@ function siteSaveErrorMessage(code: string, t: (key: string) => string): string 
   return txt === key ? t("staff.site.saveErr.generic") : txt;
 }
 
+function BoutiquesPane() {
+  const { boutiques, setBoutiques, staffCloudUpload } = useStore();
+  const { t } = useLocale();
+  return (
+    <section>
+      <p className="mb-6 text-xs opacity-60">{t("staff.saveOnSiteTab")}</p>
+      <StaffBoutiquesEditor boutiques={boutiques} setBoutiques={setBoutiques} cloudUpload={staffCloudUpload} />
+    </section>
+  );
+}
+
 function SitePane() {
-  const { site, saveSite, resetCatalog, staffCloudUpload, confirmR2Ready, products, collections } =
-    useStore();
+  const {
+    site,
+    saveStorefront,
+    resetCatalog,
+    staffCloudUpload,
+    confirmR2Ready,
+    products,
+    collections,
+    journal,
+    setJournal,
+    boutiques,
+    setBoutiques,
+  } = useStore();
   const { t } = useLocale();
   const cloudMedia = staffCloudUpload;
   const [draft, setDraft] = useState<SiteContent>(() => normalizeSiteContent(site));
+  const [collectionsDraft, setCollectionsDraft] = useState<Collection[]>(() => collections);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [videoError, setVideoError] = useState<string | null>(null);
-  const [videoBusy, setVideoBusy] = useState(false);
-  const videoInputRef = useRef<HTMLInputElement | null>(null);
 
-  const onVideoFile = async (files: FileList | null) => {
-    setVideoError(null);
-    const file = files?.[0];
-    if (!file) return;
-    const videoMime = staffVideoMimeFromFile(file);
-    if (!isAllowedStaffVideoMime(videoMime)) {
-      setVideoError(t("staff.hero.notVideo"));
-      return;
-    }
-    if (file.size <= 0 || file.size > MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES) {
-      setVideoError(t("staff.images.uploadErr.video_too_large"));
-      return;
-    }
-    try {
-      if (cloudMedia) {
-        setVideoBusy(true);
-        const up = await uploadStaffMediaFile(file, "hero", { onSuccess: confirmR2Ready });
-        if (up.ok) setDraft((d) => ({ ...d, heroVideo: up.url }));
-        else setVideoError(translateStaffUploadError(up.code, t));
-      } else {
-        setVideoError(t("staff.site.r2RequiredForVideo"));
-      }
-    } catch {
-      setVideoError(t("staff.images.uploadErr.unknown"));
-    } finally {
-      setVideoBusy(false);
-      if (videoInputRef.current) videoInputRef.current.value = "";
-    }
-  };
+  useEffect(() => {
+    setCollectionsDraft(collections);
+  }, [collections]);
 
   const saveDraft = async () => {
     setSaveError(null);
     setSaving(true);
     try {
-      const result = await saveSite(draft);
+      const result = await saveStorefront({
+        site: draft,
+        collections: collectionsDraft,
+        journal,
+        boutiques,
+      });
       if (result.ok) {
         setSaved(true);
         setDraft(normalizeSiteContent(draft));
@@ -1705,6 +1718,7 @@ function SitePane() {
       <header className="mb-6">
         <h2 className="font-display break-words text-2xl sm:text-3xl">{t("staff.site.title")}</h2>
         <p className="mt-2 text-sm opacity-70">{t("staff.site.intro")}</p>
+        <p className="mt-2 text-xs leading-relaxed opacity-65">{t("staff.site.saveAllHint")}</p>
       </header>
       <form
         onSubmit={(e) => {
@@ -1735,82 +1749,23 @@ function SitePane() {
             </div>
           </div>
 
-        <div className="hairline my-2" />
-        <div>
-          <p className="staff-label">{t("staff.hero.title")}</p>
-          <Field label={t("staff.hero.url")}>
-            <input
-              className="staff-input w-full"
-              value={draft.heroVideo ?? ""}
-              placeholder={t("staff.site.heroUrlPlaceholder")}
-              onChange={(e) => setDraft({ ...draft, heroVideo: e.target.value })}
-            />
-          </Field>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <input
-              ref={videoInputRef}
-              type="file"
-              accept="video/mp4,video/webm,video/quicktime"
-              className="hidden"
-              disabled={videoBusy}
-              onChange={(e) => void onVideoFile(e.target.files)}
-            />
-            <button
-              type="button"
-              disabled={videoBusy}
-              onClick={() => {
-                if (videoInputRef.current) {
-                  videoInputRef.current.value = "";
-                  videoInputRef.current.click();
-                }
-              }}
-              className="btn-ghost"
-            >
-              <Upload className="h-4 w-4" strokeWidth={1.4} /> {t("staff.hero.upload")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (videoInputRef.current) videoInputRef.current.value = "";
-                setDraft({ ...draft, heroVideo: "" });
-              }}
-              className="btn-ghost"
-            >
-              <RotateCcw className="h-4 w-4" strokeWidth={1.4} /> {t("staff.hero.reset")}
-            </button>
-            <span className="w-full text-[11px] leading-relaxed opacity-65 sm:w-auto">{t("staff.hero.uploadHint")}</span>
-          </div>
-          {videoError && (
-            <p className="mt-2 text-xs" style={{ color: "var(--color-bordeaux)" }}>
-              {videoError}
-            </p>
-          )}
-          {draft.heroVideo && draft.heroVideo.trim() !== "" && (
-            <div className="mt-4">
-              <p className="text-[11px] tracking-eyebrow uppercase opacity-65 mb-2">
-                {t("staff.hero.preview")}
-              </p>
-              <video
-                src={draft.heroVideo}
-                controls
-                playsInline
-                muted
-                className="w-full max-w-lg"
-                style={{ background: "var(--color-onyx)", maxHeight: 320, objectFit: "cover" }}
-              />
-            </div>
-          )}
-        </div>
         </div>
 
-        <StaffCategoriesEditor draft={draft} setDraft={setDraft} cloudUpload={cloudMedia} />
-        <StaffHomepageEditor
+        <StaffSiteTextsEditor draft={draft} setDraft={setDraft} />
+        <StaffAllImagesEditor
           draft={draft}
           setDraft={setDraft}
-          products={products}
-          collections={collections}
+          collectionsDraft={collectionsDraft}
+          setCollectionsDraft={setCollectionsDraft}
+          journal={journal}
+          setJournal={setJournal}
+          boutiques={boutiques}
+          setBoutiques={setBoutiques}
           cloudUpload={cloudMedia}
+          confirmR2Ready={confirmR2Ready}
         />
+        <StaffCategoriesEditor draft={draft} setDraft={setDraft} cloudUpload={cloudMedia} />
+        <StaffHomepageEditor draft={draft} setDraft={setDraft} products={products} cloudUpload={cloudMedia} />
 
         {saveError && (
           <p className="mt-4 text-xs" style={{ color: "var(--color-bordeaux)" }}>

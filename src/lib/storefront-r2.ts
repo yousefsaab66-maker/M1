@@ -1,7 +1,11 @@
 import {
+  BOUTIQUES as SEED_BOUTIQUES,
   COLLECTIONS as SEED_COLLECTIONS,
+  JOURNAL as SEED_JOURNAL,
   SITE_CONTENT as SEED_SITE,
+  type Boutique,
   type Collection,
+  type JournalArticle,
   type SiteContent,
 } from "@/lib/catalog";
 import { normalizeSiteContent } from "@/lib/site-display";
@@ -15,6 +19,8 @@ export const STOREFRONT_R2_KEY = "site/storefront.json";
 export type StorefrontPayload = {
   site: SiteContent;
   collections: Collection[];
+  journal: JournalArticle[];
+  boutiques: Boutique[];
   updatedAt: string;
 };
 
@@ -43,6 +49,32 @@ function sanitizeCollectionsForServer(
   return { ok: true, collections: normalized };
 }
 
+function sanitizeJournalForServer(
+  journal: JournalArticle[],
+): { ok: true; journal: JournalArticle[] } | { ok: false; error: "embedded_media" } {
+  const normalized = journal.map((a) => ({
+    ...a,
+    image: normalizeStaffMediaUrl(a.image ?? ""),
+  }));
+  for (const a of normalized) {
+    if (a.image && !isStorableMediaUrl(a.image)) return { ok: false, error: "embedded_media" };
+  }
+  return { ok: true, journal: normalized };
+}
+
+function sanitizeBoutiquesForServer(
+  boutiques: Boutique[],
+): { ok: true; boutiques: Boutique[] } | { ok: false; error: "embedded_media" } {
+  const normalized = boutiques.map((b) => ({
+    ...b,
+    image: normalizeStaffMediaUrl(b.image ?? ""),
+  }));
+  for (const b of normalized) {
+    if (b.image && !isStorableMediaUrl(b.image)) return { ok: false, error: "embedded_media" };
+  }
+  return { ok: true, boutiques: normalized };
+}
+
 export async function readStorefrontFromR2(): Promise<ReadStorefrontR2Result> {
   const bucket = await getMuhraMediaR2Binding();
   if (!bucket) return { ok: false, error: "r2_not_configured" };
@@ -57,6 +89,8 @@ export async function readStorefrontFromR2(): Promise<ReadStorefrontR2Result> {
           data: {
             site: normalizeSiteContent(parsed.site),
             collections: parsed.collections,
+            journal: Array.isArray(parsed.journal) ? parsed.journal : SEED_JOURNAL,
+            boutiques: Array.isArray(parsed.boutiques) ? parsed.boutiques : SEED_BOUTIQUES,
             updatedAt:
               typeof parsed.updatedAt === "string"
                 ? parsed.updatedAt
@@ -77,6 +111,8 @@ export async function readStorefrontFromR2(): Promise<ReadStorefrontR2Result> {
           data: {
             site: normalizeSiteContent(legacyParsed),
             collections: SEED_COLLECTIONS,
+            journal: SEED_JOURNAL,
+            boutiques: SEED_BOUTIQUES,
             updatedAt:
               legacyObj.uploaded instanceof Date ? legacyObj.uploaded.toISOString() : new Date().toISOString(),
           },
@@ -91,7 +127,12 @@ export async function readStorefrontFromR2(): Promise<ReadStorefrontR2Result> {
 }
 
 export async function writeStorefrontToR2(
-  patch: { site?: SiteContent; collections?: Collection[] },
+  patch: {
+    site?: SiteContent;
+    collections?: Collection[];
+    journal?: JournalArticle[];
+    boutiques?: Boutique[];
+  },
 ): Promise<WriteStorefrontR2Result> {
   const bucket = await getMuhraMediaR2Binding();
   if (!bucket) return { ok: false, error: "r2_not_configured" };
@@ -103,6 +144,10 @@ export async function writeStorefrontToR2(
     normalizeSiteContent(SEED_SITE);
   const baseCollections =
     patch.collections ?? (current.ok && current.data ? current.data.collections : null) ?? SEED_COLLECTIONS;
+  const baseJournal =
+    patch.journal ?? (current.ok && current.data ? current.data.journal : null) ?? SEED_JOURNAL;
+  const baseBoutiques =
+    patch.boutiques ?? (current.ok && current.data ? current.data.boutiques : null) ?? SEED_BOUTIQUES;
 
   const siteSan = sanitizeSiteContentForServer(baseSite);
   if (!siteSan.ok) return { ok: false, error: "embedded_media" };
@@ -110,10 +155,18 @@ export async function writeStorefrontToR2(
   const colSan = sanitizeCollectionsForServer(baseCollections);
   if (!colSan.ok) return { ok: false, error: "embedded_media" };
 
+  const journalSan = sanitizeJournalForServer(baseJournal);
+  if (!journalSan.ok) return { ok: false, error: "embedded_media" };
+
+  const boutiquesSan = sanitizeBoutiquesForServer(baseBoutiques);
+  if (!boutiquesSan.ok) return { ok: false, error: "embedded_media" };
+
   const updatedAt = new Date().toISOString();
   const payload: StorefrontPayload = {
     site: siteSan.site,
     collections: colSan.collections,
+    journal: journalSan.journal,
+    boutiques: boutiquesSan.boutiques,
     updatedAt,
   };
 

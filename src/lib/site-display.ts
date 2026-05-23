@@ -1,4 +1,5 @@
 import type { Category, Collection, Product, SiteContent } from "@/lib/catalog";
+import { HERO_POSTER } from "@/lib/catalog";
 
 /** Categories shown on the homepage strip (order fixed). */
 export const HOME_CATEGORY_STRIP: Category[] = ["necklaces", "rings", "earrings", "bracelets"];
@@ -50,6 +51,11 @@ export function atelierImage(site: SiteContent): string {
   return custom && custom.length > 0 ? custom : DEFAULT_ATELIER_IMAGE;
 }
 
+export function heroPosterImage(site: SiteContent): string {
+  const custom = site.heroPoster?.trim();
+  return custom && custom.length > 0 ? custom : HERO_POSTER;
+}
+
 export function featuredCollection(
   collections: Collection[],
   site: SiteContent,
@@ -78,11 +84,20 @@ export function featuredHomeProducts(products: Product[], site: SiteContent): Pr
 export function normalizeSiteContent(site: SiteContent): SiteContent {
   return {
     ...site,
+    heroPoster: site.heroPoster ?? "",
     categories: site.categories ?? {},
+    copyEn: site.copyEn ?? {},
+    copyAr: site.copyAr ?? {},
     homepage: {
       featuredProductIds: site.homepage?.featuredProductIds ?? [],
       featuredCollectionSlug: site.homepage?.featuredCollectionSlug ?? "",
       atelierImage: site.homepage?.atelierImage ?? "",
     },
   };
+}
+
+/** Slug used for the homepage featured collection block (explicit pick or Maison default). */
+export function featuredCollectionSlug(site: SiteContent): string {
+  const slug = site.homepage?.featuredCollectionSlug?.trim();
+  return slug || "muhra-aurora";
 }

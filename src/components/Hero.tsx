@@ -6,17 +6,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, Volume2, VolumeX } from "lucide-react";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
-import { HERO_POSTER, HERO_VIDEO_FALLBACK, HERO_VIDEO_URL } from "@/lib/catalog";
+import { HERO_VIDEO_FALLBACK, HERO_VIDEO_URL } from "@/lib/catalog";
+import { heroPosterImage } from "@/lib/site-display";
+import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 
 const SOUND_PREF_KEY = "muhra-hero-sound-v1";
 
 export function Hero() {
   const { t } = useLocale();
   const { site } = useStore();
+  const tc = useSiteCopy();
   const reduceMotion = useReducedMotion();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoOk, setVideoOk] = useState(true);
   const override = site.heroVideo?.trim() ? site.heroVideo : null;
+  const poster = heroPosterImage(site);
   const [videoSrc, setVideoSrc] = useState<string>(override ?? HERO_VIDEO_URL);
   const [loadVideo, setLoadVideo] = useState(false);
   const [muted, setMuted] = useState(true);
@@ -143,7 +147,7 @@ export function Hero() {
         className="hero-fallback"
         style={{
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ["--hero-fallback-image" as any]: `url(${HERO_POSTER})`,
+          ["--hero-fallback-image" as any]: `url(${poster})`,
         }}
         aria-hidden
       />
@@ -158,7 +162,7 @@ export function Hero() {
           loop
           playsInline
           preload="metadata"
-          poster={HERO_POSTER}
+          poster={poster}
           aria-hidden
         />
       )}
@@ -233,14 +237,14 @@ export function Hero() {
           transition={{ duration: 1.2, ease: [0.22, 0.61, 0.36, 1], delay: 0.75 }}
         >
           <Link href={"/collections" as never} className="btn-primary" style={{ background: "var(--color-ivory)", color: "var(--color-onyx)", borderColor: "var(--color-ivory)" }}>
-            {t("hero.cta")}
+            {tc("hero.cta")}
           </Link>
           <Link
             href={"/high-jewelry" as never}
             className="btn-ghost"
             style={{ color: "var(--color-ivory)", borderColor: "rgba(246,241,231,0.55)" }}
           >
-            {t("hero.cta2")}
+            {tc("hero.cta2")}
           </Link>
         </motion.div>
         <motion.div

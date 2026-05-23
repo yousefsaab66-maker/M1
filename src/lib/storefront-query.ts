@@ -1,7 +1,11 @@
 import {
+  BOUTIQUES as SEED_BOUTIQUES,
   COLLECTIONS as SEED_COLLECTIONS,
+  JOURNAL as SEED_JOURNAL,
   SITE_CONTENT as SEED_SITE,
+  type Boutique,
   type Collection,
+  type JournalArticle,
   type SiteContent,
 } from "@/lib/catalog";
 import { normalizeSiteContent } from "@/lib/site-display";
@@ -12,6 +16,8 @@ export type FetchStorefrontResult =
       kind: "ok";
       site: SiteContent | null;
       collections: Collection[] | null;
+      journal: JournalArticle[] | null;
+      boutiques: Boutique[] | null;
       updatedAt: string | null;
       source: "r2" | "none";
     }
@@ -20,6 +26,8 @@ export type FetchStorefrontResult =
 export type UpsertStorefrontPatch = {
   site?: SiteContent;
   collections?: Collection[];
+  journal?: JournalArticle[];
+  boutiques?: Boutique[];
 };
 
 export type UpsertStorefrontResult = { ok: true; updatedAt: string } | { ok: false; error: string };
@@ -31,6 +39,8 @@ export async function fetchStorefront(): Promise<FetchStorefrontResult> {
       kind: "ok",
       site: r2.data.site,
       collections: r2.data.collections,
+      journal: r2.data.journal,
+      boutiques: r2.data.boutiques,
       updatedAt: r2.data.updatedAt,
       source: "r2",
     };
@@ -42,6 +52,8 @@ export async function fetchStorefront(): Promise<FetchStorefrontResult> {
     kind: "ok",
     site: null,
     collections: null,
+    journal: null,
+    boutiques: null,
     updatedAt: null,
     source: "none",
   };

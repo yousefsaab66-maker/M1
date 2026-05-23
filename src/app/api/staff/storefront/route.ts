@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import type { Collection, SiteContent } from "@/lib/catalog";
+import type { Boutique, Collection, JournalArticle, SiteContent } from "@/lib/catalog";
 import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
 import { upsertStorefront } from "@/lib/storefront-query";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
@@ -19,20 +19,27 @@ export async function PUT(req: Request) {
     return NextResponse.json({ ok: false, error: "unauthorized" } as const, { status: 401 });
   }
 
-  let body: { site?: SiteContent; collections?: Collection[] };
+  let body: {
+    site?: SiteContent;
+    collections?: Collection[];
+    journal?: JournalArticle[];
+    boutiques?: Boutique[];
+  };
   try {
-    body = (await req.json()) as { site?: SiteContent; collections?: Collection[] };
+    body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ ok: false, error: "invalid_json" } as const, { status: 400 });
   }
 
-  if (!body.site && !body.collections) {
+  if (!body.site && !body.collections && !body.journal && !body.boutiques) {
     return NextResponse.json({ ok: false, error: "empty_patch" } as const, { status: 400 });
   }
 
   const result = await upsertStorefront({
     site: body.site,
     collections: body.collections,
+    journal: body.journal,
+    boutiques: body.boutiques,
   });
 
   if (!result.ok) {

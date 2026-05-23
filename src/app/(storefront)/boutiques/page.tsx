@@ -4,10 +4,12 @@ import Image from "next/image";
 import { FadeIn } from "@/components/Section";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
+import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 
 export default function BoutiquesPage() {
   const { boutiques } = useStore();
   const { t } = useLocale();
+  const tc = useSiteCopy();
   return (
     <div>
       <section
@@ -34,8 +36,8 @@ export default function BoutiquesPage() {
           <p className="eyebrow" style={{ color: "var(--color-gold)" }}>
             {t("common.boutiques")}
           </p>
-          <h1 className="font-display mt-5 text-5xl md:text-7xl">{t("boutiques.title")}</h1>
-          <p className="mx-auto mt-5 max-w-xl opacity-85">{t("boutiques.sub")}</p>
+          <h1 className="font-display mt-5 text-5xl md:text-7xl">{tc("boutiques.title")}</h1>
+          <p className="mx-auto mt-5 max-w-xl opacity-85">{tc("boutiques.sub")}</p>
         </div>
       </section>
 

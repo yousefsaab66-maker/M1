@@ -1,9 +1,11 @@
-import type { Collection, SiteContent } from "@/lib/catalog";
+import type { Boutique, Collection, JournalArticle, SiteContent } from "@/lib/catalog";
 import { normalizeSiteContent } from "@/lib/site-display";
 
 export type StorefrontClientPayload = {
   site: SiteContent;
   collections: Collection[];
+  journal?: JournalArticle[];
+  boutiques?: Boutique[];
   updatedAt?: string;
 };
 
@@ -12,6 +14,8 @@ export type FetchStorefrontClientResult =
       ok: true;
       site: SiteContent;
       collections: Collection[];
+      journal: JournalArticle[] | null;
+      boutiques: Boutique[] | null;
       updatedAt: string | null;
       source: "r2" | "api";
     }
@@ -73,6 +77,8 @@ export async function fetchStorefrontFromPublicCdn(
       ok: true,
       site: normalizeSiteContent(parsed.site),
       collections: parsed.collections,
+      journal: Array.isArray(parsed.journal) ? parsed.journal : null,
+      boutiques: Array.isArray(parsed.boutiques) ? parsed.boutiques : null,
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
       source: "r2",
     };
@@ -102,6 +108,8 @@ export async function fetchStorefrontFromApi(
     const d = (await res.json()) as {
       site?: SiteContent | null;
       collections?: Collection[] | null;
+      journal?: JournalArticle[] | null;
+      boutiques?: Boutique[] | null;
       updatedAt?: string | null;
       source?: "r2" | "none";
     };
@@ -112,6 +120,8 @@ export async function fetchStorefrontFromApi(
       ok: true,
       site: normalizeSiteContent(d.site),
       collections: d.collections,
+      journal: Array.isArray(d.journal) ? d.journal : null,
+      boutiques: Array.isArray(d.boutiques) ? d.boutiques : null,
       updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : null,
       source: d.source === "r2" ? "r2" : "api",
     };
@@ -144,6 +154,8 @@ export type CatalogBootstrapClientResult =
       products: import("@/lib/catalog").Product[];
       site: SiteContent | null;
       collections: Collection[] | null;
+      journal: JournalArticle[] | null;
+      boutiques: Boutique[] | null;
       updatedAt: string | null;
       source: "r2" | "none";
       r2Ready: boolean;
@@ -170,6 +182,8 @@ export async function fetchCatalogBootstrapClient(
       products?: unknown;
       site?: SiteContent | null;
       collections?: Collection[] | null;
+      journal?: JournalArticle[] | null;
+      boutiques?: Boutique[] | null;
       storefrontUpdatedAt?: string | null;
       storefrontSource?: "r2" | "none";
       r2Ready?: boolean;
@@ -180,6 +194,8 @@ export async function fetchCatalogBootstrapClient(
       products: products as import("@/lib/catalog").Product[],
       site: d.site && typeof d.site === "object" ? normalizeSiteContent(d.site) : null,
       collections: Array.isArray(d.collections) ? d.collections : null,
+      journal: Array.isArray(d.journal) ? d.journal : null,
+      boutiques: Array.isArray(d.boutiques) ? d.boutiques : null,
       updatedAt: typeof d.storefrontUpdatedAt === "string" ? d.storefrontUpdatedAt : null,
       source: d.storefrontSource === "r2" ? "r2" : "none",
       r2Ready: d.r2Ready === true,

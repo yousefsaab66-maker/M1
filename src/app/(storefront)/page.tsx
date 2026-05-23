@@ -19,6 +19,7 @@ import {
   featuredCollection,
   featuredHomeProducts,
 } from "@/lib/site-display";
+import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 
 function BelowFoldReveal({
   children,
@@ -41,6 +42,7 @@ function BelowFoldReveal({
 export default function HomePage() {
   const { t } = useLocale();
   const { products, collections, journal, site } = useStore();
+  const tc = useSiteCopy();
   const reduce = useReducedMotion();
 
   const iconic = useMemo(() => featuredHomeProducts(products, site), [products, site]);
@@ -138,7 +140,7 @@ export default function HomePage() {
 
       {/* Iconic creations */}
       <section className="page-gutter py-20 md:py-28">
-        <SectionTitle eyebrow={t("common.iconic")} title={t("common.iconic")} subtitle={t("hero.sub")} />
+        <SectionTitle eyebrow={tc("common.iconic")} title={tc("common.iconic")} subtitle={tc("hero.sub")} />
         <div className="mx-auto mt-16 grid max-w-[1400px] grid-cols-2 gap-x-5 gap-y-14 md:grid-cols-3 lg:grid-cols-4 lg:gap-x-8">
           {iconic.slice(0, 8).map((p, i) => (
             <ProductCard key={p.id} product={p} index={i} />
@@ -158,13 +160,13 @@ export default function HomePage() {
             <div>
               <p className="eyebrow">{t("common.maison")}</p>
               <h3 className="font-display mt-5 text-4xl leading-[1.05] md:text-5xl">
-                {t("story.title")}
+                {tc("story.title")}
               </h3>
               <p className="mt-7 text-base leading-relaxed opacity-85">
-                {t("story.lede")}
+                {tc("story.lede")}
               </p>
               <p className="mt-5 text-base leading-relaxed opacity-75">
-                {t("home.atelier.bodyExtra")}
+                {tc("home.atelier.bodyExtra")}
               </p>
               <div className="mt-10">
                 <Link href={"/story" as never} className="btn-primary">
@@ -197,7 +199,7 @@ export default function HomePage() {
                 }}
               />
               <p className="absolute bottom-6 start-6 text-[11px] tracking-eyebrow uppercase" style={{ color: "var(--color-ivory)" }}>
-                {t("home.atelier.parisCaption")}
+                {tc("home.atelier.parisCaption")}
               </p>
             </motion.div>
           </BelowFoldReveal>
@@ -210,7 +212,7 @@ export default function HomePage() {
           <div className="flex items-end justify-between gap-6">
               <div>
                 <p className="eyebrow">{t("nav.journal")}</p>
-                <h3 className="font-display mt-3 text-3xl md:text-4xl">{t("home.fromMaison")}</h3>
+                <h3 className="font-display mt-3 text-3xl md:text-4xl">{tc("home.fromMaison")}</h3>
               </div>
               <Link href={"/journal" as never} className="text-[11px] tracking-eyebrow uppercase gold-underline">
                 {t("common.viewAll")} →
@@ -260,12 +262,12 @@ export default function HomePage() {
             {t("common.boutiques")}
           </p>
           <h3 className="font-display mt-5 text-4xl leading-[1.05] md:text-6xl">
-            {t("home.boutiques.cities")}
+            {tc("home.boutiques.cities")}
           </h3>
-          <p className="mx-auto mt-6 max-w-xl opacity-80">{t("boutiques.sub")}</p>
+          <p className="mx-auto mt-6 max-w-xl opacity-80">{tc("boutiques.sub")}</p>
           <div className="mt-10">
             <Link href={"/boutiques" as never} className="btn-primary" style={{ background: "var(--color-ivory)", color: "var(--color-onyx)", borderColor: "var(--color-ivory)" }}>
-              {t("boutiques.title")}
+              {tc("boutiques.title")}
             </Link>
           </div>
         </div>
@@ -277,10 +279,10 @@ export default function HomePage() {
           <BelowFoldReveal>
             <p className="eyebrow">{t("common.newsletter")}</p>
             <h3 className="font-display mt-5 text-4xl leading-[1.05] md:text-5xl">
-              {t("home.newsletter.title")}
+              {tc("home.newsletter.title")}
             </h3>
             <p className="mx-auto mt-6 max-w-md text-base opacity-80">
-              {t("common.newsletter.copy")}
+              {tc("common.newsletter.copy")}
             </p>
             <NewsletterForm />
           </BelowFoldReveal>

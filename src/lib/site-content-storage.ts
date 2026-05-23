@@ -29,6 +29,11 @@ export function sanitizeSiteContentForServer(site: SiteContent): SanitizeSiteRes
     rejected.push("heroVideo");
   }
 
+  const heroPoster = normalizeStaffMediaUrl(normalized.heroPoster ?? "");
+  if (heroPoster && !isStorableMediaUrl(heroPoster)) {
+    rejected.push("heroPoster");
+  }
+
   const atelier = normalizeStaffMediaUrl(normalized.homepage?.atelierImage ?? "");
   if (atelier && !isStorableMediaUrl(atelier)) {
     rejected.push("homepage.atelierImage");
@@ -58,6 +63,7 @@ export function sanitizeSiteContentForServer(site: SiteContent): SanitizeSiteRes
   const cleaned: SiteContent = {
     ...normalized,
     heroVideo: heroVideo || undefined,
+    heroPoster: heroPoster || undefined,
     categories,
     homepage: {
       ...normalized.homepage,

@@ -1,3 +1,5 @@
+import type { SiteCopyBundle } from "@/lib/site-copy";
+
 export type Category =
   | "necklaces"
   | "rings"
@@ -98,9 +100,15 @@ export interface SiteContent {
    * `HERO_VIDEO_URL` constant is used.
    */
   heroVideo?: string;
+  /** Optional poster image shown before the hero video loads. */
+  heroPoster?: string;
   /** Per-category labels and images (staff-managed, synced via Supabase `site_settings`). */
   categories?: Partial<Record<Category, CategoryOverride>>;
   homepage?: HomepageConfig;
+  /** Optional English UI copy overrides (empty field = use i18n). */
+  copyEn?: SiteCopyBundle;
+  /** Optional Arabic UI copy overrides. */
+  copyAr?: SiteCopyBundle;
 }
 
 const u = (id: string, w: number = 1600) =>

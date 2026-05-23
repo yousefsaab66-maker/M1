@@ -19,6 +19,8 @@ export async function GET() {
       productsError: result.products.ok ? null : result.products.error,
       site: result.storefront.site,
       collections: result.storefront.collections,
+      journal: result.storefront.journal,
+      boutiques: result.storefront.boutiques,
       storefrontUpdatedAt: result.storefront.updatedAt,
       storefrontSource: result.storefront.source,
       r2Ready,

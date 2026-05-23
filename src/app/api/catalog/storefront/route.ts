@@ -23,6 +23,8 @@ export async function GET() {
     {
       site: result.site,
       collections: result.collections,
+      journal: result.journal,
+      boutiques: result.boutiques,
       updatedAt: result.updatedAt,
       source: result.source,
     },

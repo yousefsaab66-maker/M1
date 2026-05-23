@@ -18,6 +18,8 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { LOCALES, type Locale } from "@/lib/i18n";
 import { Wordmark } from "@/components/Wordmark";
+import { useSiteCopy } from "@/components/hooks/useSiteCopy";
+import type { SiteCopyKey } from "@/lib/site-copy";
 
 const NAV: { href: string; key: string }[] = [
   { href: "/collections", key: "nav.collections" },
@@ -32,6 +34,7 @@ const NAV: { href: string; key: string }[] = [
 export function Header() {
   const { bagCount, wishlist } = useStore();
   const { t, locale, setLocale } = useLocale();
+  const tc = useSiteCopy();
   const { theme, toggle } = useTheme();
   const [scrolled, setScrolled] = useState(false);
   const [drawer, setDrawer] = useState(false);
@@ -62,14 +65,14 @@ export function Header() {
           <div className="marquee py-2 text-[10px] tracking-eyebrow uppercase opacity-90">
             {Array.from({ length: 2 }).map((_, dup) => (
               <span key={dup} className="flex gap-16">
-                <span>— {t("ticker.line1")}</span>
-                <span>— {t("ticker.line2")}</span>
-                <span>— {t("ticker.line3")}</span>
-                <span>— {t("ticker.line4")}</span>
-                <span>— {t("ticker.line1")}</span>
-                <span>— {t("ticker.line2")}</span>
-                <span>— {t("ticker.line3")}</span>
-                <span>— {t("ticker.line4")}</span>
+                <span>— {tc("ticker.line1")}</span>
+                <span>— {tc("ticker.line2")}</span>
+                <span>— {tc("ticker.line3")}</span>
+                <span>— {tc("ticker.line4")}</span>
+                <span>— {tc("ticker.line1")}</span>
+                <span>— {tc("ticker.line2")}</span>
+                <span>— {tc("ticker.line3")}</span>
+                <span>— {tc("ticker.line4")}</span>
               </span>
             ))}
           </div>
@@ -98,7 +101,7 @@ export function Header() {
                   href={item.href as never}
                   className="gold-underline text-[11px] tracking-eyebrow uppercase opacity-90 hover:opacity-100"
                 >
-                  {t(item.key)}
+                  {tc(item.key as SiteCopyKey)}
                 </Link>
               ))}
             </nav>
@@ -116,7 +119,7 @@ export function Header() {
                   href={item.href as never}
                   className="gold-underline text-[11px] tracking-eyebrow uppercase opacity-90 hover:opacity-100"
                 >
-                  {t(item.key)}
+                  {tc(item.key as SiteCopyKey)}
                 </Link>
               ))}
             </nav>
@@ -247,6 +250,7 @@ function LocalePicker({
 
 function MobileDrawer({ onClose }: { onClose: () => void }) {
   const { t } = useLocale();
+  const tc = useSiteCopy();
   return (
     <motion.div
       className="fixed inset-0 z-50"
@@ -284,7 +288,7 @@ function MobileDrawer({ onClose }: { onClose: () => void }) {
                   onClick={onClose}
                   className="font-display text-2xl tracking-wide"
                 >
-                  {t(item.key)}
+                  {tc(item.key as SiteCopyKey)}
                 </Link>
               </li>
             ))}

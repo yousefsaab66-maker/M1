@@ -1,15 +1,34 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ChevronDown, ChevronUp, RotateCcw, Upload, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useLocale } from "@/components/providers/LocaleProvider";
-import type { Category, Collection, Product, SiteContent } from "@/lib/catalog";
-import { CATALOG_CATEGORIES, HOME_CATEGORY_STRIP } from "@/lib/site-display";
+import type { Boutique, Category, Collection, JournalArticle, Product, SiteContent } from "@/lib/catalog";
+import {
+  SITE_COPY_GROUPS,
+  type SiteCopyKey,
+  patchSiteCopyBundle,
+} from "@/lib/site-copy";
+import {
+  CATALOG_CATEGORIES,
+  HOME_CATEGORY_STRIP,
+  featuredCollection,
+  featuredCollectionSlug,
+} from "@/lib/site-display";
 import { useStore } from "@/components/providers/StoreProvider";
-import { MUHRA_MAX_IMAGE_UPLOAD_BYTES } from "@/lib/supabase/storage-constants";
+import {
+  MUHRA_MAX_IMAGE_UPLOAD_BYTES,
+  MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES,
+  isAllowedStaffVideoMime,
+  staffVideoMimeFromFile,
+} from "@/lib/supabase/storage-constants";
 import { productImageAt } from "@/lib/product-media";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
-import { translateStaffUploadError, uploadStaffImageFile } from "@/lib/staff-upload-client";
+import {
+  translateStaffUploadError,
+  uploadStaffImageFile,
+  uploadStaffMediaFile,
+} from "@/lib/staff-upload-client";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -26,6 +45,7 @@ export function StaffSingleImageField({
   onChange,
   cloudUpload,
   uploadScope = "site",
+  mediaKind,
   onClear,
   compact,
 }: {
@@ -34,6 +54,8 @@ export function StaffSingleImageField({
   onChange: (url: string) => void;
   cloudUpload: boolean;
   uploadScope?: "site" | "collections";
+  /** When set, uploads via `/api/staff/upload-media` (e.g. journal). */
+  mediaKind?: "journal";
   onClear?: () => void;
   compact?: boolean;
 }) {
@@ -93,10 +115,12 @@ export function StaffSingleImageField({
     }
     setBusy(true);
     try {
-      const up = await uploadStaffImageFile(file, uploadScope, {
-        onSuccess: confirmR2Ready,
-        signal: ac.signal,
-      });
+      const up = mediaKind
+        ? await uploadStaffMediaFile(file, mediaKind, { onSuccess: confirmR2Ready })
+        : await uploadStaffImageFile(file, uploadScope, {
+            onSuccess: confirmR2Ready,
+            signal: ac.signal,
+          });
       if (gen !== uploadGenRef.current) return;
       if (up.ok) onChange(normalizeStaffMediaUrl(up.url));
       else if (up.code !== "aborted") setError(translateStaffUploadError(up.code, t));
@@ -165,6 +189,14 @@ export function StaffSingleImageField({
       {preview}
     </div>
   );
+}
+
+export function patchCollectionInList(
+  collections: Collection[],
+  slug: string,
+  patch: Partial<Pick<Collection, "coverImage" | "editorialImage" | "name" | "tagline" | "description">>,
+): Collection[] {
+  return collections.map((c) => (c.slug === slug ? { ...c, ...patch } : c));
 }
 
 function patchCategory(draft: SiteContent, key: Category, patch: { label?: string; image?: string }): SiteContent {
@@ -241,14 +273,7 @@ export function StaffCategoriesEditor({
                     onChange={(e) => setDraft((d) => patchCategory(d, key, { label: e.target.value }))}
                   />
                 </Field>
-                <StaffSingleImageField
-                  label={t("staff.site.categoryImage")}
-                  value={entry.image ?? ""}
-                  cloudUpload={cloudUpload}
-                  compact
-                  onChange={(image) => setDraft((d) => patchCategory(d, key, { image }))}
-                  onClear={() => setDraft((d) => patchCategory(d, key, { image: "" }))}
-                />
+                <p className="text-[11px] leading-relaxed opacity-60">{t("staff.site.categoryImageInHub")}</p>
               </div>
             </li>
           );
@@ -258,17 +283,358 @@ export function StaffCategoriesEditor({
   );
 }
 
+export function StaffAllImagesEditor({
+  draft,
+  setDraft,
+  collectionsDraft,
+  setCollectionsDraft,
+  journal,
+  setJournal,
+  boutiques,
+  setBoutiques,
+  cloudUpload,
+  confirmR2Ready,
+}: {
+  draft: SiteContent;
+  setDraft: React.Dispatch<React.SetStateAction<SiteContent>>;
+  collectionsDraft: Collection[];
+  setCollectionsDraft: React.Dispatch<React.SetStateAction<Collection[]>>;
+  journal: JournalArticle[];
+  setJournal: (j: JournalArticle[]) => void;
+  boutiques: Boutique[];
+  setBoutiques: (b: Boutique[]) => void;
+  cloudUpload: boolean;
+  confirmR2Ready: () => void;
+}) {
+  const { t } = useLocale();
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+
+  const activeSlug = featuredCollectionSlug(draft);
+  const activeCollection =
+    featuredCollection(collectionsDraft, draft) ??
+    collectionsDraft.find((c) => c.slug === activeSlug);
+
+  const patchFeaturedCollection = (
+    patch: Partial<Pick<Collection, "coverImage" | "editorialImage" | "name" | "tagline" | "description">>,
+  ) => {
+    if (!activeCollection) return;
+    setCollectionsDraft((prev) => patchCollectionInList(prev, activeCollection.slug, patch));
+  };
+
+  const onVideoFile = async (files: FileList | null) => {
+    setVideoError(null);
+    const file = files?.[0];
+    if (!file) return;
+    const videoMime = staffVideoMimeFromFile(file);
+    if (!isAllowedStaffVideoMime(videoMime)) {
+      setVideoError(t("staff.hero.notVideo"));
+      return;
+    }
+    if (file.size <= 0 || file.size > MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES) {
+      setVideoError(t("staff.images.uploadErr.video_too_large"));
+      return;
+    }
+    if (!cloudUpload) {
+      setVideoError(t("staff.site.r2RequiredForVideo"));
+      return;
+    }
+    try {
+      setVideoBusy(true);
+      const up = await uploadStaffMediaFile(file, "hero", { onSuccess: confirmR2Ready });
+      if (up.ok) setDraft((d) => ({ ...d, heroVideo: up.url }));
+      else setVideoError(translateStaffUploadError(up.code, t));
+    } catch {
+      setVideoError(t("staff.images.uploadErr.unknown"));
+    } finally {
+      setVideoBusy(false);
+      if (videoInputRef.current) videoInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <StaffSection title={t("staff.site.imagesHubTitle")} intro={t("staff.site.imagesHubIntro")}>
+      <div className="grid min-w-0 gap-10">
+        <div>
+          <p className="eyebrow text-[10px]">{t("staff.site.imagesHeroGroup")}</p>
+          <div className="mt-4 grid gap-6 sm:grid-cols-2">
+            <StaffSingleImageField
+              label={t("staff.site.heroPoster")}
+              value={draft.heroPoster ?? ""}
+              cloudUpload={cloudUpload}
+              onChange={(heroPoster) => setDraft((d) => ({ ...d, heroPoster }))}
+              onClear={() => setDraft((d) => ({ ...d, heroPoster: "" }))}
+            />
+            <div className="min-w-0">
+              <Field label={t("staff.hero.url")}>
+                <input
+                  className="staff-input w-full"
+                  dir="ltr"
+                  style={{ textAlign: "left" }}
+                  value={draft.heroVideo ?? ""}
+                  placeholder={t("staff.site.heroUrlPlaceholder")}
+                  onChange={(e) => setDraft((d) => ({ ...d, heroVideo: e.target.value }))}
+                />
+              </Field>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime"
+                  className="hidden"
+                  disabled={videoBusy}
+                  onChange={(e) => void onVideoFile(e.target.files)}
+                />
+                <button
+                  type="button"
+                  disabled={videoBusy}
+                  className="btn-ghost shrink-0 text-[10px] sm:text-[11px]"
+                  onClick={() => videoInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4 shrink-0" strokeWidth={1.4} />
+                  <span>{t("staff.hero.upload")}</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost shrink-0 text-[10px] sm:text-[11px]"
+                  onClick={() => setDraft((d) => ({ ...d, heroVideo: "" }))}
+                >
+                  <RotateCcw className="h-4 w-4 shrink-0" strokeWidth={1.4} />
+                  <span>{t("staff.hero.reset")}</span>
+                </button>
+              </div>
+              {videoError && (
+                <p className="mt-2 text-xs" style={{ color: "var(--color-bordeaux)" }}>
+                  {videoError}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p className="eyebrow text-[10px]">{t("staff.site.imagesHomeStripGroup")}</p>
+          <ul className="mt-4 grid min-w-0 gap-5 sm:grid-cols-2">
+            {HOME_CATEGORY_STRIP.map((key) => {
+              const entry = draft.categories?.[key] ?? {};
+              return (
+                <li
+                  key={key}
+                  className="min-w-0 rounded-sm p-4"
+                  style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
+                >
+                  <span className="eyebrow text-[9px]">{t(`category.${key}`)}</span>
+                  <div className="mt-3">
+                    <StaffSingleImageField
+                      label={t("staff.site.categoryImage")}
+                      value={entry.image ?? ""}
+                      cloudUpload={cloudUpload}
+                      compact
+                      onChange={(image) => setDraft((d) => patchCategory(d, key, { image }))}
+                      onClear={() => setDraft((d) => patchCategory(d, key, { image: "" }))}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div>
+          <p className="eyebrow text-[10px]">{t("staff.site.imagesMaisonGroup")}</p>
+          <div className="mt-4 max-w-xl">
+            <StaffSingleImageField
+              label={t("staff.site.atelierImage")}
+              value={draft.homepage?.atelierImage ?? ""}
+              cloudUpload={cloudUpload}
+              onChange={(atelierImage) =>
+                setDraft((d) => ({ ...d, homepage: { ...d.homepage, atelierImage } }))
+              }
+              onClear={() => setDraft((d) => ({ ...d, homepage: { ...d.homepage, atelierImage: "" } }))}
+            />
+          </div>
+        </div>
+
+        <div>
+          <p className="eyebrow text-[10px]">{t("staff.site.imagesFeaturedGroup")}</p>
+          <p className="mt-2 text-xs leading-relaxed opacity-65">{t("staff.site.imagesFeaturedHint")}</p>
+          <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
+            <Field label={t("staff.site.featuredCollection")}>
+              <select
+                className="staff-input w-full"
+                value={draft.homepage?.featuredCollectionSlug ?? ""}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    homepage: { ...d.homepage, featuredCollectionSlug: e.target.value },
+                  }))
+                }
+              >
+                <option value="">{t("staff.site.featuredCollectionAuto")}</option>
+                {collectionsDraft.map((c) => (
+                  <option key={c.id} value={c.slug}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {activeCollection && (
+              <div className="sm:col-span-2 grid gap-4 rounded-sm p-4 sm:grid-cols-2" style={{ border: "1px solid var(--line)" }}>
+                <p className="sm:col-span-2 font-display text-lg">{activeCollection.name}</p>
+                <StaffSingleImageField
+                  label={t("staff.site.featuredEditorialImage")}
+                  value={activeCollection.editorialImage}
+                  cloudUpload={cloudUpload}
+                  uploadScope="collections"
+                  onChange={(editorialImage) => patchFeaturedCollection({ editorialImage })}
+                  onClear={() => patchFeaturedCollection({ editorialImage: "" })}
+                />
+                <StaffSingleImageField
+                  label={t("staff.collections.fieldCover")}
+                  value={activeCollection.coverImage}
+                  cloudUpload={cloudUpload}
+                  uploadScope="collections"
+                  onChange={(coverImage) => patchFeaturedCollection({ coverImage })}
+                  onClear={() => patchFeaturedCollection({ coverImage: "" })}
+                />
+                <Field label={t("staff.collections.fieldTagline")}>
+                  <input
+                    className="staff-input w-full"
+                    value={activeCollection.tagline}
+                    onChange={(e) => patchFeaturedCollection({ tagline: e.target.value })}
+                  />
+                </Field>
+                <Field label={t("staff.collections.fieldDescription")}>
+                  <textarea
+                    className="staff-input w-full"
+                    rows={3}
+                    value={activeCollection.description}
+                    onChange={(e) => patchFeaturedCollection({ description: e.target.value })}
+                  />
+                </Field>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="eyebrow text-[10px]">{t("staff.site.imagesCollectionsGroup")}</p>
+          <ul className="mt-4 grid min-w-0 gap-4">
+            {collectionsDraft.map((c) => (
+              <li
+                key={c.id}
+                className="grid gap-4 rounded-sm p-4 sm:grid-cols-2"
+                style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
+              >
+                <p className="sm:col-span-2 font-display text-lg">
+                  {c.name}
+                  <span className="ms-2 text-sm opacity-60">/{c.slug}</span>
+                </p>
+                <StaffSingleImageField
+                  label={t("staff.collections.fieldCover")}
+                  value={c.coverImage}
+                  cloudUpload={cloudUpload}
+                  uploadScope="collections"
+                  onChange={(coverImage) =>
+                    setCollectionsDraft((prev) => patchCollectionInList(prev, c.slug, { coverImage }))
+                  }
+                  onClear={() =>
+                    setCollectionsDraft((prev) => patchCollectionInList(prev, c.slug, { coverImage: "" }))
+                  }
+                />
+                <StaffSingleImageField
+                  label={t("staff.collections.fieldEditorial")}
+                  value={c.editorialImage}
+                  cloudUpload={cloudUpload}
+                  uploadScope="collections"
+                  onChange={(editorialImage) =>
+                    setCollectionsDraft((prev) => patchCollectionInList(prev, c.slug, { editorialImage }))
+                  }
+                  onClear={() =>
+                    setCollectionsDraft((prev) => patchCollectionInList(prev, c.slug, { editorialImage: "" }))
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {boutiques.length > 0 && (
+          <div>
+            <p className="eyebrow text-[10px]">{t("staff.site.imagesBoutiquesGroup")}</p>
+            <ul className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
+              {boutiques.map((b) => (
+                <li
+                  key={b.id}
+                  className="rounded-sm p-4"
+                  style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
+                >
+                  <p className="font-display text-base">{b.city}</p>
+                  <div className="mt-3">
+                    <StaffSingleImageField
+                      label={t("staff.boutiques.fieldImage")}
+                      value={b.image}
+                      cloudUpload={cloudUpload}
+                      uploadScope="site"
+                      onChange={(image) =>
+                        setBoutiques(boutiques.map((x) => (x.id === b.id ? { ...x, image } : x)))
+                      }
+                      onClear={() =>
+                        setBoutiques(boutiques.map((x) => (x.id === b.id ? { ...x, image: "" } : x)))
+                      }
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {journal.length > 0 && (
+          <div>
+            <p className="eyebrow text-[10px]">{t("staff.site.imagesJournalGroup")}</p>
+            <p className="mt-2 text-xs leading-relaxed opacity-65">{t("staff.site.imagesJournalHint")}</p>
+            <ul className="mt-4 grid min-w-0 gap-4">
+              {journal.map((a) => (
+                <li
+                  key={a.id}
+                  className="rounded-sm p-4"
+                  style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
+                >
+                  <p className="font-display text-lg">{a.title}</p>
+                  <div className="mt-3 max-w-md">
+                    <StaffSingleImageField
+                      label={t("staff.journal.fieldImage")}
+                      value={a.image}
+                      cloudUpload={cloudUpload}
+                      mediaKind="journal"
+                      onChange={(image) =>
+                        setJournal(journal.map((x) => (x.id === a.id ? { ...x, image } : x)))
+                      }
+                      onClear={() => setJournal(journal.map((x) => (x.id === a.id ? { ...x, image: "" } : x)))}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </StaffSection>
+  );
+}
+
 export function StaffHomepageEditor({
   draft,
   setDraft,
   products,
-  collections,
-  cloudUpload,
+  cloudUpload: _cloudUpload,
 }: {
   draft: SiteContent;
   setDraft: React.Dispatch<React.SetStateAction<SiteContent>>;
   products: Product[];
-  collections: Collection[];
+  collections?: Collection[];
   cloudUpload: boolean;
 }) {
   const { t } = useLocale();
@@ -313,38 +679,8 @@ export function StaffHomepageEditor({
   const available = products.filter((p) => !featuredIds.includes(p.id));
 
   return (
-    <StaffSection title={t("staff.site.homeTitle")} intro={t("staff.site.homeIntro")}>
-      <div className="grid min-w-0 gap-8 lg:grid-cols-2 lg:gap-10">
-        <div className="min-w-0 grid gap-6">
-          <Field label={t("staff.site.featuredCollection")}>
-            <select
-              className="staff-input w-full"
-              value={draft.homepage?.featuredCollectionSlug ?? ""}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  homepage: { ...d.homepage, featuredCollectionSlug: e.target.value },
-                }))
-              }
-            >
-              <option value="">{t("staff.site.featuredCollectionAuto")}</option>
-              {collections.map((c) => (
-                <option key={c.id} value={c.slug}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <StaffSingleImageField
-            label={t("staff.site.atelierImage")}
-            value={draft.homepage?.atelierImage ?? ""}
-            cloudUpload={cloudUpload}
-            onChange={(atelierImage) => setDraft((d) => ({ ...d, homepage: { ...d.homepage, atelierImage } }))}
-            onClear={() => setDraft((d) => ({ ...d, homepage: { ...d.homepage, atelierImage: "" } }))}
-          />
-        </div>
-
-        <div className="min-w-0">
+    <StaffSection title={t("staff.site.homeTitle")} intro={t("staff.site.homeProductsIntro")}>
+      <div className="min-w-0 max-w-2xl">
           <p className="staff-label">{t("staff.site.featuredProducts")}</p>
           <p className="mt-1 text-xs leading-relaxed opacity-65">{t("staff.site.featuredProductsHint")}</p>
           <div className="mt-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-stretch">
@@ -418,8 +754,166 @@ export function StaffHomepageEditor({
               })}
             </ul>
           )}
-        </div>
       </div>
     </StaffSection>
+  );
+}
+
+export function StaffSiteTextsEditor({
+  draft,
+  setDraft,
+}: {
+  draft: SiteContent;
+  setDraft: React.Dispatch<React.SetStateAction<SiteContent>>;
+}) {
+  const { t } = useLocale();
+  const [localeTab, setLocaleTab] = useState<"en" | "ar">("ar");
+
+  const readKey = (key: SiteCopyKey) => {
+    const bundle = localeTab === "ar" ? draft.copyAr : draft.copyEn;
+    return bundle?.[key] ?? "";
+  };
+
+  const writeKey = (key: SiteCopyKey, value: string) => {
+    setDraft((d) => patchSiteCopyBundle(d, localeTab, key, value));
+  };
+
+  return (
+    <StaffSection title={t("staff.copy.title")} intro={t("staff.copy.intro")}>
+      <div className="flex flex-wrap gap-2 border-b pb-4" style={{ borderColor: "var(--line)" }}>
+        <button
+          type="button"
+          className="staff-tab"
+          data-active={localeTab === "ar"}
+          onClick={() => setLocaleTab("ar")}
+        >
+          {t("staff.copy.tabAr")}
+        </button>
+        <button
+          type="button"
+          className="staff-tab"
+          data-active={localeTab === "en"}
+          onClick={() => setLocaleTab("en")}
+        >
+          {t("staff.copy.tabEn")}
+        </button>
+      </div>
+      <p className="mt-4 text-xs leading-relaxed opacity-65">{t("staff.copy.hint")}</p>
+      <div className="mt-6 grid min-w-0 gap-8">
+        {SITE_COPY_GROUPS.map((group) => (
+          <div key={group.id}>
+            <p className="eyebrow text-[10px]">{t(group.labelKey)}</p>
+            <ul className="mt-4 grid min-w-0 gap-4">
+              {group.keys.map((key) => (
+                <li key={key}>
+                  <Field label={t(key)}>
+                    <input
+                      className="staff-input w-full"
+                      value={readKey(key)}
+                      placeholder={t(key)}
+                      onChange={(e) => writeKey(key, e.target.value)}
+                    />
+                  </Field>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </StaffSection>
+  );
+}
+
+export function StaffBoutiquesEditor({
+  boutiques,
+  setBoutiques,
+  cloudUpload,
+}: {
+  boutiques: Boutique[];
+  setBoutiques: (b: Boutique[]) => void;
+  cloudUpload: boolean;
+}) {
+  const { t } = useLocale();
+
+  const patchBoutique = (id: string, patch: Partial<Boutique>) => {
+    setBoutiques(boutiques.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  };
+
+  const onAdd = () => {
+    const id = "b-" + Date.now();
+    setBoutiques([
+      ...boutiques,
+      {
+        id,
+        city: t("staff.boutiques.newCity"),
+        country: t("staff.boutiques.newCountry"),
+        address: "",
+        phone: "",
+        hours: "",
+        image: "",
+      },
+    ]);
+  };
+
+  const onDelete = (id: string) => {
+    if (typeof window !== "undefined" && !window.confirm(t("staff.boutiques.deleteConfirm"))) return;
+    setBoutiques(boutiques.filter((x) => x.id !== id));
+  };
+
+  return (
+    <section className="min-w-0 pb-8">
+      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-display break-words text-2xl sm:text-3xl">
+            {t("staff.boutiques.titleCount").replace("{n}", String(boutiques.length))}
+          </h2>
+          <p className="mt-2 text-sm opacity-70">{t("staff.boutiques.hint")}</p>
+        </div>
+        <button type="button" onClick={onAdd} className="btn-ghost shrink-0 self-start">
+          <Plus className="h-4 w-4" strokeWidth={1.4} /> {t("staff.boutiques.add")}
+        </button>
+      </header>
+      <div className="grid min-w-0 gap-4">
+        {boutiques.map((b) => (
+          <details key={b.id} className="staff-card min-w-0 p-4 sm:p-5">
+            <summary className="cursor-pointer font-display text-xl">{b.city}</summary>
+            <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
+              <Field label={t("staff.boutiques.fieldCity")}>
+                <input className="staff-input w-full" value={b.city} onChange={(e) => patchBoutique(b.id, { city: e.target.value })} />
+              </Field>
+              <Field label={t("staff.boutiques.fieldCountry")}>
+                <input className="staff-input w-full" value={b.country} onChange={(e) => patchBoutique(b.id, { country: e.target.value })} />
+              </Field>
+              <Field label={t("staff.boutiques.fieldAddress")}>
+                <input className="staff-input w-full" value={b.address} onChange={(e) => patchBoutique(b.id, { address: e.target.value })} />
+              </Field>
+              <Field label={t("staff.boutiques.fieldPhone")}>
+                <input className="staff-input w-full" dir="ltr" style={{ textAlign: "left" }} value={b.phone} onChange={(e) => patchBoutique(b.id, { phone: e.target.value })} />
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label={t("staff.boutiques.fieldHours")}>
+                  <input className="staff-input w-full" value={b.hours} onChange={(e) => patchBoutique(b.id, { hours: e.target.value })} />
+                </Field>
+              </div>
+              <div className="sm:col-span-2">
+                <StaffSingleImageField
+                  label={t("staff.boutiques.fieldImage")}
+                  value={b.image}
+                  cloudUpload={cloudUpload}
+                  uploadScope="site"
+                  onChange={(image) => patchBoutique(b.id, { image })}
+                  onClear={() => patchBoutique(b.id, { image: "" })}
+                />
+              </div>
+              <div className="sm:col-span-2 flex justify-end">
+                <button type="button" className="btn-ghost" onClick={() => onDelete(b.id)}>
+                  <Trash2 className="h-4 w-4" strokeWidth={1.4} /> {t("staff.boutiques.delete")}
+                </button>
+              </div>
+            </div>
+          </details>
+        ))}
+      </div>
+    </section>
   );
 }

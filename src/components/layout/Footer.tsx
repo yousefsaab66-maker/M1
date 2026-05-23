@@ -5,10 +5,12 @@ import { useState } from "react";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
 import { Wordmark } from "@/components/Wordmark";
+import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 
 export function Footer() {
   const { t, locale, setLocale } = useLocale();
   const { site } = useStore();
+  const tc = useSiteCopy();
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
@@ -19,7 +21,7 @@ export function Footer() {
           <div>
             <Wordmark size="md" align="left" />
             <p className="mt-6 max-w-xs text-sm leading-relaxed opacity-75">
-              {t("common.newsletter.copy")}
+              {tc("common.newsletter.copy")}
             </p>
             <form
               className="mt-7 flex max-w-sm items-center gap-3"
@@ -45,29 +47,29 @@ export function Footer() {
           </div>
 
           <FooterColumn
-            title={t("footer.services")}
+            title={tc("footer.services")}
             items={[
-              [t("footer.bookAppointment"), "/boutiques"],
-              [t("footer.contact"), "/boutiques"],
-              [t("footer.repair"), "/story"],
-              [t("footer.shipping"), "/story"],
+              [tc("footer.bookAppointment"), "/boutiques"],
+              [tc("footer.contact"), "/boutiques"],
+              [tc("footer.repair"), "/story"],
+              [tc("footer.shipping"), "/story"],
             ]}
           />
           <FooterColumn
-            title={t("footer.maison")}
+            title={tc("footer.maison")}
             items={[
-              [t("footer.story"), "/story"],
-              [t("footer.craftsmanship"), "/story"],
-              [t("footer.heritage"), "/collections/muhra-heritage"],
-              [t("nav.journal"), "/journal"],
+              [tc("footer.story"), "/story"],
+              [tc("footer.craftsmanship"), "/story"],
+              [tc("footer.heritage"), "/collections/muhra-heritage"],
+              [tc("nav.journal"), "/journal"],
             ]}
           />
           <FooterColumn
-            title={t("footer.legal")}
+            title={tc("footer.legal")}
             items={[
-              [t("footer.terms"), "/story"],
-              [t("footer.privacy"), "/story"],
-              [t("footer.cookies"), "/story"],
+              [tc("footer.terms"), "/story"],
+              [tc("footer.privacy"), "/story"],
+              [tc("footer.cookies"), "/story"],
               [t("staff.signin"), "/staff/login"],
             ]}
           />
@@ -76,7 +78,7 @@ export function Footer() {
         <div className="hairline mt-16" />
 
         <div className="mt-10 grid gap-8 text-[11px] tracking-eyebrow uppercase opacity-80 md:grid-cols-3">
-          <p>© {new Date().getFullYear()} {site.brandName} — {t("common.allRights")}</p>
+          <p>© {new Date().getFullYear()} {site.brandName} — {tc("common.allRights")}</p>
           <div className="flex items-center gap-3 md:justify-center">
             <span className="opacity-70">{t("country.title")}</span>
             <span>· EUR · €</span>
