@@ -5,16 +5,19 @@ import { ProductCard } from "@/components/ProductCard";
 import { FadeIn } from "@/components/Section";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
+import { categoryImage, categorySecondaryImage } from "@/lib/site-display";
 
 export default function BridalPage() {
-  const { products } = useStore();
+  const { products, site } = useStore();
   const { t } = useLocale();
+  const heroImage = categoryImage("bridal", site);
+  const editorialImage = categorySecondaryImage("bridal", site);
   const bridal = products.filter((p) => p.category === "bridal");
   return (
     <div>
       <section className="relative h-[70svh] min-h-[500px] overflow-hidden" style={{ background: "var(--color-onyx)" }}>
         <Image
-          src="https://images.unsplash.com/photo-1503236823255-94609f598e71?auto=format&fit=crop&w=1600&q=80"
+          src={heroImage}
           alt={t("nav.bridal")}
           fill
           priority
@@ -34,7 +37,7 @@ export default function BridalPage() {
           <FadeIn>
             <div className="relative aspect-[4/5]" style={{ background: "var(--surface-2)" }}>
               <Image
-                src="https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?auto=format&fit=crop&w=1600&q=80"
+                src={editorialImage}
                 alt=""
                 fill
                 sizes="(min-width: 1024px) 50vw, 100vw"

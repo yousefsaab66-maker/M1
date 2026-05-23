@@ -77,6 +77,8 @@ export type CategoryOverride = {
   label?: string;
   /** Tile / chip image URL (R2 or https). */
   image?: string;
+  /** Second image (bridal editorial column on /bridal). */
+  secondaryImage?: string;
 };
 
 export type HomepageConfig = {

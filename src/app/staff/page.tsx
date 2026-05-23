@@ -200,6 +200,18 @@ export default function StaffPage() {
         .staff-input { width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--line-strong); background: transparent; color: var(--foreground); font-size: 0.85rem; outline: none; transition: border-color 0.3s var(--ease-luxe); }
         .staff-input:focus { border-color: var(--color-gold); }
         .staff-label { display: block; font-size: 0.66rem; letter-spacing: 0.32em; text-transform: uppercase; margin-bottom: 0.4rem; opacity: 0.75; }
+        .staff-image-group { border: 1px solid var(--line); padding: 1rem 1.15rem; background: var(--surface); }
+        .staff-image-group + .staff-image-group { margin-top: 0; }
+        .staff-image-group__summary { display: flex; align-items: center; gap: 0.5rem; }
+        .staff-image-group__summary::-webkit-details-marker { display: none; }
+        .staff-image-group__summary::after {
+          content: "▾";
+          margin-inline-start: auto;
+          opacity: 0.5;
+          font-size: 0.75rem;
+        }
+        .staff-image-group[open] .staff-image-group__summary::after { transform: rotate(180deg); }
+        .staff-image-tile { border-radius: 2px; }
       `}</style>
     </div>
   );
@@ -1725,7 +1737,7 @@ function SitePane() {
           e.preventDefault();
           void saveDraft();
         }}
-        className="min-w-0"
+        className="flex min-w-0 flex-col gap-6"
       >
         <div className="staff-card grid min-w-0 gap-4 p-5 sm:p-6">
           <p className="eyebrow text-[10px]">{t("staff.site.brandBlockTitle")}</p>

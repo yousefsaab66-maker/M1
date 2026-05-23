@@ -44,6 +44,10 @@ export function sanitizeSiteContentForServer(site: SiteContent): SanitizeSiteRes
     if (img && !isStorableMediaUrl(img)) {
       rejected.push(`categories.${key}.image`);
     }
+    const img2 = normalizeStaffMediaUrl(normalized.categories?.[key]?.secondaryImage ?? "");
+    if (img2 && !isStorableMediaUrl(img2)) {
+      rejected.push(`categories.${key}.secondaryImage`);
+    }
   }
 
   if (rejected.length > 0) {
@@ -55,9 +59,14 @@ export function sanitizeSiteContentForServer(site: SiteContent): SanitizeSiteRes
     const entry = normalized.categories?.[key];
     if (!entry) continue;
     const image = normalizeStaffMediaUrl(entry.image ?? "");
+    const secondaryImage = normalizeStaffMediaUrl(entry.secondaryImage ?? "");
     const label = entry.label?.trim() ?? "";
-    if (!image && !label) continue;
-    categories[key] = { label: label || undefined, image: image || undefined };
+    if (!image && !label && !secondaryImage) continue;
+    categories[key] = {
+      label: label || undefined,
+      image: image || undefined,
+      secondaryImage: secondaryImage || undefined,
+    };
   }
 
   const cleaned: SiteContent = {

@@ -4,6 +4,9 @@ import { HERO_POSTER } from "@/lib/catalog";
 /** Categories shown on the homepage strip (order fixed). */
 export const HOME_CATEGORY_STRIP: Category[] = ["necklaces", "rings", "earrings", "bracelets"];
 
+/** Dedicated landing pages with staff-managed hero (and optional second image). */
+export const CATEGORY_LANDING_PAGES: Category[] = ["watches", "bridal"];
+
 /** All filter categories in the products catalogue. */
 export const CATALOG_CATEGORIES: Category[] = [
   "necklaces",
@@ -44,6 +47,16 @@ export function categoryLabel(
 export function categoryImage(category: Category, site: SiteContent): string {
   const custom = site.categories?.[category]?.image?.trim();
   return custom && custom.length > 0 ? custom : DEFAULT_CATEGORY_IMAGES[category];
+}
+
+const DEFAULT_BRIDAL_EDITORIAL =
+  "https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?auto=format&fit=crop&w=1600&q=80";
+
+export function categorySecondaryImage(category: Category, site: SiteContent): string {
+  const custom = site.categories?.[category]?.secondaryImage?.trim();
+  if (custom && custom.length > 0) return custom;
+  if (category === "bridal") return DEFAULT_BRIDAL_EDITORIAL;
+  return DEFAULT_CATEGORY_IMAGES[category];
 }
 
 export function atelierImage(site: SiteContent): string {

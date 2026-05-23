@@ -10,6 +10,7 @@ import {
   patchSiteCopyBundle,
 } from "@/lib/site-copy";
 import {
+  CATEGORY_LANDING_PAGES,
   CATALOG_CATEGORIES,
   HOME_CATEGORY_STRIP,
   featuredCollection,
@@ -199,7 +200,11 @@ export function patchCollectionInList(
   return collections.map((c) => (c.slug === slug ? { ...c, ...patch } : c));
 }
 
-function patchCategory(draft: SiteContent, key: Category, patch: { label?: string; image?: string }): SiteContent {
+function patchCategory(
+  draft: SiteContent,
+  key: Category,
+  patch: { label?: string; image?: string; secondaryImage?: string },
+): SiteContent {
   return {
     ...draft,
     categories: {
@@ -219,13 +224,69 @@ export function StaffSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="staff-card mt-8 min-w-0 overflow-hidden p-5 sm:p-6">
+    <section className="staff-card mt-6 min-w-0 overflow-hidden p-5 sm:p-6">
       <header className="border-b pb-4" style={{ borderColor: "var(--line)" }}>
         <h3 className="font-display text-xl sm:text-2xl">{title}</h3>
         {intro && <p className="mt-2 max-w-2xl text-sm leading-relaxed opacity-70">{intro}</p>}
       </header>
-      <div className="mt-6 min-w-0">{children}</div>
+      <div className="mt-5 min-w-0">{children}</div>
     </section>
+  );
+}
+
+function StaffImageGroup({
+  title,
+  hint,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details className="staff-image-group" open={defaultOpen}>
+      <summary className="staff-image-group__summary cursor-pointer list-none">
+        <span className="eyebrow text-[10px] sm:text-[11px]">{title}</span>
+      </summary>
+      {hint && <p className="mt-2 text-xs leading-relaxed opacity-65">{hint}</p>}
+      <div className="mt-4 min-w-0">{children}</div>
+    </details>
+  );
+}
+
+function StaffCategoryImageTile({
+  categoryKey,
+  draft,
+  setDraft,
+  cloudUpload,
+  extra,
+}: {
+  categoryKey: Category;
+  draft: SiteContent;
+  setDraft: React.Dispatch<React.SetStateAction<SiteContent>>;
+  cloudUpload: boolean;
+  extra?: React.ReactNode;
+}) {
+  const { t } = useLocale();
+  const entry = draft.categories?.[categoryKey] ?? {};
+  return (
+    <li
+      className="staff-image-tile flex min-h-0 flex-col gap-3 p-4 sm:p-5"
+      style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
+    >
+      <span className="font-display text-lg leading-tight">{t(`category.${categoryKey}`)}</span>
+      <StaffSingleImageField
+        label={t("staff.site.categoryImage")}
+        value={entry.image ?? ""}
+        cloudUpload={cloudUpload}
+        compact
+        onChange={(image) => setDraft((d) => patchCategory(d, categoryKey, { image }))}
+        onClear={() => setDraft((d) => patchCategory(d, categoryKey, { image: "" }))}
+      />
+      {extra}
+    </li>
   );
 }
 
@@ -242,11 +303,12 @@ export function StaffCategoriesEditor({
 
   return (
     <StaffSection title={t("staff.site.categoriesTitle")} intro={t("staff.site.categoriesIntro")}>
-      <ul className="grid min-w-0 gap-5 sm:grid-cols-2">
+      <ul className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {CATALOG_CATEGORIES.map((key) => {
           const entry = draft.categories?.[key] ?? {};
           const systemLabel = t(`category.${key}`);
           const onHome = HOME_CATEGORY_STRIP.includes(key);
+          const onLanding = CATEGORY_LANDING_PAGES.includes(key);
           return (
             <li
               key={key}
@@ -255,14 +317,24 @@ export function StaffCategoriesEditor({
             >
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <span className="eyebrow text-[9px] sm:text-[10px]">{systemLabel}</span>
-                {onHome && (
-                  <span
-                    className="text-[9px] tracking-eyebrow uppercase opacity-60"
-                    style={{ color: "var(--color-gold-deep)" }}
-                  >
-                    {t("staff.site.onHomepage")}
-                  </span>
-                )}
+                <span className="flex flex-wrap gap-1.5">
+                  {onHome && (
+                    <span
+                      className="text-[9px] tracking-eyebrow uppercase opacity-60"
+                      style={{ color: "var(--color-gold-deep)" }}
+                    >
+                      {t("staff.site.onHomepage")}
+                    </span>
+                  )}
+                  {onLanding && (
+                    <span
+                      className="text-[9px] tracking-eyebrow uppercase opacity-60"
+                      style={{ color: "var(--color-gold-deep)" }}
+                    >
+                      {t("staff.site.onLandingPage")}
+                    </span>
+                  )}
+                </span>
               </div>
               <div className="grid gap-4">
                 <Field label={t("staff.site.categoryLabel")}>
@@ -355,10 +427,9 @@ export function StaffAllImagesEditor({
 
   return (
     <StaffSection title={t("staff.site.imagesHubTitle")} intro={t("staff.site.imagesHubIntro")}>
-      <div className="grid min-w-0 gap-10">
-        <div>
-          <p className="eyebrow text-[10px]">{t("staff.site.imagesHeroGroup")}</p>
-          <div className="mt-4 grid gap-6 sm:grid-cols-2">
+      <div className="flex min-w-0 flex-col gap-8">
+        <StaffImageGroup title={t("staff.site.imagesHeroGroup")}>
+          <div className="grid gap-5 sm:grid-cols-2">
             <StaffSingleImageField
               label={t("staff.site.heroPoster")}
               value={draft.heroPoster ?? ""}
@@ -411,39 +482,52 @@ export function StaffAllImagesEditor({
               )}
             </div>
           </div>
-        </div>
+        </StaffImageGroup>
 
-        <div>
-          <p className="eyebrow text-[10px]">{t("staff.site.imagesHomeStripGroup")}</p>
-          <ul className="mt-4 grid min-w-0 gap-5 sm:grid-cols-2">
-            {HOME_CATEGORY_STRIP.map((key) => {
-              const entry = draft.categories?.[key] ?? {};
-              return (
-                <li
-                  key={key}
-                  className="min-w-0 rounded-sm p-4"
-                  style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
-                >
-                  <span className="eyebrow text-[9px]">{t(`category.${key}`)}</span>
-                  <div className="mt-3">
+        <StaffImageGroup title={t("staff.site.imagesHomeStripGroup")}>
+          <ul className="grid min-w-0 gap-4 sm:grid-cols-2">
+            {HOME_CATEGORY_STRIP.map((key) => (
+              <StaffCategoryImageTile
+                key={key}
+                categoryKey={key}
+                draft={draft}
+                setDraft={setDraft}
+                cloudUpload={cloudUpload}
+              />
+            ))}
+          </ul>
+        </StaffImageGroup>
+
+        <StaffImageGroup title={t("staff.site.imagesLandingGroup")} hint={t("staff.site.imagesLandingHint")}>
+          <ul className="grid min-w-0 gap-4 lg:grid-cols-2">
+            {CATEGORY_LANDING_PAGES.map((key) => (
+              <StaffCategoryImageTile
+                key={key}
+                categoryKey={key}
+                draft={draft}
+                setDraft={setDraft}
+                cloudUpload={cloudUpload}
+                extra={
+                  key === "bridal" ? (
                     <StaffSingleImageField
-                      label={t("staff.site.categoryImage")}
-                      value={entry.image ?? ""}
+                      label={t("staff.site.bridalEditorialImage")}
+                      value={draft.categories?.bridal?.secondaryImage ?? ""}
                       cloudUpload={cloudUpload}
                       compact
-                      onChange={(image) => setDraft((d) => patchCategory(d, key, { image }))}
-                      onClear={() => setDraft((d) => patchCategory(d, key, { image: "" }))}
+                      onChange={(secondaryImage) =>
+                        setDraft((d) => patchCategory(d, "bridal", { secondaryImage }))
+                      }
+                      onClear={() => setDraft((d) => patchCategory(d, "bridal", { secondaryImage: "" }))}
                     />
-                  </div>
-                </li>
-              );
-            })}
+                  ) : undefined
+                }
+              />
+            ))}
           </ul>
-        </div>
+        </StaffImageGroup>
 
-        <div>
-          <p className="eyebrow text-[10px]">{t("staff.site.imagesMaisonGroup")}</p>
-          <div className="mt-4 max-w-xl">
+        <StaffImageGroup title={t("staff.site.imagesMaisonGroup")}>
+          <div className="max-w-xl">
             <StaffSingleImageField
               label={t("staff.site.atelierImage")}
               value={draft.homepage?.atelierImage ?? ""}
@@ -454,12 +538,14 @@ export function StaffAllImagesEditor({
               onClear={() => setDraft((d) => ({ ...d, homepage: { ...d.homepage, atelierImage: "" } }))}
             />
           </div>
-        </div>
+        </StaffImageGroup>
 
-        <div>
-          <p className="eyebrow text-[10px]">{t("staff.site.imagesFeaturedGroup")}</p>
-          <p className="mt-2 text-xs leading-relaxed opacity-65">{t("staff.site.imagesFeaturedHint")}</p>
-          <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
+        <StaffImageGroup
+          title={t("staff.site.imagesFeaturedGroup")}
+          hint={t("staff.site.imagesFeaturedHint")}
+          defaultOpen={false}
+        >
+          <div className="grid min-w-0 gap-4 sm:grid-cols-2">
             <Field label={t("staff.site.featuredCollection")}>
               <select
                 className="staff-input w-full"
@@ -516,11 +602,10 @@ export function StaffAllImagesEditor({
               </div>
             )}
           </div>
-        </div>
+        </StaffImageGroup>
 
-        <div>
-          <p className="eyebrow text-[10px]">{t("staff.site.imagesCollectionsGroup")}</p>
-          <ul className="mt-4 grid min-w-0 gap-4">
+        <StaffImageGroup title={t("staff.site.imagesCollectionsGroup")} defaultOpen={false}>
+          <ul className="grid min-w-0 gap-4">
             {collectionsDraft.map((c) => (
               <li
                 key={c.id}
@@ -558,12 +643,11 @@ export function StaffAllImagesEditor({
               </li>
             ))}
           </ul>
-        </div>
+        </StaffImageGroup>
 
         {boutiques.length > 0 && (
-          <div>
-            <p className="eyebrow text-[10px]">{t("staff.site.imagesBoutiquesGroup")}</p>
-            <ul className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
+          <StaffImageGroup title={t("staff.site.imagesBoutiquesGroup")} defaultOpen={false}>
+            <ul className="grid min-w-0 gap-4 sm:grid-cols-2">
               {boutiques.map((b) => (
                 <li
                   key={b.id}
@@ -588,14 +672,16 @@ export function StaffAllImagesEditor({
                 </li>
               ))}
             </ul>
-          </div>
+          </StaffImageGroup>
         )}
 
         {journal.length > 0 && (
-          <div>
-            <p className="eyebrow text-[10px]">{t("staff.site.imagesJournalGroup")}</p>
-            <p className="mt-2 text-xs leading-relaxed opacity-65">{t("staff.site.imagesJournalHint")}</p>
-            <ul className="mt-4 grid min-w-0 gap-4">
+          <StaffImageGroup
+            title={t("staff.site.imagesJournalGroup")}
+            hint={t("staff.site.imagesJournalHint")}
+            defaultOpen={false}
+          >
+            <ul className="grid min-w-0 gap-4 sm:grid-cols-2">
               {journal.map((a) => (
                 <li
                   key={a.id}
@@ -618,7 +704,7 @@ export function StaffAllImagesEditor({
                 </li>
               ))}
             </ul>
-          </div>
+          </StaffImageGroup>
         )}
       </div>
     </StaffSection>

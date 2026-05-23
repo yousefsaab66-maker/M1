@@ -5,16 +5,18 @@ import { ProductCard } from "@/components/ProductCard";
 import { FadeIn, SectionTitle } from "@/components/Section";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
+import { categoryImage } from "@/lib/site-display";
 
 export default function WatchesPage() {
-  const { products } = useStore();
+  const { products, site } = useStore();
   const { t } = useLocale();
+  const heroImage = categoryImage("watches", site);
   const watches = products.filter((p) => p.category === "watches");
   return (
     <div>
       <section className="relative h-[55svh] min-h-[420px] overflow-hidden" style={{ background: "var(--color-onyx)" }}>
         <Image
-          src="https://images.unsplash.com/photo-1622398925373-3f91b1e275f5?auto=format&fit=crop&w=2400&q=80"
+          src={heroImage}
           alt={t("nav.watches")}
           fill
           priority
