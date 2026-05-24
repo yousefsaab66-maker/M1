@@ -9,6 +9,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { SafeImage } from "@/components/SafeImage";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
+import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 import { ProductPrice } from "@/components/ProductPrice";
 import { productGallerySources, productImageAt } from "@/lib/product-media";
 import type { Product } from "@/lib/catalog";
@@ -144,6 +145,7 @@ export default function ProductPage() {
 
 function ProductBuyColumn({ product }: { product: Product }) {
   const { t, locale } = useLocale();
+  const tc = useSiteCopy();
   const router = useRouter();
   const { addToBag, toggleWish, inWishlist } = useStore();
 
@@ -269,8 +271,8 @@ function ProductBuyColumn({ product }: { product: Product }) {
         <Accordion title={t("common.care")}>
           <p className="leading-relaxed opacity-80">{t("product.care.body")}</p>
         </Accordion>
-        <Accordion title={t("common.returns")}>
-          <p className="leading-relaxed opacity-80">{t("product.returns.body")}</p>
+        <Accordion title={tc("common.returns")}>
+          <p className="leading-relaxed opacity-80">{tc("product.returns.body")}</p>
         </Accordion>
       </div>
 

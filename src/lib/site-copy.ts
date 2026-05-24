@@ -42,7 +42,32 @@ export const SITE_COPY_KEYS = [
   "footer.privacy",
   "footer.cookies",
   "common.allRights",
+  "common.returns",
+  "product.returns.body",
 ] as const;
+
+/** Legacy return-policy phrases — strip from R2 bundles so i18n exchange policy wins. */
+const LEGACY_RETURNS_BODY_MARKERS = [
+  "14 يوم",
+  "14 يومًا",
+  "رسوم الشحن غير مستردة",
+  "فاتورة الشراء",
+  "نحن نقبل",
+  "30 يوم",
+  "30 يوماً",
+  "Returns accepted within 30",
+  "Retours acceptés sous 30",
+  "Resi accettati entro 30",
+  "Devoluciones aceptadas en 30",
+  "يُقبل الإرجاع خلال 30",
+  "Complimentary, insured shipping worldwide. Returns accepted",
+  "Livraison offerte et assurée dans le monde entier. Retours",
+  "Spedizione gratuita e assicurata in tutto il mondo. Resi",
+  "Envío gratuito y asegurado en todo el mundo. Devoluciones",
+  "شحنٌ مجّاني ومُؤمَّن",
+] as const;
+
+const LEGACY_RETURNS_TITLE_MARKERS = ["الإرجاع", "Returns", "Retours", "Resi", "Devoluciones"] as const;
 
 export type SiteCopyKey = (typeof SITE_COPY_KEYS)[number];
 export type SiteCopyBundle = Partial<Record<SiteCopyKey, string>>;
@@ -87,6 +112,11 @@ export const SITE_COPY_GROUPS: { id: string; labelKey: string; keys: SiteCopyKey
     ],
   },
   {
+    id: "product",
+    labelKey: "staff.copy.groupProduct",
+    keys: ["common.returns", "product.returns.body"],
+  },
+  {
     id: "footer",
     labelKey: "staff.copy.groupFooter",
     keys: [
@@ -108,8 +138,32 @@ export const SITE_COPY_GROUPS: { id: string; labelKey: string; keys: SiteCopyKey
   },
 ];
 
+function isLegacyReturnsBody(value: string | undefined): boolean {
+  const v = value?.trim() ?? "";
+  if (!v) return false;
+  return LEGACY_RETURNS_BODY_MARKERS.some((m) => v.includes(m));
+}
+
+function isLegacyReturnsTitle(value: string | undefined): boolean {
+  const v = value?.trim() ?? "";
+  if (!v) return false;
+  return LEGACY_RETURNS_TITLE_MARKERS.includes(v as (typeof LEGACY_RETURNS_TITLE_MARKERS)[number]);
+}
+
+function withoutLegacyReturnsCopy(bundle: SiteCopyBundle | undefined): SiteCopyBundle | undefined {
+  if (!bundle) return bundle;
+  const body = bundle["product.returns.body"];
+  const title = bundle["common.returns"];
+  if (!isLegacyReturnsBody(body) && !isLegacyReturnsTitle(title)) return bundle;
+  const next = { ...bundle };
+  if (isLegacyReturnsBody(body)) delete next["product.returns.body"];
+  if (isLegacyReturnsTitle(title)) delete next["common.returns"];
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
 export function bundleForLocale(site: SiteContent, locale: Locale): SiteCopyBundle | undefined {
-  return locale === "ar" ? site.copyAr : site.copyEn;
+  const raw = locale === "ar" ? site.copyAr : site.copyEn;
+  return withoutLegacyReturnsCopy(raw);
 }
 
 /** Storefront string: staff override → built-in i18n for active locale. */

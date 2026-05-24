@@ -430,7 +430,7 @@ export const DICTS: Record<Locale, Dict> = {
     "product.care.body":
       "Each MUHRA piece is delivered in a Maison case and may be returned to any boutique for cleaning and inspection. Avoid contact with perfumes and cosmetics; store separately on a soft cloth.",
     "product.returns.body":
-      "Exchanges accepted within 3 days with proof of purchase (sales receipt required). Complimentary, insured shipping worldwide. High Jewelry pieces are exempt and are shipped only by appointment.",
+      "Exchange within 3 days of purchase with the original sales receipt; no cash refunds.",
     // Materials + stones
     "material.gold": "Gold",
     "material.white-gold": "White gold",
@@ -636,6 +636,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.copy.groupTicker": "Top ticker",
     "staff.copy.groupNav": "Navigation",
     "staff.copy.groupHome": "Homepage sections",
+    "staff.copy.groupProduct": "Product page",
     "staff.copy.groupFooter": "Footer",
     "staff.site.imagesBoutiquesGroup": "Boutique photos",
     "staff.boutiques.titleCount": "Boutiques ({n})",
@@ -1002,7 +1003,7 @@ export const DICTS: Record<Locale, Dict> = {
     "product.care.body":
       "Chaque pièce MUHRA est livrée dans un écrin de la Maison et peut être confiée à toute boutique pour nettoyage et inspection. Évitez le contact avec les parfums et les cosmétiques ; rangez-la séparément sur un linge doux.",
     "product.returns.body":
-      "Échanges acceptés sous 3 jours sur présentation du reçu de vente. Livraison offerte et assurée dans le monde entier. Les pièces de Haute Joaillerie en sont exemptées et n'expédient que sur rendez-vous.",
+      "Échange sous 3 jours à compter de la date d'achat sur présentation du reçu de vente original ; aucun remboursement en espèces.",
     "material.gold": "Or",
     "material.white-gold": "Or blanc",
     "material.rose-gold": "Or rose",
@@ -1366,7 +1367,7 @@ export const DICTS: Record<Locale, Dict> = {
     "product.care.body":
       "Ogni pezzo MUHRA è consegnato in un astuccio della Maison e può essere portato in qualsiasi boutique per pulizia e ispezione. Evita il contatto con profumi e cosmetici; conservalo separatamente su un panno morbido.",
     "product.returns.body":
-      "Cambi accettati entro 3 giorni con prova d'acquisto (scontrino di vendita obbligatorio). Spedizione gratuita e assicurata in tutto il mondo. I pezzi di Alta Gioielleria sono esclusi e vengono spediti solo su appuntamento.",
+      "Cambio entro 3 giorni dalla data di acquisto con scontrino di vendita originale; nessun rimborso in contanti.",
     "material.gold": "Oro",
     "material.white-gold": "Oro bianco",
     "material.rose-gold": "Oro rosa",
@@ -1730,7 +1731,7 @@ export const DICTS: Record<Locale, Dict> = {
     "product.care.body":
       "Cada pieza MUHRA se entrega en un estuche de la Maison y puede llevarse a cualquier boutique para limpieza e inspección. Evita el contacto con perfumes y cosméticos; guárdala por separado sobre un paño suave.",
     "product.returns.body":
-      "Cambios aceptados en 3 días con comprobante de compra (recibo de venta obligatorio). Envío gratuito y asegurado en todo el mundo. Las piezas de Alta Joyería están exentas y se envían únicamente con cita previa.",
+      "Cambio en un plazo de 3 días desde la fecha de compra con el recibo de venta original; sin reembolso en efectivo.",
     "material.gold": "Oro",
     "material.white-gold": "Oro blanco",
     "material.rose-gold": "Oro rosa",
@@ -2160,7 +2161,7 @@ export const DICTS: Record<Locale, Dict> = {
     "product.care.body":
       "تُسلَّم كلّ قطعة من مُهرَة في علبة الدار، ويمكن إعادتها إلى أيّ بوتيك للتنظيف والفحص. تجنّبوا ملامستها للعطور ومستحضرات التجميل، واحفظوها بعيداً على قطعة قماشٍ ناعمة.",
     "product.returns.body":
-      "يُقبل الاستبدال خلال 3 أيام مع الاحتفاظ بوصل البيع. شحنٌ مجّاني ومُؤمَّن إلى جميع أنحاء العالم. قطع المجوهرات الراقية مستثناة، وتُشحَن فقط بموعدٍ مسبق.",
+      "الاستبدال خلال 3 أيام من تاريخ الشراء مع الاحتفاظ بوصل البيع الأصلي؛ لا استرجاع نقدي.",
     "material.gold": "ذهب",
     "material.white-gold": "ذهب أبيض",
     "material.rose-gold": "ذهب وردي",
@@ -2361,6 +2362,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.copy.groupTicker": "الشريط العلوي",
     "staff.copy.groupNav": "القائمة",
     "staff.copy.groupHome": "أقسام الرئيسية",
+    "staff.copy.groupProduct": "صفحة المنتج",
     "staff.copy.groupFooter": "التذييل",
     "staff.site.imagesBoutiquesGroup": "صور المعارض",
     "staff.boutiques.titleCount": "المعارض ({n})",
