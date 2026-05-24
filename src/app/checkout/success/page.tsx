@@ -72,14 +72,7 @@ function SuccessInner() {
                       {it.name}
                       <span className="opacity-65"> × {it.qty}</span>
                     </span>
-                    <span className="text-end text-sm">
-                      <span className="block">{line.primary}</span>
-                      {line.secondary && (
-                        <span className="mt-0.5 block text-[11px] opacity-65">
-                          {t("price.originalListing").replace("{amount}", line.secondary)}
-                        </span>
-                      )}
-                    </span>
+                    <span className="text-end text-sm">{line.primary}</span>
                   </li>
                 );
               })}
@@ -90,11 +83,6 @@ function SuccessInner() {
                 <span className="opacity-75">{t("common.subtotal")}</span>
                 <span>{subtotalDisplay?.primary}</span>
               </div>
-              {subtotalDisplay?.secondary && (
-                <p className="text-[11px] opacity-65">
-                  {t("price.originalListing").replace("{amount}", subtotalDisplay.secondary)}
-                </p>
-              )}
             </div>
             {typeof order.shippingFeeIqd === "number" && (
               <div className="flex items-center justify-between text-sm">

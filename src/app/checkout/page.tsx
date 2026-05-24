@@ -385,7 +385,6 @@ export default function CheckoutPage() {
                     currency={p.currency}
                     size="sm"
                     align="end"
-                    showOriginal={p.currency !== "IQD"}
                   />
                 </li>
               ))}
@@ -396,11 +395,6 @@ export default function CheckoutPage() {
                 <span className="opacity-75">{t("common.subtotal")}</span>
                 <span>{subtotalDisplay.primary}</span>
               </div>
-              {subtotalDisplay.secondary && (
-                <p className="text-[11px] opacity-65">
-                  {t("price.originalListing").replace("{amount}", subtotalDisplay.secondary)}
-                </p>
-              )}
             </div>
             <div className="mt-3 flex items-center justify-between text-sm">
               <span className="opacity-75">{t("checkout.shipping")}</span>
@@ -415,11 +409,6 @@ export default function CheckoutPage() {
               <span className="eyebrow">{t("checkout.total")}</span>
               <div className="text-end">
                 <p className="font-display text-2xl">{formatIqd(totalIqd, locale)}</p>
-                {subtotalDisplay.secondary && (
-                  <p className="text-[11px] opacity-65">
-                    {t("price.originalListing").replace("{amount}", subtotalDisplay.secondary)}
-                  </p>
-                )}
                 {!isIraq && (
                   <p className="mt-0.5 text-[11px] opacity-65">
                     {t("checkout.totalInternationalHint")}

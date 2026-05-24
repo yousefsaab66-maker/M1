@@ -1,20 +1,17 @@
 import type { Currency } from "./catalog";
 import type { Locale } from "./i18n";
-import { formatPrice } from "./format";
 import { formatIqd, toIqd, type ToIqdOptions } from "./iraq";
 
 /** Product/order currency including IQD stored in Supabase. */
 export type DisplayCurrency = Currency | "IQD";
 
 export type CustomerPriceParts = {
-  /** Locale-formatted IQD string (primary customer display). */
+  /** Locale-formatted IQD string (customer-facing display). */
   primary: string;
-  /** Original listing currency, when not IQD. */
-  secondary: string | null;
   iqdAmount: number;
 };
 
-/** IQD amount and formatted primary/secondary strings for storefront UI. */
+/** IQD amount and formatted string for storefront UI (IQD only — no USD/EUR listing). */
 export function getCustomerPriceParts(
   amount: number,
   currency: DisplayCurrency,
@@ -24,9 +21,7 @@ export function getCustomerPriceParts(
   const iqdAmount =
     currency === "IQD" ? Math.round(amount) : toIqd(amount, currency, opts);
   const primary = formatIqd(iqdAmount, locale);
-  const secondary =
-    currency === "IQD" ? null : formatPrice(amount, currency, locale);
-  return { primary, secondary, iqdAmount };
+  return { primary, iqdAmount };
 }
 
 /** Primary IQD string only (line items, labels). */

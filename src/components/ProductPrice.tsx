@@ -11,8 +11,6 @@ type ProductPriceProps = {
   currency: DisplayCurrency;
   size?: "sm" | "md" | "lg";
   className?: string;
-  /** When true, show listing currency below IQD (if not already IQD). */
-  showOriginal?: boolean;
   align?: "start" | "end" | "center";
 };
 
@@ -33,13 +31,12 @@ export function ProductPrice({
   currency,
   size = "sm",
   className = "",
-  showOriginal = true,
   align = "center",
 }: ProductPriceProps) {
   const { site } = useStore();
-  const { locale, t } = useLocale();
+  const { locale } = useLocale();
   const usdIqdRate = getUsdIqdRate(site);
-  const { primary, secondary } = getCustomerPriceParts(amount, currency, locale, {
+  const { primary } = getCustomerPriceParts(amount, currency, locale, {
     usdIqdRate,
   });
   const primaryClass = SIZE_CLASS[size];
@@ -47,11 +44,6 @@ export function ProductPrice({
   return (
     <div className={`${ALIGN_CLASS[align]} ${className}`.trim()}>
       <p className={primaryClass}>{primary}</p>
-      {showOriginal && secondary && (
-        <p className="mt-0.5 text-[11px] opacity-65">
-          {t("price.originalListing").replace("{amount}", secondary)}
-        </p>
-      )}
     </div>
   );
 }

@@ -111,16 +111,19 @@ export interface SiteContent {
   copyEn?: SiteCopyBundle;
   /** Optional Arabic UI copy overrides. */
   copyAr?: SiteCopyBundle;
-  /** IQD per 1 USD — updated daily by staff for storefront conversion hints. */
+  /** IQD per 1 USD — updated daily by staff for IQD conversion on the storefront. */
   usdIqdRate?: number;
 }
 
 const u = (id: string, w: number = 1600) =>
   `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
 
-export const HERO_VIDEO_URL = "https://assets.mixkit.co/videos/4053/4053-720.mp4";
-export const HERO_VIDEO_FALLBACK = "https://videos.pexels.com/video-files/3209828/3209828-hd_1280_720_25fps.mp4";
-export const HERO_POSTER = u("1599643478518-a784e5dc4c8f", 2400);
+/** Engagement rings on stone — Mixkit free license (MUHRA jewelry default). */
+export const HERO_VIDEO_URL = "https://assets.mixkit.co/videos/5218/5218-720.mp4";
+/** Jewels with gemstones — Mixkit free license (fallback if primary fails). */
+export const HERO_VIDEO_FALLBACK = "https://assets.mixkit.co/videos/2865/2865-720.mp4";
+export const HERO_POSTER =
+  "https://assets.mixkit.co/videos/5218/5218-thumb-720-0.jpg";
 
 export const COLLECTIONS: Collection[] = [
   {

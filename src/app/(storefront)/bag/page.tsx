@@ -118,7 +118,6 @@ export default function BagPage() {
                     currency={p.currency}
                     size="sm"
                     align="end"
-                    showOriginal={p.currency !== "IQD"}
                   />
                 </li>
               ))}
@@ -136,11 +135,6 @@ export default function BagPage() {
                     <span className="opacity-75">{t("common.subtotal")}</span>
                     <span>{subtotalDisplay.primary}</span>
                   </div>
-                  {subtotalDisplay.secondary && (
-                    <p className="text-[11px] opacity-65">
-                      {t("price.originalListing").replace("{amount}", subtotalDisplay.secondary)}
-                    </p>
-                  )}
                 </div>
                 <div className="mt-3 flex items-center justify-between text-sm">
                   <span className="opacity-75">{t("checkout.shipping")}</span>
