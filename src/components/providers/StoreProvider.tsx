@@ -31,7 +31,7 @@ import {
   EMPTY_PRODUCTS,
 } from "@/lib/catalog-defaults";
 import type { BagItem, Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
-import { SHIPPING_FEE_IQD, toIqd, type GovernorateCode } from "@/lib/iraq";
+import { isIraqCountry, SHIPPING_FEE_IQD, toIqd, type GovernorateCode } from "@/lib/iraq";
 import { normalizeSiteContent } from "@/lib/site-display";
 import { sanitizeSiteContentForServer } from "@/lib/site-content-storage";
 import { isR2PublicConfiguredClient } from "@/lib/r2-config";
@@ -931,19 +931,25 @@ export function StoreProvider({
       const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
       const currency: Currency = items[0].currency;
       const subtotalIqd = toIqd(subtotal, currency);
+      const international = !isIraqCountry(input.customer.country);
+      const shippingFeeIqd = international ? undefined : SHIPPING_FEE_IQD;
+      const customer = {
+        ...input.customer,
+        international: international || undefined,
+      };
       const order: Order = {
         id: buildOrderId(),
         createdAt: new Date().toISOString(),
         customerName: input.customer.name,
-        customer: input.customer,
+        customer,
         items: items.map(({ currency: _c, ...rest }) => {
           void _c;
           return rest;
         }),
         subtotal,
         subtotalIqd,
-        shippingFeeIqd: SHIPPING_FEE_IQD,
-        totalIqd: subtotalIqd + SHIPPING_FEE_IQD,
+        shippingFeeIqd,
+        totalIqd: subtotalIqd + (shippingFeeIqd ?? 0),
         currency,
         status: "pending",
         payment: input.payment,

@@ -3,8 +3,9 @@
 import { cookies, headers } from "next/headers";
 import type { Product } from "@/lib/catalog";
 import type { Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
+import { isValidInternationalPhone } from "@/lib/countries";
 import { isDatabaseProductId } from "@/lib/catalog-db";
-import { normalizeIraqiPhone, SHIPPING_FEE_IQD, toIqd } from "@/lib/iraq";
+import { isIraqCountry, normalizeIraqiPhone, SHIPPING_FEE_IQD, toIqd } from "@/lib/iraq";
 import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
@@ -29,8 +30,18 @@ export async function createOrderRemote(
   if (bagLines.length === 0) return { ok: false, error: "empty" };
 
   /* مفتاحان: الهاتف (دقيق) والـ IP (يحمي من تجريب أرقام كثيرة من نفس المصدر). */
-  const phoneKey = normalizeIraqiPhone(input.customer.phone) ?? input.customer.phone.trim();
-  if (!phoneKey) return { ok: false, error: "invalid_phone" };
+  const international = !isIraqCountry(input.customer.country);
+  let phoneKey: string;
+  if (international) {
+    if (!isValidInternationalPhone(input.customer.phone)) {
+      return { ok: false, error: "invalid_phone" };
+    }
+    phoneKey = input.customer.phone.replace(/[\s\-().]/g, "");
+  } else {
+    phoneKey = normalizeIraqiPhone(input.customer.phone) ?? "";
+    if (!phoneKey) return { ok: false, error: "invalid_phone" };
+    if (!input.customer.governorate) return { ok: false, error: "invalid_address" };
+  }
   const phoneRl = rateLimit(`order_phone:${phoneKey}`, ORDER_LIMIT_PER_PHONE, ORDER_WINDOW_MS);
   if (!phoneRl.ok) return { ok: false, error: "rate_limited" };
 
@@ -58,14 +69,19 @@ export async function createOrderRemote(
   }
 
   const subtotalIqd = toIqd(subtotal, currency);
-  const shippingFeeIqd = SHIPPING_FEE_IQD;
-  const totalIqd = subtotalIqd + shippingFeeIqd;
+  const shippingFeeIqd = international ? undefined : SHIPPING_FEE_IQD;
+  const totalIqd = subtotalIqd + (shippingFeeIqd ?? 0);
+
+  const customer = {
+    ...input.customer,
+    international: international || undefined,
+  };
 
   const { data: inserted, error: insErr } = await sb
     .from("orders")
     .insert({
       customer_name: input.customer.name,
-      customer: input.customer,
+      customer,
       items,
       subtotal,
       subtotal_iqd: subtotalIqd,
@@ -84,7 +100,7 @@ export async function createOrderRemote(
     id: inserted.id as string,
     createdAt: inserted.created_at as string,
     customerName: input.customer.name,
-    customer: input.customer,
+    customer,
     items,
     subtotal,
     subtotalIqd,

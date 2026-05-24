@@ -40,7 +40,7 @@ import type {
   Stone,
 } from "@/lib/catalog";
 import { formatDate, formatPrice, slugify } from "@/lib/format";
-import { formatIqd } from "@/lib/iraq";
+import { formatIqd, isIraqCountry } from "@/lib/iraq";
 import {
   ensureProductOrderable,
   productGallerySources,
@@ -1235,6 +1235,7 @@ function OrdersPane() {
         o.customerName,
         o.customer?.phone ?? "",
         o.customer?.governorate ?? "",
+        o.customer?.country ?? "",
         o.customer?.city ?? "",
         o.customer?.address ?? "",
         o.payment?.method ?? "",
@@ -1295,9 +1296,16 @@ function OrdersPane() {
             )}
             {filtered.map((o) => {
               const isOpen = expanded.has(o.id);
+              const international =
+                Boolean(o.customer?.international) || !isIraqCountry(o.customer?.country);
+              const countryCode = o.customer?.country ?? "IQ";
+              const countryLabel = t(`country.${countryCode}`);
               const govLabel = o.customer?.governorate
                 ? t(`governorate.${o.customer.governorate}`)
                 : "—";
+              const locationLabel = international
+                ? `${countryLabel}${o.customer?.city ? ` · ${o.customer.city}` : ""}`
+                : `${govLabel}${o.customer?.city ? ` · ${o.customer.city}` : ""}`;
               return (
                 <FragmentRow key={o.id}>
                   <tr
@@ -1315,8 +1323,18 @@ function OrdersPane() {
                     <td className="opacity-80">{formatDate(o.createdAt, locale)}</td>
                     <td>{o.customerName}</td>
                     <td className="opacity-80">
-                      {govLabel}
-                      {o.customer?.city ? ` · ${o.customer.city}` : ""}
+                      {locationLabel}
+                      {international && (
+                        <span
+                          className="ms-2 inline-block px-2 py-0.5 text-[9px] tracking-eyebrow uppercase"
+                          style={{
+                            border: "1px solid var(--color-gold)",
+                            color: "var(--color-gold)",
+                          }}
+                        >
+                          {t("staff.orders.international")}
+                        </span>
+                      )}
                     </td>
                     <td className="opacity-80 font-mono text-xs">{o.customer?.phone ?? "—"}</td>
                     <td>
@@ -1385,7 +1403,24 @@ function OrdersPane() {
                               {o.customer?.address}
                               {o.customer?.city ? `, ${o.customer.city}` : ""}
                               <br />
-                              {govLabel} — {t("staff.orders.countryIraq")}
+                              {international ? (
+                                countryLabel
+                              ) : (
+                                <>
+                                  {govLabel} — {t("staff.orders.countryIraq")}
+                                </>
+                              )}
+                              {international && (
+                                <span
+                                  className="ms-2 inline-block px-2 py-0.5 text-[9px] tracking-eyebrow uppercase"
+                                  style={{
+                                    border: "1px solid var(--color-gold)",
+                                    color: "var(--color-gold)",
+                                  }}
+                                >
+                                  {t("staff.orders.international")}
+                                </span>
+                              )}
                             </p>
                             {o.customer?.notes && (
                               <>
@@ -1436,7 +1471,15 @@ function OrdersPane() {
                                 <span>{formatIqd(o.shippingFeeIqd, locale)}</span>
                               </div>
                             )}
-                            {typeof o.totalIqd === "number" && (
+                            {international && (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="opacity-75">{t("checkout.shipping")}</span>
+                                <span className="text-[12px] opacity-75">
+                                  {t("checkout.shippingPending")}
+                                </span>
+                              </div>
+                            )}
+                            {typeof o.totalIqd === "number" && !international && (
                               <div className="flex items-center justify-between text-sm font-medium">
                                 <span className="opacity-75">{t("checkout.total")}</span>
                                 <span>{formatIqd(o.totalIqd, locale)}</span>

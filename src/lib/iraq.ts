@@ -83,3 +83,5 @@ export function normalizeIraqiPhone(raw: string): string | null {
 }
 
 export const IRAQI_PHONE_REGEX = /^(?:\+?964|00964|0)?7\d{9}$/;
+
+export { isIraqCountry } from "./countries";

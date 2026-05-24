@@ -3,16 +3,25 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Truck } from "lucide-react";
+import { Globe, Truck } from "lucide-react";
 import { SectionTitle } from "@/components/Section";
 import { SafeImage } from "@/components/SafeImage";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore, type BagItem, type OrderCustomer } from "@/components/providers/StoreProvider";
+import type { Product } from "@/lib/catalog";
+import {
+  CHECKOUT_COUNTRIES,
+  IRAQ_COUNTRY_CODE,
+  isValidInternationalPhone,
+  type CountryCode,
+} from "@/lib/countries";
 import { formatPrice } from "@/lib/format";
 import {
   IRAQ_GOVERNORATES,
   IRAQI_PHONE_REGEX,
+  SHIPPING_FEE_IQD,
   formatIqd,
+  isIraqCountry,
   normalizeIraqiPhone,
   toIqd,
   type GovernorateCode,
@@ -21,6 +30,7 @@ import {
 type FieldErrors = Partial<{
   name: string;
   phone: string;
+  country: string;
   governorate: string;
   city: string;
   address: string;
@@ -35,17 +45,16 @@ export default function CheckoutPage() {
     () =>
       bag
         .map((b) => ({ b, p: products.find((p) => p.id === b.productId) }))
-        .filter((x): x is { b: BagItem; p: NonNullable<typeof x.p> } => Boolean(x.p)),
+        .filter((x): x is { b: BagItem; p: Product } => Boolean(x.p)),
     [bag, products],
   );
   const subtotal = items.reduce((s, { b, p }) => s + p.price * b.qty, 0);
   const currency = items[0]?.p.currency ?? "EUR";
   const subtotalIqd = toIqd(subtotal, currency);
-  const shippingFeeIqd = 5000;
-  const totalIqd = subtotalIqd + shippingFeeIqd;
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [country, setCountry] = useState<CountryCode>(IRAQ_COUNTRY_CODE);
   const [governorate, setGovernorate] = useState<GovernorateCode | "">("");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
@@ -53,6 +62,10 @@ export default function CheckoutPage() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
+
+  const isIraq = isIraqCountry(country);
+  const shippingFeeIqd = isIraq ? SHIPPING_FEE_IQD : undefined;
+  const totalIqd = subtotalIqd + (shippingFeeIqd ?? 0);
 
   useEffect(() => {
     if (hydrated && items.length === 0 && !submitting) {
@@ -63,10 +76,14 @@ export default function CheckoutPage() {
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
     if (!name.trim()) next.name = t("v.required");
+    if (!country) next.country = t("v.country");
     if (!phone.trim()) next.phone = t("v.required");
-    else if (!IRAQI_PHONE_REGEX.test(phone.replace(/[\s\-().]/g, "")))
-      next.phone = t("v.phone");
-    if (!governorate) next.governorate = t("v.governorate");
+    else if (isIraq) {
+      if (!IRAQI_PHONE_REGEX.test(phone.replace(/[\s\-().]/g, ""))) next.phone = t("v.phone");
+    } else if (!isValidInternationalPhone(phone)) {
+      next.phone = t("v.phoneInternational");
+    }
+    if (isIraq && !governorate) next.governorate = t("v.governorate");
     if (!city.trim()) next.city = t("v.required");
     if (!address.trim()) next.address = t("v.required");
     return next;
@@ -84,15 +101,16 @@ export default function CheckoutPage() {
       el?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-    if (!governorate) return;
     setSubmitting(true);
     const customer: OrderCustomer = {
       name: name.trim(),
-      phone: normalizeIraqiPhone(phone) ?? phone.trim(),
-      governorate: governorate as GovernorateCode,
+      phone: isIraq ? (normalizeIraqiPhone(phone) ?? phone.trim()) : phone.trim(),
+      country,
+      ...(isIraq && governorate ? { governorate: governorate as GovernorateCode } : {}),
       city: city.trim(),
       address: address.trim(),
       notes: notes.trim() || undefined,
+      ...(!isIraq ? { international: true } : {}),
     };
     const result = await placeOrder({ customer, payment: { method: "cod" } });
     if (!result.ok) {
@@ -101,7 +119,9 @@ export default function CheckoutPage() {
         result.error === "rate_limited"
           ? "checkout.rateLimited"
           : result.error === "invalid_phone"
-            ? "v.phone"
+            ? isIraq
+              ? "v.phone"
+              : "v.phoneInternational"
             : "checkout.orderFailed";
       setOrderError(t(errKey));
       return;
@@ -132,7 +152,7 @@ export default function CheckoutPage() {
     <div className="px-5 py-16 md:px-10 md:py-24">
       <SectionTitle eyebrow={t("checkout.eyebrow")} title={t("checkout.heading")} />
       <p className="mt-4 text-center text-[12px] tracking-eyebrow uppercase opacity-70">
-        {t("delivery.iraqOnly")}
+        {t("delivery.iraqAndInternational")}
       </p>
 
       <form
@@ -155,7 +175,7 @@ export default function CheckoutPage() {
               </CheckoutField>
               <CheckoutField
                 label={t("checkout.phone")}
-                hint={t("checkout.phoneHint")}
+                hint={isIraq ? t("checkout.phoneHint") : t("checkout.phoneHintInternational")}
                 error={errors.phone}
               >
                 <input
@@ -166,7 +186,7 @@ export default function CheckoutPage() {
                   className="input-luxe"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="07XXXXXXXXX"
+                  placeholder={isIraq ? "07XXXXXXXXX" : "+1 234 567 8900"}
                   required
                 />
               </CheckoutField>
@@ -174,24 +194,69 @@ export default function CheckoutPage() {
           </section>
 
           <section>
-            <h3 className="font-display text-2xl">{t("checkout.shippingAddress")}</h3>
+            <h3 className="font-display text-2xl">
+              {isIraq ? t("checkout.shippingAddress") : t("checkout.shippingAddressInternational")}
+            </h3>
+            {!isIraq && (
+              <div
+                className="mt-5 flex gap-3 p-5"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--color-gold)",
+                }}
+                role="status"
+              >
+                <Globe
+                  className="mt-0.5 h-5 w-5 shrink-0"
+                  strokeWidth={1.4}
+                  style={{ color: "var(--color-gold)" }}
+                  aria-hidden
+                />
+                <p className="text-sm leading-relaxed opacity-90">{t("checkout.internationalNotice")}</p>
+              </div>
+            )}
             <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <CheckoutField label={t("checkout.governorate")} error={errors.governorate}>
+              <CheckoutField label={t("checkout.country")} error={errors.country}>
                 <select
-                  data-field="governorate"
+                  data-field="country"
                   className="input-luxe"
-                  value={governorate}
-                  onChange={(e) => setGovernorate(e.target.value as GovernorateCode | "")}
+                  value={country}
+                  onChange={(e) => {
+                    const next = e.target.value as CountryCode;
+                    setCountry(next);
+                    if (next !== IRAQ_COUNTRY_CODE) setGovernorate("");
+                  }}
                   required
                 >
-                  <option value="">{t("checkout.governorate.placeholder")}</option>
-                  {IRAQ_GOVERNORATES.map((code) => (
+                  {CHECKOUT_COUNTRIES.map((code) => (
                     <option key={code} value={code}>
-                      {t(`governorate.${code}`)}
+                      {t(`country.${code}`)}
                     </option>
                   ))}
                 </select>
               </CheckoutField>
+              {isIraq ? (
+                <CheckoutField label={t("checkout.governorate")} error={errors.governorate}>
+                  <select
+                    data-field="governorate"
+                    className="input-luxe"
+                    value={governorate}
+                    onChange={(e) => setGovernorate(e.target.value as GovernorateCode | "")}
+                    required
+                  >
+                    <option value="">{t("checkout.governorate.placeholder")}</option>
+                    {IRAQ_GOVERNORATES.map((code) => (
+                      <option key={code} value={code}>
+                        {t(`governorate.${code}`)}
+                      </option>
+                    ))}
+                  </select>
+                </CheckoutField>
+              ) : (
+                <div className="hidden md:block" aria-hidden />
+              )}
+            </div>
+            <div className="mt-4">
               <CheckoutField label={t("checkout.city")} error={errors.city}>
                 <input
                   data-field="city"
@@ -256,14 +321,18 @@ export default function CheckoutPage() {
                   </span>
                   <span className="font-display text-lg leading-tight">{t("pay.cod")}</span>
                 </div>
-                <p className="text-[12px] leading-relaxed opacity-75">{t("pay.cod.desc")}</p>
+                <p className="text-[12px] leading-relaxed opacity-75">
+                  {isIraq ? t("pay.cod.desc") : t("pay.codInternational.desc")}
+                </p>
               </div>
             </div>
             <div
               className="mt-6 p-5"
               style={{ background: "var(--surface)", border: "1px solid var(--line)" }}
             >
-              <p className="text-sm opacity-80">{t("pay.codNote")}</p>
+              <p className="text-sm opacity-80">
+                {isIraq ? t("pay.codNote") : t("pay.codInternationalNote")}
+              </p>
             </div>
             {orderError && (
               <p className="mt-4 text-sm" style={{ color: "var(--color-bordeaux)" }} role="alert">
@@ -321,7 +390,11 @@ export default function CheckoutPage() {
             </div>
             <div className="mt-3 flex items-center justify-between text-sm">
               <span className="opacity-75">{t("checkout.shipping")}</span>
-              <span>{formatIqd(shippingFeeIqd, locale)}</span>
+              <span className={isIraq ? "" : "text-[12px] opacity-75"}>
+                {isIraq && shippingFeeIqd != null
+                  ? formatIqd(shippingFeeIqd, locale)
+                  : t("checkout.shippingPending")}
+              </span>
             </div>
             <div className="hairline my-6" />
             <div className="flex items-center justify-between">
@@ -330,7 +403,11 @@ export default function CheckoutPage() {
                 <p className="font-display text-2xl">
                   {formatPrice(subtotal, currency, locale)}
                 </p>
-                <p className="text-[11px] opacity-65">≈ {formatIqd(totalIqd, locale)}</p>
+                {isIraq ? (
+                  <p className="text-[11px] opacity-65">≈ {formatIqd(totalIqd, locale)}</p>
+                ) : (
+                  <p className="text-[11px] opacity-65">{t("checkout.totalInternationalHint")}</p>
+                )}
               </div>
             </div>
             <button
@@ -341,7 +418,7 @@ export default function CheckoutPage() {
               {submitting ? t("checkout.placing") : t("checkout.placeOrder")}
             </button>
             <p className="mt-4 text-[11px] opacity-65 text-center">
-              {t("delivery.iraqOnly")}
+              {isIraq ? t("delivery.iraqDomestic") : t("checkout.internationalNoticeShort")}
             </p>
           </div>
         </aside>

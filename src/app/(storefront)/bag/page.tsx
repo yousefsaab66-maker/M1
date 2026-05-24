@@ -138,7 +138,7 @@ export default function BagPage() {
                 <button type="button" onClick={onCheckout} className="btn-primary mt-8 w-full">
                   {t("common.checkout")}
                 </button>
-                <p className="mt-5 text-xs opacity-65">{t("delivery.iraqOnly")}</p>
+                <p className="mt-5 text-xs opacity-65">{t("delivery.iraqAndInternational")}</p>
               </div>
             </aside>
           </div>

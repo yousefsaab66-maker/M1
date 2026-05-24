@@ -8,7 +8,7 @@ import { SectionTitle } from "@/components/Section";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
 import { formatPrice } from "@/lib/format";
-import { formatIqd } from "@/lib/iraq";
+import { formatIqd, isIraqCountry } from "@/lib/iraq";
 
 function SuccessInner() {
   const sp = useSearchParams();
@@ -16,6 +16,10 @@ function SuccessInner() {
   const { orders, hydrated } = useStore();
   const { t, locale } = useLocale();
   const order = useMemo(() => orders.find((o) => o.id === orderId), [orders, orderId]);
+  const international =
+    Boolean(order?.customer?.international) || !isIraqCountry(order?.customer?.country);
+  const countryCode = order?.customer?.country ?? "IQ";
+  const countryLabel = t(`country.${countryCode}`);
 
   return (
     <div className="page-gutter py-20 md:py-28">
@@ -72,7 +76,13 @@ function SuccessInner() {
                 <span>{formatIqd(order.shippingFeeIqd, locale)}</span>
               </div>
             )}
-            {typeof order.totalIqd === "number" && (
+            {international && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="opacity-75">{t("checkout.shipping")}</span>
+                <span className="text-[12px] opacity-75">{t("checkout.shippingPending")}</span>
+              </div>
+            )}
+            {typeof order.totalIqd === "number" && !international && (
               <div className="mt-2 flex items-center justify-between text-sm font-medium">
                 <span className="opacity-75">{t("checkout.total")}</span>
                 <span>{formatIqd(order.totalIqd, locale)}</span>
@@ -81,7 +91,11 @@ function SuccessInner() {
             {order.customer && (
               <>
                 <div className="hairline my-5" />
-                <p className="eyebrow">{t("checkout.shippingAddress")}</p>
+                <p className="eyebrow">
+                  {international
+                    ? t("checkout.shippingAddressInternational")
+                    : t("checkout.shippingAddress")}
+                </p>
                 <p className="mt-2 text-sm leading-relaxed opacity-85">
                   {order.customer.name}
                   <br />
@@ -90,14 +104,24 @@ function SuccessInner() {
                   {order.customer.address}
                   {order.customer.city ? `, ${order.customer.city}` : ""}
                   <br />
-                  {t(`governorate.${order.customer.governorate}`)} — {t("country.iraq")}
+                  {international ? (
+                    countryLabel
+                  ) : order.customer.governorate ? (
+                    <>
+                      {t(`governorate.${order.customer.governorate}`)} — {t("country.iraq")}
+                    </>
+                  ) : (
+                    t("country.iraq")
+                  )}
                 </p>
               </>
             )}
           </div>
         )}
 
-        <p className="mt-10 text-[12px] opacity-70">{t("success.eta")}</p>
+        <p className="mt-10 text-[12px] opacity-70">
+          {international ? t("success.internationalEta") : t("success.eta")}
+        </p>
         <Link href={"/products" as never} className="btn-primary mt-6 inline-flex">
           {t("success.continue")}
         </Link>

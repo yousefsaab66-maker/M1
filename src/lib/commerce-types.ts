@@ -1,4 +1,5 @@
 import type { Currency } from "@/lib/catalog";
+import type { CountryCode } from "@/lib/countries";
 import type { GovernorateCode } from "@/lib/iraq";
 
 export type BagItem = {
@@ -20,10 +21,14 @@ export type PaymentMethod = "cod";
 export interface OrderCustomer {
   name: string;
   phone: string;
-  governorate: GovernorateCode;
+  /** ISO 3166-1 alpha-2; defaults to Iraq when omitted on legacy rows. */
+  country: CountryCode;
+  governorate?: GovernorateCode;
   city: string;
   address: string;
   notes?: string;
+  /** True when country is outside Iraq — staff confirms shipping fees. */
+  international?: boolean;
 }
 
 export interface OrderPayment {
