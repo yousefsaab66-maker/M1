@@ -1,3 +1,4 @@
+import type { Currency } from "./catalog";
 import type { Locale } from "./i18n";
 
 /**
@@ -47,6 +48,31 @@ function resolveUsdIqdRate(usdIqdRate?: number): number {
     return Math.round(usdIqdRate);
   }
   return IQD_PER_USD;
+}
+
+/** Convert an IQD amount to USD using staff rate (falls back to {@link IQD_PER_USD}). */
+export function iqdToUsd(amountIqd: number, opts?: ToIqdOptions): number {
+  const rate = resolveUsdIqdRate(opts?.usdIqdRate);
+  if (!Number.isFinite(amountIqd) || rate <= 0) return 0;
+  return amountIqd / rate;
+}
+
+/** IQD revenue for one order (prefers stored total, then subtotal + shipping). */
+export function orderRevenueIqd(
+  order: {
+    subtotal: number;
+    subtotalIqd?: number;
+    shippingFeeIqd?: number;
+    totalIqd?: number;
+    currency: Currency;
+  },
+  opts?: ToIqdOptions,
+): number {
+  if (typeof order.totalIqd === "number") return order.totalIqd;
+  if (typeof order.subtotalIqd === "number") {
+    return order.subtotalIqd + (order.shippingFeeIqd ?? 0);
+  }
+  return toIqd(order.subtotal, order.currency, opts);
 }
 
 /** Convert a primary-currency amount to a rough IQD figure for display. */

@@ -97,6 +97,14 @@ export function featuredHomeProducts(products: Product[], site: SiteContent): Pr
     .slice(0, 8);
 }
 
+/** True when staff saved a valid daily USD/IQD rate on the Site tab. */
+export function hasConfiguredUsdIqdRate(site?: SiteContent | null): boolean {
+  const raw = site?.usdIqdRate;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return false;
+  const rounded = Math.round(raw);
+  return rounded >= USD_IQD_RATE_MIN && rounded <= USD_IQD_RATE_MAX;
+}
+
 /** Staff-managed IQD per 1 USD (daily). Invalid/missing values use the built-in default. */
 export function getUsdIqdRate(site?: SiteContent | null): number {
   const raw = site?.usdIqdRate;

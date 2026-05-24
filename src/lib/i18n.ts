@@ -480,7 +480,9 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.dashboard.statOrders": "Orders",
     "staff.dashboard.statPending": "Pending",
     "staff.dashboard.statShipped": "Shipped / delivered",
-    "staff.dashboard.demoRevenue": "Demo revenue (excl. cancelled)",
+    "staff.dashboard.demoRevenue": "Revenue (USD, excl. cancelled)",
+    "staff.dashboard.revenueRateFallback":
+      "Using default rate ({rate} IQD/USD). Set today's rate in Site settings.",
     "staff.products.count": "Products ({n})",
     "staff.products.new": "New product",
     "staff.products.deleteConfirm": "Delete this product?",
@@ -2203,7 +2205,9 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.dashboard.statOrders": "الطلبات",
     "staff.dashboard.statPending": "قيد الانتظار",
     "staff.dashboard.statShipped": "شُحنت / تم التسليم",
-    "staff.dashboard.demoRevenue": "إيراد تجريبي (باستثناء الملغاة)",
+    "staff.dashboard.demoRevenue": "إيرادات بالدولار (باستثناء الملغاة)",
+    "staff.dashboard.revenueRateFallback":
+      "يُستخدم السعر الافتراضي ({rate} د.ع/دولار). حدّث سعر اليوم من تبويب الموقع.",
     "staff.products.count": "المنتجات ({n})",
     "staff.products.new": "منتج جديد",
     "staff.products.deleteConfirm": "حذف هذا المنتج؟",

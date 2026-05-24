@@ -40,7 +40,7 @@ import type {
   Stone,
 } from "@/lib/catalog";
 import { formatDate, formatPrice, slugify } from "@/lib/format";
-import { formatIqd, isIraqCountry } from "@/lib/iraq";
+import { formatIqd, iqdToUsd, isIraqCountry, orderRevenueIqd } from "@/lib/iraq";
 import {
   ensureProductOrderable,
   productGallerySources,
@@ -58,7 +58,8 @@ import {
   StaffSiteTextsEditor,
   StaffSingleImageField,
 } from "@/components/staff/StaffSiteEditor";
-import { normalizeSiteContent } from "@/lib/site-display";
+import type { Order } from "@/lib/commerce-types";
+import { normalizeSiteContent, getUsdIqdRate, hasConfiguredUsdIqdRate } from "@/lib/site-display";
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -218,13 +219,17 @@ export default function StaffPage() {
 }
 
 function DashboardPane() {
-  const { products, orders, collections, journal } = useStore();
+  const { products, orders, collections, journal, site } = useStore();
   const { t, locale } = useLocale();
   const pending = orders.filter((o) => o.status === "pending").length;
   const shipped = orders.filter((o) => o.status === "shipped" || o.status === "delivered").length;
-  const revenue = orders
+  const usdIqdRate = getUsdIqdRate(site);
+  const rateOpts = { usdIqdRate };
+  const revenueIqd = orders
     .filter((o) => o.status !== "cancelled")
-    .reduce((s, o) => s + o.subtotal, 0);
+    .reduce((s, o) => s + orderRevenueIqd(o, rateOpts), 0);
+  const revenueUsd = iqdToUsd(revenueIqd, rateOpts);
+  const usingDefaultRate = !hasConfiguredUsdIqdRate(site);
   const stats = [
     { label: t("staff.dashboard.statProducts"), value: products.length },
     { label: t("staff.dashboard.statCollections"), value: collections.length },
@@ -246,7 +251,12 @@ function DashboardPane() {
       </div>
       <div className="mt-8 staff-card">
         <p className="eyebrow">{t("staff.dashboard.demoRevenue")}</p>
-        <p className="font-display mt-3 text-4xl">{formatPrice(revenue, "EUR", locale)}</p>
+        <p className="font-display mt-3 text-4xl">{formatPrice(revenueUsd, "USD", locale)}</p>
+        {usingDefaultRate && (
+          <p className="mt-2 text-xs opacity-65">
+            {t("staff.dashboard.revenueRateFallback").replace("{rate}", String(usdIqdRate))}
+          </p>
+        )}
       </div>
     </section>
   );
@@ -1209,9 +1219,16 @@ function paymentMethodLabel(method: string | undefined, t: (key: string) => stri
 
 const STATUS_OPTIONS = ["pending", "preparing", "shipped", "delivered", "cancelled"] as const;
 
+function staffOrderRevenueUsd(order: Order, usdIqdRate: number) {
+  const rateOpts = { usdIqdRate };
+  const iqd = orderRevenueIqd(order, rateOpts);
+  return { iqd, usd: iqdToUsd(iqd, rateOpts) };
+}
+
 function OrdersPane() {
-  const { orders, products, setOrderStatus, removeOrder } = useStore();
+  const { orders, products, setOrderStatus, removeOrder, site } = useStore();
   const { t, locale } = useLocale();
+  const usdIqdRate = getUsdIqdRate(site);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -1353,14 +1370,15 @@ function OrdersPane() {
                       )}
                     </td>
                     <td>
-                      <div className="flex flex-col">
-                        <span>{formatPrice(o.subtotal, o.currency, locale)}</span>
-                        {typeof o.totalIqd === "number" && (
-                          <span className="text-[10px] opacity-65">
-                            ≈ {formatIqd(o.totalIqd, locale)}
-                          </span>
-                        )}
-                      </div>
+                      {(() => {
+                        const { usd, iqd } = staffOrderRevenueUsd(o, usdIqdRate);
+                        return (
+                          <div className="flex flex-col">
+                            <span>{formatPrice(usd, "USD", locale)}</span>
+                            <span className="text-[10px] opacity-65">≈ {formatIqd(iqd, locale)}</span>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <select
@@ -1479,10 +1497,22 @@ function OrdersPane() {
                                 </span>
                               </div>
                             )}
-                            {typeof o.totalIqd === "number" && !international && (
+                            {!international && (
                               <div className="flex items-center justify-between text-sm font-medium">
                                 <span className="opacity-75">{t("checkout.total")}</span>
-                                <span>{formatIqd(o.totalIqd, locale)}</span>
+                                <span>
+                                  {(() => {
+                                    const { usd, iqd } = staffOrderRevenueUsd(o, usdIqdRate);
+                                    return (
+                                      <>
+                                        {formatPrice(usd, "USD", locale)}
+                                        <span className="ms-2 text-[11px] font-normal opacity-65">
+                                          ≈ {formatIqd(iqd, locale)}
+                                        </span>
+                                      </>
+                                    );
+                                  })()}
+                                </span>
                               </div>
                             )}
                           </div>
