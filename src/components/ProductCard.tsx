@@ -6,7 +6,7 @@ import type { Product } from "@/lib/catalog";
 import { SafeImage } from "@/components/SafeImage";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
-import { formatPrice } from "@/lib/format";
+import { ProductPrice } from "@/components/ProductPrice";
 import { productImageAt } from "@/lib/product-media";
 
 interface ProductCardProps {
@@ -75,7 +75,7 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
           {product.name}
         </Link>
         <p className="text-[11px] tracking-eyebrow uppercase opacity-65">{product.collection.replace("muhra-", "")}</p>
-        <p className="mt-1 text-sm">{formatPrice(product.price, product.currency, locale)}</p>
+        <ProductPrice amount={product.price} currency={product.currency} size="sm" className="mt-1" />
       </div>
     </article>
   );

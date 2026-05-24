@@ -111,6 +111,8 @@ export interface SiteContent {
   copyEn?: SiteCopyBundle;
   /** Optional Arabic UI copy overrides. */
   copyAr?: SiteCopyBundle;
+  /** IQD per 1 USD — updated daily by staff for storefront conversion hints. */
+  usdIqdRate?: number;
 }
 
 const u = (id: string, w: number = 1600) =>

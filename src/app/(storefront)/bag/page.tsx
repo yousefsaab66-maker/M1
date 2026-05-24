@@ -9,9 +9,10 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore, type BagItem } from "@/components/providers/StoreProvider";
 import { formatPrice } from "@/lib/format";
 import { formatIqd, toIqd } from "@/lib/iraq";
+import { getUsdIqdRate } from "@/lib/site-display";
 
 export default function BagPage() {
-  const { bag, products, setBagQty, removeFromBag, hydrated } = useStore();
+  const { bag, products, setBagQty, removeFromBag, hydrated, site } = useStore();
   const { t, locale } = useLocale();
   const router = useRouter();
   const items = bag
@@ -19,7 +20,8 @@ export default function BagPage() {
     .filter((x): x is { b: BagItem; p: NonNullable<typeof x.p> } => Boolean(x.p));
   const subtotal = items.reduce((s, { b, p }) => s + p.price * b.qty, 0);
   const currency = items[0]?.p.currency ?? "EUR";
-  const subtotalIqd = toIqd(subtotal, currency);
+  const usdIqdRate = getUsdIqdRate(site);
+  const subtotalIqd = toIqd(subtotal, currency, { usdIqdRate });
 
   const onCheckout = () => {
     router.push("/checkout" as never);

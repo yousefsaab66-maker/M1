@@ -423,6 +423,7 @@ export const DICTS: Record<Locale, Dict> = {
     // Product detail
     "product.notFound": "Not found",
     "product.imageAlt": "Image",
+    "price.approxIqd": "≈ {amount}",
     "product.new": "New",
     "product.sizeRequired": "Please select a size before adding to bag.",
     "product.back": "Back",
@@ -620,6 +621,10 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.site.categoryImageInHub": "Edit tile image under Site images above.",
     "staff.site.homeProductsIntro": "Pin products for «Iconic creations» on the homepage. Collection and images are configured in Site images.",
     "staff.site.saveAllHint": "One Save writes site copy, images, collections, journal, and boutiques to R2 (storefront.json).",
+    "staff.site.usdRateTitle": "USD exchange rate (Iraq)",
+    "staff.site.usdRateLabel": "Today's dollar price (IQD per 1 USD)",
+    "staff.site.usdRateHint":
+      "Used on the storefront to show approximate IQD prices (especially for USD products). Update daily, then Save.",
     "staff.saveOnSiteTab": "Changes sync when you Save on the Site tab.",
     "staff.copy.title": "Storefront copy (EN / AR)",
     "staff.copy.intro": "Override navigation, homepage, footer, and ticker text. Empty fields use the built-in translation.",
@@ -2146,6 +2151,7 @@ export const DICTS: Record<Locale, Dict> = {
     "products.empty": "لا توجد قطع تطابق هذا الاختيار.",
     "product.notFound": "غير موجود",
     "product.imageAlt": "صورة",
+    "price.approxIqd": "≈ {amount}",
     "product.new": "جديد",
     "product.sizeRequired": "يرجى اختيار المقاس قبل الإضافة إلى السلة.",
     "product.back": "عودة",
@@ -2338,6 +2344,10 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.site.categoryImageInHub": "عدّل صورة البلاطة تحت «صور الموقع» أعلاه.",
     "staff.site.homeProductsIntro": "ثبّت منتجات «الإبداعات الأيقونية». المجموعة والصور من قسم صور الموقع.",
     "staff.site.saveAllHint": "زر الحفظ يكتب النصوص والصور والمجموعات واليوميات والمعارض إلى R2 (storefront.json).",
+    "staff.site.usdRateTitle": "سعر الدولار اليوم",
+    "staff.site.usdRateLabel": "سعر الدولار (دينار عراقي لكل 1 دولار)",
+    "staff.site.usdRateHint":
+      "يُستخدم في المتجر لعرض أسعار تقريبية بالدينار (خصوصاً للمنتجات بالدولار). حدّثه يومياً ثم احفظ.",
     "staff.saveOnSiteTab": "التغييرات تُزامَن عند الحفظ من تبويب الموقع.",
     "staff.copy.title": "نصوص الواجهة (عربي / إنجليزي)",
     "staff.copy.intro": "تعديل القائمة والصفحة الرئيسية والتذييل والشريط العلوي. الحقل الفارغ يستخدم الترجمة المدمجة.",

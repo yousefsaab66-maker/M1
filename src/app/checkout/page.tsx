@@ -26,6 +26,7 @@ import {
   toIqd,
   type GovernorateCode,
 } from "@/lib/iraq";
+import { getUsdIqdRate } from "@/lib/site-display";
 
 type FieldErrors = Partial<{
   name: string;
@@ -39,7 +40,7 @@ type FieldErrors = Partial<{
 export default function CheckoutPage() {
   const router = useRouter();
   const { t, locale } = useLocale();
-  const { bag, products, placeOrder, hydrated } = useStore();
+  const { bag, products, placeOrder, hydrated, site } = useStore();
 
   const items = useMemo(
     () =>
@@ -50,7 +51,8 @@ export default function CheckoutPage() {
   );
   const subtotal = items.reduce((s, { b, p }) => s + p.price * b.qty, 0);
   const currency = items[0]?.p.currency ?? "EUR";
-  const subtotalIqd = toIqd(subtotal, currency);
+  const usdIqdRate = getUsdIqdRate(site);
+  const subtotalIqd = toIqd(subtotal, currency, { usdIqdRate });
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");

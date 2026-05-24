@@ -9,7 +9,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { SafeImage } from "@/components/SafeImage";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
-import { formatPrice } from "@/lib/format";
+import { ProductPrice } from "@/components/ProductPrice";
 import { productGallerySources, productImageAt } from "@/lib/product-media";
 import type { Product } from "@/lib/catalog";
 
@@ -181,7 +181,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
       <p className="eyebrow">{product.collection.replace("muhra-", "MUHRA ")}</p>
       <h1 className="font-display mt-4 text-4xl leading-[1.05] md:text-5xl">{product.name}</h1>
       <p className="mt-3 italic opacity-75">{product.description}</p>
-      <p className="mt-7 text-2xl">{formatPrice(product.price, product.currency, locale)}</p>
+      <ProductPrice amount={product.price} currency={product.currency} size="lg" className="mt-7" />
 
       <dl className="mt-8 grid grid-cols-2 gap-y-3 text-sm">
         <dt className="eyebrow opacity-65">{t("common.materials")}</dt>

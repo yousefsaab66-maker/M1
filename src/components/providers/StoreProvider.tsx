@@ -32,7 +32,7 @@ import {
 } from "@/lib/catalog-defaults";
 import type { BagItem, Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
 import { isIraqCountry, SHIPPING_FEE_IQD, toIqd, type GovernorateCode } from "@/lib/iraq";
-import { normalizeSiteContent } from "@/lib/site-display";
+import { getUsdIqdRate, normalizeSiteContent } from "@/lib/site-display";
 import { sanitizeSiteContentForServer } from "@/lib/site-content-storage";
 import { isR2PublicConfiguredClient } from "@/lib/r2-config";
 import {
@@ -880,7 +880,8 @@ export function StoreProvider({
     if (items.length === 0) return null;
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const currency: Currency = items[0].currency;
-    const subtotalIqd = toIqd(subtotal, currency);
+    const usdIqdRate = getUsdIqdRate(site);
+    const subtotalIqd = toIqd(subtotal, currency, { usdIqdRate });
     const order: Order = {
       id: buildOrderId(),
       createdAt: new Date().toISOString(),
@@ -904,7 +905,7 @@ export function StoreProvider({
     setBag([]);
     writeJSON(KEY_BAG, []);
     return order;
-  }, [supabaseReady, bag, buildOrderItems, user]);
+  }, [supabaseReady, bag, buildOrderItems, user, site]);
 
   const placeOrder = useCallback(
     async (
@@ -930,7 +931,8 @@ export function StoreProvider({
       if (items.length === 0) return { ok: false, error: "empty" };
       const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
       const currency: Currency = items[0].currency;
-      const subtotalIqd = toIqd(subtotal, currency);
+      const usdIqdRate = getUsdIqdRate(site);
+      const subtotalIqd = toIqd(subtotal, currency, { usdIqdRate });
       const international = !isIraqCountry(input.customer.country);
       const shippingFeeIqd = international ? undefined : SHIPPING_FEE_IQD;
       const customer = {
@@ -963,7 +965,7 @@ export function StoreProvider({
       writeJSON(KEY_BAG, []);
       return { ok: true, order };
     },
-    [supabaseReady, bag, buildOrderItems],
+    [supabaseReady, bag, buildOrderItems, site],
   );
 
   const setOrderStatus = useCallback(

@@ -37,11 +37,28 @@ export const IQD_PER_JPY = 8.7;
 /** Static flat shipping fee in IQD. */
 export const SHIPPING_FEE_IQD = 5000;
 
+export type ToIqdOptions = {
+  /** Staff-set IQD per 1 USD; falls back to {@link IQD_PER_USD}. */
+  usdIqdRate?: number;
+};
+
+function resolveUsdIqdRate(usdIqdRate?: number): number {
+  if (typeof usdIqdRate === "number" && Number.isFinite(usdIqdRate) && usdIqdRate > 0) {
+    return Math.round(usdIqdRate);
+  }
+  return IQD_PER_USD;
+}
+
 /** Convert a primary-currency amount to a rough IQD figure for display. */
-export function toIqd(amount: number, currency: "EUR" | "USD" | "AED" | "JPY"): number {
+export function toIqd(
+  amount: number,
+  currency: "EUR" | "USD" | "AED" | "JPY",
+  opts?: ToIqdOptions,
+): number {
+  const usdRate = resolveUsdIqdRate(opts?.usdIqdRate);
   switch (currency) {
     case "USD":
-      return Math.round(amount * IQD_PER_USD);
+      return Math.round(amount * usdRate);
     case "EUR":
       return Math.round(amount * IQD_PER_EUR);
     case "AED":
@@ -49,7 +66,7 @@ export function toIqd(amount: number, currency: "EUR" | "USD" | "AED" | "JPY"): 
     case "JPY":
       return Math.round(amount * IQD_PER_JPY);
     default:
-      return Math.round(amount * IQD_PER_USD);
+      return Math.round(amount * usdRate);
   }
 }
 

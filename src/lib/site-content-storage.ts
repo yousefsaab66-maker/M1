@@ -1,6 +1,6 @@
 import type { SiteContent } from "@/lib/catalog";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
-import { CATALOG_CATEGORIES, normalizeSiteContent } from "@/lib/site-display";
+import { CATALOG_CATEGORIES, getUsdIqdRate, normalizeSiteContent } from "@/lib/site-display";
 
 export type SanitizeSiteResult =
   | { ok: true; site: SiteContent }
@@ -73,6 +73,7 @@ export function sanitizeSiteContentForServer(site: SiteContent): SanitizeSiteRes
     ...normalized,
     heroVideo: heroVideo || undefined,
     heroPoster: heroPoster || undefined,
+    usdIqdRate: getUsdIqdRate(normalized),
     categories,
     homepage: {
       ...normalized.homepage,

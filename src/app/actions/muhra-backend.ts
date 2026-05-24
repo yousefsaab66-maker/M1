@@ -6,6 +6,8 @@ import type { Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
 import { isValidInternationalPhone } from "@/lib/countries";
 import { isDatabaseProductId } from "@/lib/catalog-db";
 import { isIraqCountry, normalizeIraqiPhone, SHIPPING_FEE_IQD, toIqd } from "@/lib/iraq";
+import { fetchStorefront } from "@/lib/storefront-query";
+import { getUsdIqdRate } from "@/lib/site-display";
 import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
@@ -68,7 +70,9 @@ export async function createOrderRemote(
     currency = r.currency as Order["currency"];
   }
 
-  const subtotalIqd = toIqd(subtotal, currency);
+  const storefront = await fetchStorefront();
+  const usdIqdRate = storefront.kind === "ok" ? getUsdIqdRate(storefront.site) : undefined;
+  const subtotalIqd = toIqd(subtotal, currency, { usdIqdRate });
   const shippingFeeIqd = international ? undefined : SHIPPING_FEE_IQD;
   const totalIqd = subtotalIqd + (shippingFeeIqd ?? 0);
 

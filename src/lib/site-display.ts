@@ -1,5 +1,9 @@
 import type { Category, Collection, Product, SiteContent } from "@/lib/catalog";
 import { HERO_POSTER } from "@/lib/catalog";
+import { IQD_PER_USD } from "@/lib/iraq";
+
+const USD_IQD_RATE_MIN = 500;
+const USD_IQD_RATE_MAX = 10_000;
 
 /** Categories shown on the homepage strip (order fixed). */
 export const HOME_CATEGORY_STRIP: Category[] = ["necklaces", "rings", "earrings", "bracelets"];
@@ -93,14 +97,26 @@ export function featuredHomeProducts(products: Product[], site: SiteContent): Pr
     .slice(0, 8);
 }
 
+/** Staff-managed IQD per 1 USD (daily). Invalid/missing values use the built-in default. */
+export function getUsdIqdRate(site?: SiteContent | null): number {
+  const raw = site?.usdIqdRate;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const rounded = Math.round(raw);
+    if (rounded >= USD_IQD_RATE_MIN && rounded <= USD_IQD_RATE_MAX) return rounded;
+  }
+  return IQD_PER_USD;
+}
+
 /** Ensures nested keys exist when loading older localStorage snapshots. */
 export function normalizeSiteContent(site: SiteContent): SiteContent {
+  const usdIqdRate = getUsdIqdRate(site);
   return {
     ...site,
     heroPoster: site.heroPoster ?? "",
     categories: site.categories ?? {},
     copyEn: site.copyEn ?? {},
     copyAr: site.copyAr ?? {},
+    usdIqdRate,
     homepage: {
       featuredProductIds: site.homepage?.featuredProductIds ?? [],
       featuredCollectionSlug: site.homepage?.featuredCollectionSlug ?? "",

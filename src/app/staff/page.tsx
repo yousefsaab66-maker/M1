@@ -1803,7 +1803,31 @@ function SitePane() {
               </Field>
             </div>
           </div>
+        </div>
 
+        <div className="staff-card grid min-w-0 gap-4 p-5 sm:p-6">
+          <p className="eyebrow text-[10px]">{t("staff.site.usdRateTitle")}</p>
+          <p className="text-sm opacity-70">{t("staff.site.usdRateHint")}</p>
+          <div className="max-w-xs">
+            <Field label={t("staff.site.usdRateLabel")}>
+              <input
+                type="number"
+                className="staff-input w-full"
+                min={500}
+                max={10000}
+                step={1}
+                value={draft.usdIqdRate ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value.trim();
+                  setDraft({
+                    ...draft,
+                    usdIqdRate: v === "" ? undefined : Math.round(Number(v)),
+                  });
+                }}
+                required
+              />
+            </Field>
+          </div>
         </div>
 
         <StaffSiteTextsEditor draft={draft} setDraft={setDraft} />
