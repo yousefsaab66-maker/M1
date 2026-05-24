@@ -15,7 +15,8 @@ import {
   isValidInternationalPhone,
   type CountryCode,
 } from "@/lib/countries";
-import { formatPrice } from "@/lib/format";
+import { ProductPrice } from "@/components/ProductPrice";
+import { formatCustomerPrice, getCustomerPriceParts } from "@/lib/customer-price";
 import {
   IRAQ_GOVERNORATES,
   IRAQI_PHONE_REGEX,
@@ -52,7 +53,9 @@ export default function CheckoutPage() {
   const subtotal = items.reduce((s, { b, p }) => s + p.price * b.qty, 0);
   const currency = items[0]?.p.currency ?? "EUR";
   const usdIqdRate = getUsdIqdRate(site);
-  const subtotalIqd = toIqd(subtotal, currency, { usdIqdRate });
+  const rateOpts = { usdIqdRate };
+  const subtotalIqd = toIqd(subtotal, currency, rateOpts);
+  const subtotalDisplay = getCustomerPriceParts(subtotal, currency, locale, rateOpts);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -373,22 +376,31 @@ export default function CheckoutPage() {
                   <div className="min-w-0">
                     <p className="font-display text-base leading-tight">{p.name}</p>
                     <p className="mt-0.5 text-[10px] tracking-eyebrow uppercase opacity-65">
-                      {b.qty} × {formatPrice(p.price, p.currency, locale)}
+                      {b.qty} × {formatCustomerPrice(p.price, p.currency, locale, rateOpts)}
                       {b.size ? ` · ${b.size}` : ""}
                     </p>
                   </div>
-                  <p className="text-sm">{formatPrice(p.price * b.qty, p.currency, locale)}</p>
+                  <ProductPrice
+                    amount={p.price * b.qty}
+                    currency={p.currency}
+                    size="sm"
+                    align="end"
+                    showOriginal={p.currency !== "IQD"}
+                  />
                 </li>
               ))}
             </ul>
             <div className="hairline my-6" />
-            <div className="flex items-center justify-between text-sm">
-              <span className="opacity-75">{t("common.subtotal")}</span>
-              <span>{formatPrice(subtotal, currency, locale)}</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between text-xs opacity-70">
-              <span>{t("checkout.iqdEquivalent")}</span>
-              <span>{formatIqd(subtotalIqd, locale)}</span>
+            <div className="flex flex-col items-end gap-0.5 text-sm">
+              <div className="flex w-full items-center justify-between">
+                <span className="opacity-75">{t("common.subtotal")}</span>
+                <span>{subtotalDisplay.primary}</span>
+              </div>
+              {subtotalDisplay.secondary && (
+                <p className="text-[11px] opacity-65">
+                  {t("price.originalListing").replace("{amount}", subtotalDisplay.secondary)}
+                </p>
+              )}
             </div>
             <div className="mt-3 flex items-center justify-between text-sm">
               <span className="opacity-75">{t("checkout.shipping")}</span>
@@ -402,13 +414,16 @@ export default function CheckoutPage() {
             <div className="flex items-center justify-between">
               <span className="eyebrow">{t("checkout.total")}</span>
               <div className="text-end">
-                <p className="font-display text-2xl">
-                  {formatPrice(subtotal, currency, locale)}
-                </p>
-                {isIraq ? (
-                  <p className="text-[11px] opacity-65">≈ {formatIqd(totalIqd, locale)}</p>
-                ) : (
-                  <p className="text-[11px] opacity-65">{t("checkout.totalInternationalHint")}</p>
+                <p className="font-display text-2xl">{formatIqd(totalIqd, locale)}</p>
+                {subtotalDisplay.secondary && (
+                  <p className="text-[11px] opacity-65">
+                    {t("price.originalListing").replace("{amount}", subtotalDisplay.secondary)}
+                  </p>
+                )}
+                {!isIraq && (
+                  <p className="mt-0.5 text-[11px] opacity-65">
+                    {t("checkout.totalInternationalHint")}
+                  </p>
                 )}
               </div>
             </div>

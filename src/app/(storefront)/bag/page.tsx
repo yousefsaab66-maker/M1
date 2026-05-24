@@ -7,8 +7,8 @@ import { SectionTitle } from "@/components/Section";
 import { SafeImage } from "@/components/SafeImage";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore, type BagItem } from "@/components/providers/StoreProvider";
-import { formatPrice } from "@/lib/format";
-import { formatIqd, toIqd } from "@/lib/iraq";
+import { ProductPrice } from "@/components/ProductPrice";
+import { getCustomerPriceParts } from "@/lib/customer-price";
 import { getUsdIqdRate } from "@/lib/site-display";
 
 export default function BagPage() {
@@ -21,7 +21,8 @@ export default function BagPage() {
   const subtotal = items.reduce((s, { b, p }) => s + p.price * b.qty, 0);
   const currency = items[0]?.p.currency ?? "EUR";
   const usdIqdRate = getUsdIqdRate(site);
-  const subtotalIqd = toIqd(subtotal, currency, { usdIqdRate });
+  const rateOpts = { usdIqdRate };
+  const subtotalDisplay = getCustomerPriceParts(subtotal, currency, locale, rateOpts);
 
   const onCheckout = () => {
     router.push("/checkout" as never);
@@ -112,7 +113,13 @@ export default function BagPage() {
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm">{formatPrice(p.price * b.qty, p.currency, locale)}</p>
+                  <ProductPrice
+                    amount={p.price * b.qty}
+                    currency={p.currency}
+                    size="sm"
+                    align="end"
+                    showOriginal={p.currency !== "IQD"}
+                  />
                 </li>
               ))}
               <div className="border-t" style={{ borderColor: "var(--line)" }} />
@@ -124,13 +131,16 @@ export default function BagPage() {
             >
               <div className="p-8">
                 <h3 className="font-display text-2xl">{t("checkout.summary")}</h3>
-                <div className="mt-7 flex items-center justify-between text-sm">
-                  <span className="opacity-75">{t("common.subtotal")}</span>
-                  <span>{formatPrice(subtotal, currency, locale)}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between text-xs opacity-70">
-                  <span>{t("checkout.iqdEquivalent")}</span>
-                  <span>{formatIqd(subtotalIqd, locale)}</span>
+                <div className="mt-7 flex flex-col items-end gap-0.5 text-sm">
+                  <div className="flex w-full items-center justify-between">
+                    <span className="opacity-75">{t("common.subtotal")}</span>
+                    <span>{subtotalDisplay.primary}</span>
+                  </div>
+                  {subtotalDisplay.secondary && (
+                    <p className="text-[11px] opacity-65">
+                      {t("price.originalListing").replace("{amount}", subtotalDisplay.secondary)}
+                    </p>
+                  )}
                 </div>
                 <div className="mt-3 flex items-center justify-between text-sm">
                   <span className="opacity-75">{t("checkout.shipping")}</span>

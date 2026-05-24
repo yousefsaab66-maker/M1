@@ -9,6 +9,10 @@ const LOCALE_TO_INTL: Record<Locale, string> = {
   ar: "ar-AE",
 };
 
+export { formatCustomerPrice, getCustomerPriceParts } from "./customer-price";
+export type { CustomerPriceParts, DisplayCurrency } from "./customer-price";
+
+/** Staff and raw currency formatting (not IQD-first storefront display). */
 export function formatPrice(amount: number, currency: Currency, locale: Locale = "en") {
   try {
     return new Intl.NumberFormat(LOCALE_TO_INTL[locale] ?? "en-US", {

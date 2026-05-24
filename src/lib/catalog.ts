@@ -19,7 +19,7 @@ export type Stone =
   | "amethyst"
   | "none";
 
-export type Currency = "EUR" | "USD" | "AED" | "JPY";
+export type Currency = "EUR" | "USD" | "AED" | "JPY" | "IQD";
 
 export interface Product {
   id: string;

@@ -1,18 +1,19 @@
 "use client";
 
-import type { Currency } from "@/lib/catalog";
-import { formatPrice } from "@/lib/format";
-import { formatIqd, toIqd } from "@/lib/iraq";
+import type { DisplayCurrency } from "@/lib/customer-price";
+import { getCustomerPriceParts } from "@/lib/customer-price";
 import { getUsdIqdRate } from "@/lib/site-display";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
 
 type ProductPriceProps = {
   amount: number;
-  currency: Currency;
+  currency: DisplayCurrency;
   size?: "sm" | "md" | "lg";
   className?: string;
-  showIqdHint?: boolean;
+  /** When true, show listing currency below IQD (if not already IQD). */
+  showOriginal?: boolean;
+  align?: "start" | "end" | "center";
 };
 
 const SIZE_CLASS: Record<NonNullable<ProductPriceProps["size"]>, string> = {
@@ -21,25 +22,34 @@ const SIZE_CLASS: Record<NonNullable<ProductPriceProps["size"]>, string> = {
   lg: "text-2xl",
 };
 
+const ALIGN_CLASS: Record<NonNullable<ProductPriceProps["align"]>, string> = {
+  start: "text-start",
+  end: "text-end",
+  center: "text-center",
+};
+
 export function ProductPrice({
   amount,
   currency,
   size = "sm",
   className = "",
-  showIqdHint = true,
+  showOriginal = true,
+  align = "center",
 }: ProductPriceProps) {
   const { site } = useStore();
   const { locale, t } = useLocale();
   const usdIqdRate = getUsdIqdRate(site);
-  const iqd = toIqd(amount, currency, { usdIqdRate });
+  const { primary, secondary } = getCustomerPriceParts(amount, currency, locale, {
+    usdIqdRate,
+  });
   const primaryClass = SIZE_CLASS[size];
 
   return (
-    <div className={className}>
-      <p className={primaryClass}>{formatPrice(amount, currency, locale)}</p>
-      {showIqdHint && (
+    <div className={`${ALIGN_CLASS[align]} ${className}`.trim()}>
+      <p className={primaryClass}>{primary}</p>
+      {showOriginal && secondary && (
         <p className="mt-0.5 text-[11px] opacity-65">
-          {t("price.approxIqd").replace("{amount}", formatIqd(iqd, locale))}
+          {t("price.originalListing").replace("{amount}", secondary)}
         </p>
       )}
     </div>

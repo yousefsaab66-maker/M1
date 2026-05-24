@@ -78,9 +78,10 @@ export function orderRevenueIqd(
 /** Convert a primary-currency amount to a rough IQD figure for display. */
 export function toIqd(
   amount: number,
-  currency: "EUR" | "USD" | "AED" | "JPY",
+  currency: "EUR" | "USD" | "AED" | "JPY" | "IQD",
   opts?: ToIqdOptions,
 ): number {
+  if (currency === "IQD") return Math.round(amount);
   const usdRate = resolveUsdIqdRate(opts?.usdIqdRate);
   switch (currency) {
     case "USD":

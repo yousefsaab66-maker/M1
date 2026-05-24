@@ -757,7 +757,7 @@ function ProductEditor({
             </Field>
             <Field label={t("staff.form.currency")}>
               <select className="staff-input" value={draft.currency} onChange={(e) => update("currency", e.target.value as Currency)}>
-                {(["EUR", "USD", "AED", "JPY"] as const).map((c) => (
+                {(["EUR", "USD", "AED", "JPY", "IQD"] as const).map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

@@ -423,7 +423,7 @@ export const DICTS: Record<Locale, Dict> = {
     // Product detail
     "product.notFound": "Not found",
     "product.imageAlt": "Image",
-    "price.approxIqd": "≈ {amount}",
+    "price.originalListing": "{amount}",
     "product.new": "New",
     "product.sizeRequired": "Please select a size before adding to bag.",
     "product.back": "Back",
@@ -2154,7 +2154,7 @@ export const DICTS: Record<Locale, Dict> = {
     "products.empty": "لا توجد قطع تطابق هذا الاختيار.",
     "product.notFound": "غير موجود",
     "product.imageAlt": "صورة",
-    "price.approxIqd": "≈ {amount}",
+    "price.originalListing": "{amount}",
     "product.new": "جديد",
     "product.sizeRequired": "يرجى اختيار المقاس قبل الإضافة إلى السلة.",
     "product.back": "عودة",

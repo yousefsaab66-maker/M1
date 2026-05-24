@@ -7,15 +7,21 @@ import { Check } from "lucide-react";
 import { SectionTitle } from "@/components/Section";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
-import { formatPrice } from "@/lib/format";
+import { getCustomerPriceParts } from "@/lib/customer-price";
 import { formatIqd, isIraqCountry } from "@/lib/iraq";
+import { getUsdIqdRate } from "@/lib/site-display";
 
 function SuccessInner() {
   const sp = useSearchParams();
   const orderId = sp.get("orderId");
-  const { orders, hydrated } = useStore();
+  const { orders, hydrated, site } = useStore();
   const { t, locale } = useLocale();
   const order = useMemo(() => orders.find((o) => o.id === orderId), [orders, orderId]);
+  const usdIqdRate = getUsdIqdRate(site);
+  const rateOpts = { usdIqdRate };
+  const subtotalDisplay = order
+    ? getCustomerPriceParts(order.subtotal, order.currency, locale, rateOpts)
+    : null;
   const international =
     Boolean(order?.customer?.international) || !isIraqCountry(order?.customer?.country);
   const countryCode = order?.customer?.country ?? "IQ";
@@ -53,22 +59,42 @@ function SuccessInner() {
           >
             <p className="eyebrow">{t("checkout.summary")}</p>
             <ul className="mt-4 space-y-2">
-              {order.items.map((it, idx) => (
-                <li key={idx} className="flex items-center justify-between gap-3">
-                  <span className="text-sm">
-                    {it.name}
-                    <span className="opacity-65"> × {it.qty}</span>
-                  </span>
-                  <span className="text-sm">
-                    {formatPrice(it.qty * it.price, order.currency, locale)}
-                  </span>
-                </li>
-              ))}
+              {order.items.map((it, idx) => {
+                const line = getCustomerPriceParts(
+                  it.qty * it.price,
+                  order.currency,
+                  locale,
+                  rateOpts,
+                );
+                return (
+                  <li key={idx} className="flex items-start justify-between gap-3">
+                    <span className="text-sm">
+                      {it.name}
+                      <span className="opacity-65"> × {it.qty}</span>
+                    </span>
+                    <span className="text-end text-sm">
+                      <span className="block">{line.primary}</span>
+                      {line.secondary && (
+                        <span className="mt-0.5 block text-[11px] opacity-65">
+                          {t("price.originalListing").replace("{amount}", line.secondary)}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
             <div className="hairline my-5" />
-            <div className="flex items-center justify-between text-sm">
-              <span className="opacity-75">{t("common.subtotal")}</span>
-              <span>{formatPrice(order.subtotal, order.currency, locale)}</span>
+            <div className="flex flex-col items-end gap-0.5 text-sm">
+              <div className="flex w-full items-center justify-between">
+                <span className="opacity-75">{t("common.subtotal")}</span>
+                <span>{subtotalDisplay?.primary}</span>
+              </div>
+              {subtotalDisplay?.secondary && (
+                <p className="text-[11px] opacity-65">
+                  {t("price.originalListing").replace("{amount}", subtotalDisplay.secondary)}
+                </p>
+              )}
             </div>
             {typeof order.shippingFeeIqd === "number" && (
               <div className="flex items-center justify-between text-sm">
