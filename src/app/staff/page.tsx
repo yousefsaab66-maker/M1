@@ -43,6 +43,7 @@ import { formatDate, formatPrice, slugify } from "@/lib/format";
 import { formatIqd, iqdToUsd, isIraqCountry, orderRevenueIqd } from "@/lib/iraq";
 import {
   ensureProductOrderable,
+  MUHRA_PLACEHOLDER_IMAGE,
   productGallerySources,
   productHasEmbeddedImages,
   productImageAt,
@@ -1225,6 +1226,11 @@ function staffOrderRevenueUsd(order: Order, usdIqdRate: number) {
   return { iqd, usd: iqdToUsd(iqd, rateOpts) };
 }
 
+function orderLineThumbnail(productId: string, products: Product[]): string {
+  const p = products.find((x) => x.id === productId);
+  return p ? productImageAt(p, 0) : MUHRA_PLACEHOLDER_IMAGE;
+}
+
 function OrdersPane() {
   const { orders, products, setOrderStatus, removeOrder, site } = useStore();
   const { t, locale } = useLocale();
@@ -1458,22 +1464,32 @@ function OrdersPane() {
                             <ul className="mt-2 space-y-2">
                               {o.items.map((it, idx) => {
                                 const p = products.find((x) => x.id === it.productId);
+                                const thumbSrc = orderLineThumbnail(it.productId, products);
                                 return (
                                   <li
                                     key={idx}
-                                    className="flex items-center justify-between gap-3"
+                                    className="flex items-center gap-3"
                                   >
-                                    <div>
-                                      <p className="text-sm">{it.name}</p>
-                                      <p className="text-[11px] opacity-65">
-                                        {it.qty} × {formatPrice(it.price, o.currency, locale)}
-                                        {it.size ? ` · ${it.size}` : ""}
-                                        {p ? ` · /${p.slug}` : ""}
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={thumbSrc}
+                                      alt=""
+                                      className="h-12 w-12 shrink-0 border object-cover"
+                                      style={{ borderColor: "var(--line)" }}
+                                    />
+                                    <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="text-sm">{it.name}</p>
+                                        <p className="text-[11px] opacity-65">
+                                          {it.qty} × {formatPrice(it.price, o.currency, locale)}
+                                          {it.size ? ` · ${it.size}` : ""}
+                                          {p ? ` · /${p.slug}` : ""}
+                                        </p>
+                                      </div>
+                                      <p className="shrink-0 text-sm">
+                                        {formatPrice(it.qty * it.price, o.currency, locale)}
                                       </p>
                                     </div>
-                                    <p className="text-sm">
-                                      {formatPrice(it.qty * it.price, o.currency, locale)}
-                                    </p>
                                   </li>
                                 );
                               })}
