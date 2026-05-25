@@ -259,6 +259,7 @@ async function fetchStorefrontJson(signal?: AbortSignal) {
     collections: res.collections,
     journal: res.journal,
     boutiques: res.boutiques,
+    catalogProducts: res.catalogProducts,
     updatedAt: res.updatedAt,
     source: res.source,
   };
@@ -341,7 +342,7 @@ type CatalogHandlers = {
   onCatalogLoaded?: () => void;
 };
 
-/** Storefront visitors: R2 CDN for site JSON, cached products API — avoids heavy bootstrap Worker. */
+/** Storefront visitors: R2 CDN (site + slim catalogProducts), products API only as fallback. */
 async function loadStorefrontVisitorCatalog(
   gen: number,
   signal: AbortSignal,
@@ -361,6 +362,10 @@ async function loadStorefrontVisitorCatalog(
       sfHandlers,
     );
     if (cdnSf.source === "r2") sfHandlers.setR2Ready(true);
+    if (cdnSf.catalogProducts && cdnSf.catalogProducts.length > 0) {
+      applyRemoteCatalog(gen, cdnSf.catalogProducts, catalogHandlers);
+      return;
+    }
   }
 
   const catalogAc = new AbortController();
@@ -370,7 +375,10 @@ async function loadStorefrontVisitorCatalog(
 
   if (catalogRes.ok) {
     applyRemoteCatalog(gen, catalogRes.products, catalogHandlers);
-  } else if (!cdnSf.ok) {
+    return;
+  }
+
+  if (!cdnSf.ok) {
     const apiSf = await fetchStorefrontFromApi(signal);
     if (apiSf.ok) {
       applyRemoteStorefrontIfNewer(
@@ -383,11 +391,14 @@ async function loadStorefrontVisitorCatalog(
         sfHandlers,
       );
       if (apiSf.source === "r2") sfHandlers.setR2Ready(true);
+      if (apiSf.catalogProducts && apiSf.catalogProducts.length > 0) {
+        applyRemoteCatalog(gen, apiSf.catalogProducts, catalogHandlers);
+        return;
+      }
     }
-    if (gen === catalogHandlers.catalogApplyGenRef.current) {
-      recoverCatalog();
-    }
-  } else if (gen === catalogHandlers.catalogApplyGenRef.current) {
+  }
+
+  if (gen === catalogHandlers.catalogApplyGenRef.current) {
     recoverCatalog();
   }
 }
@@ -569,6 +580,18 @@ export function StoreProvider({
           boutiques: res.boutiques ?? undefined,
         });
         if (res.source === "r2") setR2Ready(true);
+        if (res.catalogProducts && res.catalogProducts.length > 0 && !isStaffPath()) {
+          const gen = (catalogApplyGenRef.current += 1);
+          applyRemoteCatalog(gen, res.catalogProducts, {
+            setRemoteCatalog,
+            setSupabaseReady,
+            setProductsState,
+            catalogApplyGenRef,
+            onCatalogLoaded: () => {
+              catalogLoadedAtRef.current = Date.now();
+            },
+          });
+        }
       }
     } catch {
       /* ignore */
@@ -729,6 +752,18 @@ export function StoreProvider({
             sfHandlers,
           );
           if (sfRes.source === "r2") setR2Ready(true);
+          if (sfRes.catalogProducts && sfRes.catalogProducts.length > 0) {
+            applyRemoteCatalog(gen, sfRes.catalogProducts, {
+              setRemoteCatalog,
+              setSupabaseReady,
+              setProductsState,
+              catalogApplyGenRef,
+              onCatalogLoaded: () => {
+                catalogLoadedAtRef.current = Date.now();
+              },
+            });
+            return;
+          }
         }
 
         const skipProducts =

@@ -1,4 +1,4 @@
-import type { Boutique, Collection, JournalArticle, SiteContent } from "@/lib/catalog";
+import type { Boutique, Collection, JournalArticle, Product, SiteContent } from "@/lib/catalog";
 import { normalizeSiteContent } from "@/lib/site-display";
 
 export type StorefrontClientPayload = {
@@ -6,6 +6,7 @@ export type StorefrontClientPayload = {
   collections: Collection[];
   journal?: JournalArticle[];
   boutiques?: Boutique[];
+  catalogProducts?: Product[];
   updatedAt?: string;
 };
 
@@ -16,6 +17,7 @@ export type FetchStorefrontClientResult =
       collections: Collection[];
       journal: JournalArticle[] | null;
       boutiques: Boutique[] | null;
+      catalogProducts: Product[] | null;
       updatedAt: string | null;
       source: "r2" | "api";
     }
@@ -74,12 +76,16 @@ export async function fetchStorefrontFromPublicCdn(
     if (!res.ok) return { ok: false };
     const parsed = parseStorefrontPayload(await res.json());
     if (!parsed) return { ok: false };
+    const catalogProducts = Array.isArray(parsed.catalogProducts)
+      ? (parsed.catalogProducts as Product[])
+      : null;
     const result: FetchStorefrontClientResult = {
       ok: true,
       site: normalizeSiteContent(parsed.site),
       collections: parsed.collections,
       journal: Array.isArray(parsed.journal) ? parsed.journal : null,
       boutiques: Array.isArray(parsed.boutiques) ? parsed.boutiques : null,
+      catalogProducts: catalogProducts && catalogProducts.length > 0 ? catalogProducts : null,
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
       source: "r2",
     };
@@ -111,18 +117,21 @@ export async function fetchStorefrontFromApi(
       collections?: Collection[] | null;
       journal?: JournalArticle[] | null;
       boutiques?: Boutique[] | null;
+      catalogProducts?: Product[] | null;
       updatedAt?: string | null;
       source?: "r2" | "none";
     };
     if (!d.site || typeof d.site !== "object" || !Array.isArray(d.collections)) {
       return { ok: false };
     }
+    const catalogProducts = Array.isArray(d.catalogProducts) ? d.catalogProducts : null;
     const result: FetchStorefrontClientResult = {
       ok: true,
       site: normalizeSiteContent(d.site),
       collections: d.collections,
       journal: Array.isArray(d.journal) ? d.journal : null,
       boutiques: Array.isArray(d.boutiques) ? d.boutiques : null,
+      catalogProducts: catalogProducts && catalogProducts.length > 0 ? catalogProducts : null,
       updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : null,
       source: d.source === "r2" ? "r2" : "api",
     };

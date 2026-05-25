@@ -6,8 +6,10 @@ import {
   type Boutique,
   type Collection,
   type JournalArticle,
+  type Product,
   type SiteContent,
 } from "@/lib/catalog";
+import { fetchCatalogProductsForList } from "@/lib/catalog-products-query";
 import { normalizeSiteContent } from "@/lib/site-display";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import { isStorableMediaUrl, sanitizeSiteContentForServer } from "@/lib/site-content-storage";
@@ -16,11 +18,16 @@ import { SITE_SETTINGS_R2_KEY } from "@/lib/site-settings-r2";
 
 export const STOREFRONT_R2_KEY = "site/storefront.json";
 
+/** Slim product rows embedded in storefront.json (CDN) — same shape as list API. */
+export type StorefrontCatalogProduct = Product;
+
 export type StorefrontPayload = {
   site: SiteContent;
   collections: Collection[];
   journal: JournalArticle[];
   boutiques: Boutique[];
+  /** Light catalog for store visitors (no Worker products API on first paint). */
+  catalogProducts?: StorefrontCatalogProduct[];
   updatedAt: string;
 };
 
@@ -84,6 +91,9 @@ export async function readStorefrontFromR2(): Promise<ReadStorefrontR2Result> {
     if (obj) {
       const parsed = JSON.parse(await obj.text()) as Partial<StorefrontPayload>;
       if (parsed?.site && Array.isArray(parsed.collections)) {
+        const catalogProducts = Array.isArray(parsed.catalogProducts)
+          ? (parsed.catalogProducts as StorefrontCatalogProduct[])
+          : undefined;
         return {
           ok: true,
           data: {
@@ -91,6 +101,8 @@ export async function readStorefrontFromR2(): Promise<ReadStorefrontR2Result> {
             collections: parsed.collections,
             journal: Array.isArray(parsed.journal) ? parsed.journal : SEED_JOURNAL,
             boutiques: Array.isArray(parsed.boutiques) ? parsed.boutiques : SEED_BOUTIQUES,
+            catalogProducts:
+              catalogProducts && catalogProducts.length > 0 ? catalogProducts : undefined,
             updatedAt:
               typeof parsed.updatedAt === "string"
                 ? parsed.updatedAt
@@ -162,11 +174,20 @@ export async function writeStorefrontToR2(
   if (!boutiquesSan.ok) return { ok: false, error: "embedded_media" };
 
   const updatedAt = new Date().toISOString();
+  const catalogResult = await fetchCatalogProductsForList();
+  const catalogProducts =
+    catalogResult.kind === "ok" && catalogResult.products.length > 0
+      ? catalogResult.products
+      : current.ok && current.data?.catalogProducts
+        ? current.data.catalogProducts
+        : undefined;
+
   const payload: StorefrontPayload = {
     site: siteSan.site,
     collections: colSan.collections,
     journal: journalSan.journal,
     boutiques: boutiquesSan.boutiques,
+    ...(catalogProducts && catalogProducts.length > 0 ? { catalogProducts } : {}),
     updatedAt,
   };
 

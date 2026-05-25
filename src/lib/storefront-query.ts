@@ -6,6 +6,7 @@ import {
   type Boutique,
   type Collection,
   type JournalArticle,
+  type Product,
   type SiteContent,
 } from "@/lib/catalog";
 import { normalizeSiteContent } from "@/lib/site-display";
@@ -18,6 +19,7 @@ export type FetchStorefrontResult =
       collections: Collection[] | null;
       journal: JournalArticle[] | null;
       boutiques: Boutique[] | null;
+      catalogProducts: Product[] | null;
       updatedAt: string | null;
       source: "r2" | "none";
     }
@@ -41,6 +43,7 @@ export async function fetchStorefront(): Promise<FetchStorefrontResult> {
       collections: r2.data.collections,
       journal: r2.data.journal,
       boutiques: r2.data.boutiques,
+      catalogProducts: r2.data.catalogProducts ?? null,
       updatedAt: r2.data.updatedAt,
       source: "r2",
     };
@@ -54,6 +57,7 @@ export async function fetchStorefront(): Promise<FetchStorefrontResult> {
     collections: null,
     journal: null,
     boutiques: null,
+    catalogProducts: null,
     updatedAt: null,
     source: "none",
   };

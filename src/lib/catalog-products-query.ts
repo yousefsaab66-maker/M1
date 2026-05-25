@@ -38,8 +38,15 @@ function rowToProductList(row: ProductRow): Product {
   };
 }
 
+const listInflight = new Map<string, Promise<FetchCatalogProductsResult>>();
+const fullInflight = new Map<string, Promise<FetchCatalogProductsResult>>();
+
+function inflightKey(options?: FetchCatalogProductsOptions) {
+  return options?.rawImages ? "raw" : "default";
+}
+
 /** Storefront list/cards — omits long text fields and extra gallery images. */
-export async function fetchCatalogProductsForList(
+async function fetchCatalogProductsForListInner(
   options?: FetchCatalogProductsOptions,
 ): Promise<FetchCatalogProductsResult> {
   if (!isSupabaseBackendConfigured()) return { kind: "not_configured" };
@@ -59,8 +66,22 @@ export async function fetchCatalogProductsForList(
   }
 }
 
-/** Shared by `/api/catalog/products?full=1` and staff — full rows for PDP/editor. */
-export async function fetchCatalogProducts(
+/** Coalesce concurrent list fetches (parallel homepage/API hits share one Supabase round-trip). */
+export async function fetchCatalogProductsForList(
+  options?: FetchCatalogProductsOptions,
+): Promise<FetchCatalogProductsResult> {
+  const key = inflightKey(options);
+  let p = listInflight.get(key);
+  if (!p) {
+    p = fetchCatalogProductsForListInner(options).finally(() => {
+      listInflight.delete(key);
+    });
+    listInflight.set(key, p);
+  }
+  return p;
+}
+
+async function fetchCatalogProductsInner(
   options?: FetchCatalogProductsOptions,
 ): Promise<FetchCatalogProductsResult> {
   if (!isSupabaseBackendConfigured()) return { kind: "not_configured" };
@@ -75,6 +96,21 @@ export async function fetchCatalogProducts(
     const msg = e instanceof Error ? e.message : "error";
     return { kind: "error", message: msg };
   }
+}
+
+/** Shared by `/api/catalog/products?full=1` and staff — full rows for PDP/editor. */
+export async function fetchCatalogProducts(
+  options?: FetchCatalogProductsOptions,
+): Promise<FetchCatalogProductsResult> {
+  const key = inflightKey(options);
+  let p = fullInflight.get(key);
+  if (!p) {
+    p = fetchCatalogProductsInner(options).finally(() => {
+      fullInflight.delete(key);
+    });
+    fullInflight.set(key, p);
+  }
+  return p;
 }
 
 export async function fetchCatalogProductBySlug(

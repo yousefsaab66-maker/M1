@@ -9,6 +9,15 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  try {
+    return await handleCatalogProductsGet(req);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "error";
+    return NextResponse.json({ error: msg }, { status: 500, headers: NO_STORE_JSON_HEADERS });
+  }
+}
+
+async function handleCatalogProductsGet(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug")?.trim();
   if (slug) {
     const one = await fetchCatalogProductBySlug(slug);
