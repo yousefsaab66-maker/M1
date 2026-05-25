@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
+import { BOOTSTRAP_JSON_CACHE_HEADERS } from "@/lib/api-cache-headers";
 import { fetchCatalogBootstrap } from "@/lib/catalog-bootstrap";
 import { isR2StaffUploadReady } from "@/lib/r2-staff-context";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = {
-  "Cache-Control": "private, no-store, max-age=0, must-revalidate",
-  "CDN-Cache-Control": "no-store",
-} as const;
 
 export async function GET() {
   const result = await fetchCatalogBootstrap();
@@ -25,6 +21,6 @@ export async function GET() {
       storefrontSource: result.storefront.source,
       r2Ready,
     },
-    { headers: NO_STORE },
+    { headers: BOOTSTRAP_JSON_CACHE_HEADERS },
   );
 }

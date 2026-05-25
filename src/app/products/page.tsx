@@ -1,5 +1,8 @@
 import { Suspense } from "react";
+import { staticPageDynamic as dynamic } from "@/lib/static-page";
 import { ProductsCatalog } from "./ProductsCatalog";
+
+export { dynamic };
 
 export default function ProductsPage() {
   return (

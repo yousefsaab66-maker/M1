@@ -21,7 +21,8 @@ export type FetchStorefrontClientResult =
     }
   | { ok: false };
 
-const CLIENT_CACHE_MS = 60_000;
+/** In-memory client cache for storefront/bootstrap fetches (visibility refresh respects this). */
+export const CLIENT_CACHE_MS = 60_000;
 
 type CachedEntry<T> = { at: number; etag: string | null; value: T };
 
