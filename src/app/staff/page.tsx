@@ -55,12 +55,13 @@ import {
   StaffAllImagesEditor,
   StaffBoutiquesEditor,
   StaffCategoriesEditor,
+  StaffCustomCategoriesEditor,
   StaffHomepageEditor,
   StaffSiteTextsEditor,
   StaffSingleImageField,
 } from "@/components/staff/StaffSiteEditor";
 import type { Order } from "@/lib/commerce-types";
-import { normalizeSiteContent, getUsdIqdRate, hasConfiguredUsdIqdRate } from "@/lib/site-display";
+import { normalizeSiteContent, getUsdIqdRate, hasConfiguredUsdIqdRate, catalogFilterSlugs, productCategoryLabel } from "@/lib/site-display";
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -320,12 +321,15 @@ function ProductsPane() {
       setSaveError(t("staff.products.remoteRequired"));
       return false;
     }
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 120_000);
     try {
       const res = await fetch("/api/staff/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify(fixed),
+        signal: ac.signal,
       });
       const body = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -342,13 +346,18 @@ function ProductsPane() {
       }
       setOrderHint(body.product);
       mergeRemoteProduct(body.product);
-      await refreshCatalog();
-      /* POST body is canonical for this row; a concurrent or slightly stale list GET must not drop new image URLs. */
+      void refreshCatalog();
       mergeRemoteProduct(body.product);
       return true;
-    } catch {
-      setSaveError(t("staff.products.errorRequest"));
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setSaveError(t("staff.products.errorTimeout"));
+      } else {
+        setSaveError(t("staff.products.errorRequest"));
+      }
       return false;
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -715,8 +724,11 @@ function ProductEditor({
   onCancel: () => void;
   onSave: (p: Product) => void | Promise<void>;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const { site } = useStore();
   const [draft, setDraft] = useState<Product>(product);
+  const [saving, setSaving] = useState(false);
+  const categoryOptions = useMemo(() => catalogFilterSlugs(site), [site]);
   const update = <K extends keyof Product>(k: K, v: Product[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
   return (
@@ -743,7 +755,13 @@ function ProductEditor({
             className="space-y-5 p-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:p-6"
             onSubmit={async (e) => {
               e.preventDefault();
-              await onSave(draft);
+              if (saving) return;
+              setSaving(true);
+              try {
+                await onSave(draft);
+              } finally {
+                setSaving(false);
+              }
             }}
           >
           <Field label={t("staff.form.name")}>
@@ -773,9 +791,11 @@ function ProductEditor({
               </select>
             </Field>
             <Field label={t("staff.form.category")}>
-              <select className="staff-input" value={draft.category} onChange={(e) => update("category", e.target.value as Category)}>
-                {(["necklaces", "rings", "earrings", "bracelets", "watches", "bridal"] as const).map((c) => (
-                  <option key={c} value={c}>{c}</option>
+              <select className="staff-input" value={draft.category} onChange={(e) => update("category", e.target.value)}>
+                {categoryOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {productCategoryLabel(c, site, t, locale)}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -830,8 +850,10 @@ function ProductEditor({
             </label>
           </div>
           <div className="flex items-center justify-end gap-3 pt-4">
-            <button type="button" onClick={onCancel} className="btn-ghost">{t("staff.form.cancel")}</button>
-            <button type="submit" className="btn-primary">{t("staff.form.save")}</button>
+            <button type="button" disabled={saving} onClick={onCancel} className="btn-ghost">{t("staff.form.cancel")}</button>
+            <button type="submit" disabled={saving} className="btn-primary min-w-[8rem]">
+              {saving ? t("staff.form.saving") : t("staff.form.save")}
+            </button>
           </div>
         </form>
         </div>
@@ -1890,6 +1912,7 @@ function SitePane() {
           confirmR2Ready={confirmR2Ready}
         />
         <StaffCategoriesEditor draft={draft} setDraft={setDraft} cloudUpload={cloudMedia} />
+        <StaffCustomCategoriesEditor draft={draft} setDraft={setDraft} cloudUpload={cloudMedia} />
         <StaffHomepageEditor draft={draft} setDraft={setDraft} products={products} cloudUpload={cloudMedia} />
 
         {saveError && (

@@ -8,6 +8,19 @@ export type Category =
   | "watches"
   | "bridal";
 
+/** Staff-defined division (e.g. women's rings) — slug stored on products.category. */
+export type CustomCategory = {
+  id: string;
+  slug: string;
+  labelAr: string;
+  labelEn: string;
+  image?: string;
+  /** Optional built-in parent for default imagery / grouping. */
+  parentCategory?: Category;
+  /** Show tile on homepage category strip (after built-in strip). */
+  showInHomeStrip?: boolean;
+};
+
 export type Material = "gold" | "platinum" | "silver" | "rose-gold" | "white-gold";
 export type Stone =
   | "diamond"
@@ -26,7 +39,8 @@ export interface Product {
   slug: string;
   name: string;
   collection: string;
-  category: Category;
+  /** Built-in slug (rings, earrings…) or a custom category slug from site.customCategories. */
+  category: string;
   price: number;
   currency: Currency;
   materials: Material[];
@@ -106,6 +120,8 @@ export interface SiteContent {
   heroPoster?: string;
   /** Per-category labels and images (staff-managed, synced via Supabase `site_settings`). */
   categories?: Partial<Record<Category, CategoryOverride>>;
+  /** Extra catalogue divisions (women's rings, men's watches, etc.). */
+  customCategories?: CustomCategory[];
   homepage?: HomepageConfig;
   /** Optional English UI copy overrides (empty field = use i18n). */
   copyEn?: SiteCopyBundle;
@@ -664,6 +680,7 @@ export const SITE_CONTENT: SiteContent = {
   heroSubhead:
     "An archive of high jewelry, watches and bridal — composed by the Maison since 1919.",
   categories: {},
+  customCategories: [],
   homepage: {
     featuredProductIds: [],
     featuredCollectionSlug: "",

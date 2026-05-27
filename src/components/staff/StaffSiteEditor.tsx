@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useLocale } from "@/components/providers/LocaleProvider";
-import type { Boutique, Category, Collection, JournalArticle, Product, SiteContent } from "@/lib/catalog";
+import type { Boutique, Category, Collection, CustomCategory, JournalArticle, Product, SiteContent } from "@/lib/catalog";
+import { slugify } from "@/lib/format";
 import {
   SITE_COPY_GROUPS,
   type SiteCopyKey,
@@ -351,6 +352,169 @@ export function StaffCategoriesEditor({
           );
         })}
       </ul>
+    </StaffSection>
+  );
+}
+
+function emptyCustomCategory(): CustomCategory {
+  return {
+    id: "cc-" + Math.random().toString(36).slice(2, 10),
+    slug: "",
+    labelAr: "",
+    labelEn: "",
+    image: "",
+    parentCategory: undefined,
+    showInHomeStrip: false,
+  };
+}
+
+function patchCustomCategory(
+  draft: SiteContent,
+  id: string,
+  patch: Partial<CustomCategory>,
+): SiteContent {
+  const list = draft.customCategories ?? [];
+  return {
+    ...draft,
+    customCategories: list.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+  };
+}
+
+export function StaffCustomCategoriesEditor({
+  draft,
+  setDraft,
+  cloudUpload,
+}: {
+  draft: SiteContent;
+  setDraft: React.Dispatch<React.SetStateAction<SiteContent>>;
+  cloudUpload: boolean;
+}) {
+  const { t } = useLocale();
+  const list = draft.customCategories ?? [];
+
+  const addCategory = () => {
+    setDraft((d) => ({
+      ...d,
+      customCategories: [...(d.customCategories ?? []), emptyCustomCategory()],
+    }));
+  };
+
+  const removeCategory = (id: string) => {
+    setDraft((d) => ({
+      ...d,
+      customCategories: (d.customCategories ?? []).filter((c) => c.id !== id),
+    }));
+  };
+
+  return (
+    <StaffSection title={t("staff.site.customCategoriesTitle")} intro={t("staff.site.customCategoriesIntro")}>
+      <ul className="grid min-w-0 gap-4">
+        {list.map((cat) => (
+          <li
+            key={cat.id}
+            className="min-w-0 rounded-sm p-4 sm:p-5"
+            style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
+          >
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <span className="eyebrow text-[9px] sm:text-[10px]">
+                {cat.labelAr.trim() || cat.labelEn.trim() || t("staff.site.customCategoryNew")}
+              </span>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-eyebrow opacity-70 hover:opacity-100"
+                onClick={() => removeCategory(cat.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" strokeWidth={1.4} />
+                {t("staff.site.customCategoryRemove")}
+              </button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={t("staff.site.customCategorySlug")}>
+                <input
+                  className="staff-input w-full"
+                  dir="ltr"
+                  style={{ textAlign: "left" }}
+                  value={cat.slug}
+                  placeholder="womens-rings"
+                  onChange={(e) =>
+                    setDraft((d) =>
+                      patchCustomCategory(d, cat.id, { slug: slugify(e.target.value) }),
+                    )
+                  }
+                />
+              </Field>
+              <Field label={t("staff.site.customCategoryParent")}>
+                <select
+                  className="staff-input w-full"
+                  value={cat.parentCategory ?? ""}
+                  onChange={(e) =>
+                    setDraft((d) =>
+                      patchCustomCategory(d, cat.id, {
+                        parentCategory: (e.target.value || undefined) as Category | undefined,
+                      }),
+                    )
+                  }
+                >
+                  <option value="">{t("staff.site.customCategoryParentNone")}</option>
+                  {CATALOG_CATEGORIES.map((key) => (
+                    <option key={key} value={key}>
+                      {t(`category.${key}`)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label={t("staff.site.customCategoryLabelAr")}>
+                <input
+                  className="staff-input w-full"
+                  value={cat.labelAr}
+                  placeholder={t("staff.site.customCategoryLabelArPlaceholder")}
+                  onChange={(e) =>
+                    setDraft((d) => patchCustomCategory(d, cat.id, { labelAr: e.target.value }))
+                  }
+                />
+              </Field>
+              <Field label={t("staff.site.customCategoryLabelEn")}>
+                <input
+                  className="staff-input w-full"
+                  dir="ltr"
+                  style={{ textAlign: "left" }}
+                  value={cat.labelEn}
+                  placeholder="Women's rings"
+                  onChange={(e) =>
+                    setDraft((d) => patchCustomCategory(d, cat.id, { labelEn: e.target.value }))
+                  }
+                />
+              </Field>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <StaffSingleImageField
+                label={t("staff.site.categoryImage")}
+                value={cat.image ?? ""}
+                cloudUpload={cloudUpload}
+                compact
+                onChange={(image) => setDraft((d) => patchCustomCategory(d, cat.id, { image }))}
+                onClear={() => setDraft((d) => patchCustomCategory(d, cat.id, { image: "" }))}
+              />
+              <label className="flex items-start gap-2 pt-6 text-sm">
+                <input
+                  type="checkbox"
+                  checked={!!cat.showInHomeStrip}
+                  onChange={(e) =>
+                    setDraft((d) =>
+                      patchCustomCategory(d, cat.id, { showInHomeStrip: e.target.checked }),
+                    )
+                  }
+                />
+                <span>{t("staff.site.customCategoryShowHome")}</span>
+              </label>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <button type="button" className="btn-ghost mt-5 inline-flex items-center gap-2" onClick={addCategory}>
+        <Plus className="h-4 w-4" strokeWidth={1.4} />
+        {t("staff.site.customCategoryAdd")}
+      </button>
     </StaffSection>
   );
 }

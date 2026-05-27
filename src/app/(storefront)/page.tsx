@@ -12,12 +12,12 @@ import { FadeIn, SectionTitle } from "@/components/Section";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
 import {
-  HOME_CATEGORY_STRIP,
   atelierImage,
-  categoryImage,
-  categoryLabel,
   featuredCollection,
   featuredHomeProducts,
+  homeCategoryStripSlugs,
+  productCategoryImage,
+  productCategoryLabel,
 } from "@/lib/site-display";
 import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 
@@ -40,7 +40,7 @@ function BelowFoldReveal({
 }
 
 export default function HomePage() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { products, collections, journal, site } = useStore();
   const tc = useSiteCopy();
   const reduce = useReducedMotion();
@@ -51,6 +51,7 @@ export default function HomePage() {
     [collections, site],
   );
   const maisonImage = atelierImage(site);
+  const categoryStrip = useMemo(() => homeCategoryStripSlugs(site), [site]);
 
   return (
     <div className="flex flex-col">
@@ -60,7 +61,7 @@ export default function HomePage() {
       <section className="page-gutter py-20 md:py-28">
         <p className="eyebrow text-center">{t("nav.collections")}</p>
         <div className="mx-auto mt-8 grid max-w-[1400px] grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
-          {HOME_CATEGORY_STRIP.map((key) => (
+          {categoryStrip.map((key) => (
               <Link
                 key={key}
                 href={`/products?category=${key}` as never}
@@ -68,8 +69,8 @@ export default function HomePage() {
                 style={{ background: "var(--surface-2)" }}
               >
                 <Image
-                  src={categoryImage(key, site)}
-                  alt={categoryLabel(key, site, t)}
+                  src={productCategoryImage(key, site)}
+                  alt={productCategoryLabel(key, site, t, locale)}
                   fill
                   sizes="(min-width: 768px) 25vw, 50vw"
                   className="object-cover"
@@ -83,7 +84,7 @@ export default function HomePage() {
                 />
                 <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5 text-[var(--color-ivory)]">
                   <h3 className="font-display text-2xl md:text-3xl" style={{ color: "var(--color-ivory)" }}>
-                    {categoryLabel(key, site, t)}
+                    {productCategoryLabel(key, site, t, locale)}
                   </h3>
                   <ArrowUpRight className="h-5 w-5 opacity-80" strokeWidth={1.3} />
                 </div>

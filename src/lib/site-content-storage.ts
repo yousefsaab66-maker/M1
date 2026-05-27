@@ -50,6 +50,13 @@ export function sanitizeSiteContentForServer(site: SiteContent): SanitizeSiteRes
     }
   }
 
+  for (const cat of normalized.customCategories ?? []) {
+    const img = normalizeStaffMediaUrl(cat.image ?? "");
+    if (img && !isStorableMediaUrl(img)) {
+      rejected.push(`customCategories.${cat.slug}.image`);
+    }
+  }
+
   if (rejected.length > 0) {
     return { ok: false, error: "embedded_media", fields: rejected };
   }
@@ -69,12 +76,32 @@ export function sanitizeSiteContentForServer(site: SiteContent): SanitizeSiteRes
     };
   }
 
+  const customCategories = (normalized.customCategories ?? [])
+    .map((cat) => {
+      const slug = cat.slug.trim();
+      const labelAr = cat.labelAr.trim();
+      const labelEn = cat.labelEn.trim();
+      if (!slug || (!labelAr && !labelEn)) return null;
+      const image = normalizeStaffMediaUrl(cat.image ?? "");
+      return {
+        id: cat.id || slug,
+        slug,
+        labelAr: labelAr || labelEn,
+        labelEn: labelEn || labelAr,
+        image: image || undefined,
+        parentCategory: cat.parentCategory,
+        showInHomeStrip: !!cat.showInHomeStrip,
+      };
+    })
+    .filter((c): c is NonNullable<typeof c> => c !== null);
+
   const cleaned: SiteContent = {
     ...normalized,
     heroVideo: heroVideo || undefined,
     heroPoster: heroPoster || undefined,
     usdIqdRate: getUsdIqdRate(normalized),
     categories,
+    customCategories,
     homepage: {
       ...normalized.homepage,
       atelierImage: atelier,

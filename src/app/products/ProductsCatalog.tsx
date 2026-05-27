@@ -6,28 +6,29 @@ import { ProductCard } from "@/components/ProductCard";
 import { SectionTitle } from "@/components/Section";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
-import type { Category, Material, Stone } from "@/lib/catalog";
-import { CATALOG_CATEGORIES, categoryLabel } from "@/lib/site-display";
+import type { Material, Stone } from "@/lib/catalog";
+import { catalogFilterSlugs, productCategoryLabel } from "@/lib/site-display";
 const MATERIALS: Material[] = ["gold", "white-gold", "rose-gold", "platinum", "silver"];
 const STONES: Stone[] = ["diamond", "emerald", "ruby", "sapphire", "pearl", "topaz", "amethyst"];
 
 type Sort = "featured" | "priceAsc" | "priceDesc" | "new";
 
 export function ProductsCatalog() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { products, site } = useStore();
   const sp = useSearchParams();
+  const filterSlugs = useMemo(() => catalogFilterSlugs(site), [site]);
 
-  const [category, setCategory] = useState<Category | null>(null);
+  const [category, setCategory] = useState<string | null>(null);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [stones, setStones] = useState<Stone[]>([]);
   const [sort, setSort] = useState<Sort>("featured");
 
   useEffect(() => {
-    const cat = sp.get("category") as Category | null;
+    const cat = sp.get("category")?.trim() ?? "";
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (cat && CATALOG_CATEGORIES.includes(cat)) setCategory(cat);
-  }, [sp]);
+    if (cat && filterSlugs.includes(cat)) setCategory(cat);
+  }, [sp, filterSlugs]);
 
   const filtered = useMemo(() => {
     let list = products.slice();
@@ -65,14 +66,14 @@ export function ProductsCatalog() {
               >
                 {t("filter.sort.featured")}
               </button>
-              {CATALOG_CATEGORIES.map((c) => (
+              {filterSlugs.map((c) => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => setCategory(c)}
                   className={`chip ${category === c ? "chip-active" : ""}`}
                 >
-                  {categoryLabel(c, site, t)}
+                  {productCategoryLabel(c, site, t, locale)}
                 </button>
               ))}
             </div>

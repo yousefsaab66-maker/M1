@@ -25,7 +25,7 @@ export function rowToProduct(row: ProductRow): Product {
     slug: row.slug,
     name: row.name,
     collection: row.collection_slug,
-    category: row.category as Category,
+    category: row.category,
     price: Number(row.price),
     currency: row.currency as Currency,
     materials: (row.materials ?? []) as Material[],

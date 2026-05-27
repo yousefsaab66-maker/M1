@@ -1,4 +1,4 @@
-import type { Category, Collection, Product, SiteContent } from "@/lib/catalog";
+import type { Category, Collection, CustomCategory, Product, SiteContent } from "@/lib/catalog";
 import { HERO_POSTER } from "@/lib/catalog";
 import { IQD_PER_USD } from "@/lib/iraq";
 
@@ -39,6 +39,32 @@ const DEFAULT_CATEGORY_IMAGES: Record<Category, string> = {
 export const DEFAULT_ATELIER_IMAGE =
   "https://images.unsplash.com/photo-1622398925373-3f91b1e275f5?auto=format&fit=crop&w=1600&q=80";
 
+export function isBuiltInCategory(slug: string): slug is Category {
+  return (CATALOG_CATEGORIES as readonly string[]).includes(slug);
+}
+
+export function customCategoriesList(site: SiteContent): CustomCategory[] {
+  return site.customCategories ?? [];
+}
+
+export function customCategoryBySlug(site: SiteContent, slug: string): CustomCategory | undefined {
+  return customCategoriesList(site).find((c) => c.slug === slug);
+}
+
+/** Built-in + custom slugs for /products filters and staff product editor. */
+export function catalogFilterSlugs(site: SiteContent): string[] {
+  const custom = customCategoriesList(site).map((c) => c.slug).filter(Boolean);
+  return [...CATALOG_CATEGORIES, ...custom];
+}
+
+/** Homepage strip: built-in strip + custom tiles flagged showInHomeStrip. */
+export function homeCategoryStripSlugs(site: SiteContent): string[] {
+  const extra = customCategoriesList(site)
+    .filter((c) => c.showInHomeStrip && c.slug.trim())
+    .map((c) => c.slug);
+  return [...HOME_CATEGORY_STRIP, ...extra];
+}
+
 export function categoryLabel(
   category: Category,
   site: SiteContent,
@@ -48,9 +74,37 @@ export function categoryLabel(
   return custom && custom.length > 0 ? custom : t(`category.${category}`);
 }
 
+/** Label for any product category slug (built-in override, custom AR/EN, or fallback). */
+export function productCategoryLabel(
+  slug: string,
+  site: SiteContent,
+  t: (key: string) => string,
+  locale: string,
+): string {
+  if (isBuiltInCategory(slug)) return categoryLabel(slug, site, t);
+  const custom = customCategoryBySlug(site, slug);
+  if (custom) {
+    const ar = custom.labelAr.trim();
+    const en = custom.labelEn.trim();
+    if (locale === "ar") return ar || en || slug;
+    return en || ar || slug;
+  }
+  return slug;
+}
+
 export function categoryImage(category: Category, site: SiteContent): string {
   const custom = site.categories?.[category]?.image?.trim();
   return custom && custom.length > 0 ? custom : DEFAULT_CATEGORY_IMAGES[category];
+}
+
+/** Tile image for built-in or custom category slug. */
+export function productCategoryImage(slug: string, site: SiteContent): string {
+  if (isBuiltInCategory(slug)) return categoryImage(slug, site);
+  const custom = customCategoryBySlug(site, slug);
+  const img = custom?.image?.trim();
+  if (img) return img;
+  if (custom?.parentCategory) return categoryImage(custom.parentCategory, site);
+  return DEFAULT_CATEGORY_IMAGES.necklaces;
 }
 
 const DEFAULT_BRIDAL_EDITORIAL =
@@ -122,6 +176,7 @@ export function normalizeSiteContent(site: SiteContent): SiteContent {
     ...site,
     heroPoster: site.heroPoster ?? "",
     categories: site.categories ?? {},
+    customCategories: site.customCategories ?? [],
     copyEn: site.copyEn ?? {},
     copyAr: site.copyAr ?? {},
     usdIqdRate,

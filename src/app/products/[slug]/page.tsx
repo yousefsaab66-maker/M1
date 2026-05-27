@@ -13,6 +13,7 @@ import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 import { ProductPrice } from "@/components/ProductPrice";
 import { productGallerySources, productImageAt } from "@/lib/product-media";
 import type { Product } from "@/lib/catalog";
+import { productCategoryLabel } from "@/lib/site-display";
 
 export default function ProductPage() {
   const params = useParams<{ slug: string }>();
@@ -147,7 +148,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
   const { t, locale } = useLocale();
   const tc = useSiteCopy();
   const router = useRouter();
-  const { addToBag, toggleWish, inWishlist } = useStore();
+  const { addToBag, toggleWish, inWishlist, site } = useStore();
 
   const sizesList = useMemo(
     () => [...new Set((product.sizes ?? []).map((s) => s.trim()).filter(Boolean))],
@@ -195,7 +196,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
             : product.stones.map((s) => t(`stone.${s}`)).join(", ")}
         </dd>
         <dt className="eyebrow opacity-65">{t("filter.category")}</dt>
-        <dd>{t(`category.${product.category}`)}</dd>
+        <dd>{productCategoryLabel(product.category, site, t, locale)}</dd>
       </dl>
 
       {sizesList.length > 0 && (
