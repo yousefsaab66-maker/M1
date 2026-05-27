@@ -88,6 +88,7 @@ export default function StaffPage() {
   const { t } = useLocale();
   const router = useRouter();
   const [tab, setTab] = useState<TabId>("dashboard");
+  const [productsCategoryFilter, setProductsCategoryFilter] = useState<string | null>(null);
 
   const tabs = useMemo(
     () =>
@@ -154,12 +155,24 @@ export default function StaffPage() {
           </nav>
           <div className="min-w-0">
             {tab === "dashboard" && <DashboardPane />}
-            {tab === "products" && <ProductsPane />}
+            {tab === "products" && (
+              <ProductsPane
+                categoryFilter={productsCategoryFilter}
+                onCategoryFilterChange={setProductsCategoryFilter}
+              />
+            )}
             {tab === "orders" && <OrdersPane />}
             {tab === "collections" && <CollectionsPane />}
             {tab === "journal" && <JournalPane />}
             {tab === "boutiques" && <BoutiquesPane />}
-            {tab === "site" && <SitePane />}
+            {tab === "site" && (
+              <SitePane
+                onViewProducts={(slug) => {
+                  setProductsCategoryFilter(slug);
+                  setTab("products");
+                }}
+              />
+            )}
             {tab === "security" && <SecurityPane />}
           </div>
         </div>
@@ -190,6 +203,26 @@ export default function StaffPage() {
           background: var(--color-onyx);
           color: var(--color-ivory);
           border-color: var(--color-onyx);
+        }
+        .chip {
+          display: inline-flex;
+          align-items: center;
+          padding: 0.35rem 0.75rem;
+          font-size: 0.62rem;
+          letter-spacing: 0.28em;
+          text-transform: uppercase;
+          border: 1px solid var(--line-strong);
+          background: transparent;
+        }
+        .chip-active {
+          background: var(--color-onyx);
+          color: var(--color-ivory);
+          border-color: var(--color-onyx);
+        }
+        [data-theme="dark"] .chip-active {
+          background: var(--color-ivory);
+          color: var(--color-onyx);
+          border-color: var(--color-ivory);
         }
         [data-theme="dark"] .staff-tab[data-active="true"] {
           background: var(--color-ivory);
@@ -290,7 +323,58 @@ function mapRemoteProductError(error: string, t: (key: string) => string): strin
   return error;
 }
 
-function ProductsPane() {
+async function persistProductRemote(
+  p: Product,
+  t: (key: string) => string,
+  mergeRemoteProduct: (product: Product) => void,
+  refreshCatalog: () => Promise<void>,
+): Promise<{ ok: true; product: Product } | { ok: false; error: string }> {
+  const fixed = ensureProductOrderable(p);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 120_000);
+  try {
+    const res = await fetch("/api/staff/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(fixed),
+      signal: ac.signal,
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      product?: Product;
+      error?: string;
+    };
+    if (res.status === 401 || body.error === "unauthorized") {
+      return { ok: false, error: mapRemoteProductError("unauthorized", t) };
+    }
+    if (!body.ok || !body.product) {
+      return {
+        ok: false,
+        error: mapRemoteProductError(typeof body.error === "string" ? body.error : "unknown", t),
+      };
+    }
+    mergeRemoteProduct(body.product);
+    void refreshCatalog();
+    mergeRemoteProduct(body.product);
+    return { ok: true, product: body.product };
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      return { ok: false, error: t("staff.products.errorTimeout") };
+    }
+    return { ok: false, error: t("staff.products.errorRequest") };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function ProductsPane({
+  categoryFilter,
+  onCategoryFilterChange,
+}: {
+  categoryFilter: string | null;
+  onCategoryFilterChange: (slug: string | null) => void;
+}) {
   const {
     products,
     collections,
@@ -300,8 +384,9 @@ function ProductsPane() {
     staffCloudUpload,
     refreshCatalog,
     mergeRemoteProduct,
+    site,
   } = useStore();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const mediaCloudUpload = staffCloudUpload;
   const router = useRouter();
   const [editing, setEditing] = useState<Product | null>(null);
@@ -313,52 +398,25 @@ function ProductsPane() {
     () => products.filter(productHasEmbeddedImages).length,
     [products],
   );
+  const categoryOptions = useMemo(() => catalogFilterSlugs(site), [site]);
+  const visibleProducts = useMemo(
+    () => (categoryFilter ? products.filter((p) => p.category === categoryFilter) : products),
+    [products, categoryFilter],
+  );
 
   const persistProduct = async (p: Product): Promise<boolean> => {
     setSaveError(null);
-    const fixed = ensureProductOrderable(p);
     if (!supabaseReady) {
       setSaveError(t("staff.products.remoteRequired"));
       return false;
     }
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 120_000);
-    try {
-      const res = await fetch("/api/staff/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify(fixed),
-        signal: ac.signal,
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        product?: Product;
-        error?: string;
-      };
-      if (res.status === 401 || body.error === "unauthorized") {
-        setSaveError(mapRemoteProductError("unauthorized", t));
-        return false;
-      }
-      if (!body.ok || !body.product) {
-        setSaveError(mapRemoteProductError(typeof body.error === "string" ? body.error : "unknown", t));
-        return false;
-      }
-      setOrderHint(body.product);
-      mergeRemoteProduct(body.product);
-      void refreshCatalog();
-      mergeRemoteProduct(body.product);
-      return true;
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") {
-        setSaveError(t("staff.products.errorTimeout"));
-      } else {
-        setSaveError(t("staff.products.errorRequest"));
-      }
+    const result = await persistProductRemote(p, t, mergeRemoteProduct, refreshCatalog);
+    if (!result.ok) {
+      setSaveError(result.error);
       return false;
-    } finally {
-      clearTimeout(timer);
     }
+    setOrderHint(result.product);
+    return true;
   };
 
   const onSave = async (p: Product) => {
@@ -427,6 +485,36 @@ function ProductsPane() {
           {saveError}
         </p>
       )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <p className="eyebrow me-1">{t("staff.products.filterCategory")}</p>
+        <button
+          type="button"
+          className={`chip ${categoryFilter === null ? "chip-active" : ""}`}
+          onClick={() => onCategoryFilterChange(null)}
+        >
+          {t("staff.products.filterAll")}
+        </button>
+        {categoryOptions.map((c) => (
+          <button
+            key={c}
+            type="button"
+            className={`chip ${categoryFilter === c ? "chip-active" : ""}`}
+            onClick={() => onCategoryFilterChange(c)}
+          >
+            {productCategoryLabel(c, site, t, locale)}
+          </button>
+        ))}
+        {categoryFilter && (
+          <button
+            type="button"
+            className="text-[10px] uppercase tracking-eyebrow opacity-60 hover:opacity-100"
+            onClick={() => onCategoryFilterChange(null)}
+          >
+            {t("staff.products.filterClear")}
+          </button>
+        )}
+      </div>
 
       {embeddedCount > 0 && (
         <div
@@ -522,7 +610,7 @@ function ProductsPane() {
             </tr>
           </thead>
           <tbody>
-            {products.map((p) => (
+            {visibleProducts.map((p) => (
               <tr key={p.id}>
                 <td>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -545,7 +633,7 @@ function ProductsPane() {
                   )}
                 </td>
                 <td className="opacity-80">{p.collection}</td>
-                <td className="opacity-80 capitalize">{p.category}</td>
+                <td className="opacity-80">{productCategoryLabel(p.category, site, t, locale)}</td>
                 <td className="max-w-[140px] text-sm opacity-90">
                   {p.sizes?.length ? p.sizes.join(", ") : "—"}
                 </td>
@@ -870,6 +958,7 @@ function ProductStaffPreview({
   collections: Collection[];
 }) {
   const { t, locale } = useLocale();
+  const { site } = useStore();
   const [imgIdx, setImgIdx] = useState(0);
   const collectionName = collections.find((c) => c.slug === draft.collection)?.name ?? draft.collection;
   const gallery = productGallerySources(draft);
@@ -924,7 +1013,7 @@ function ProductStaffPreview({
           </div>
           <div className="flex flex-wrap gap-x-2 gap-y-0.5">
             <dt className="shrink-0 opacity-60">{t("filter.category")}</dt>
-            <dd className="font-normal">{t(`category.${draft.category}`)}</dd>
+            <dd className="font-normal">{productCategoryLabel(draft.category, site, t, locale)}</dd>
           </div>
         </dl>
         {!!draft.materials?.length && (
@@ -1788,7 +1877,7 @@ function BoutiquesPane() {
   );
 }
 
-function SitePane() {
+function SitePane({ onViewProducts }: { onViewProducts?: (slug: string) => void }) {
   const {
     site,
     saveStorefront,
@@ -1801,6 +1890,9 @@ function SitePane() {
     setJournal,
     boutiques,
     setBoutiques,
+    supabaseReady,
+    mergeRemoteProduct,
+    refreshCatalog,
   } = useStore();
   const { t } = useLocale();
   const cloudMedia = staffCloudUpload;
@@ -1809,6 +1901,8 @@ function SitePane() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [assigningProductId, setAssigningProductId] = useState<string | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   useEffect(() => {
     setCollectionsDraft(collections);
@@ -1833,6 +1927,32 @@ function SitePane() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const assignProductCategory = async (productId: string, categorySlug: string, assign: boolean) => {
+    if (!supabaseReady) {
+      setAssignError(t("staff.products.remoteRequired"));
+      return;
+    }
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    const custom = (draft.customCategories ?? []).find((c) => c.slug === categorySlug);
+    const fallback = custom?.parentCategory ?? "necklaces";
+    const targetCategory = assign ? categorySlug : fallback;
+    if (product.category === targetCategory) return;
+    setAssignError(null);
+    setAssigningProductId(productId);
+    try {
+      const result = await persistProductRemote(
+        { ...product, category: targetCategory },
+        t,
+        mergeRemoteProduct,
+        refreshCatalog,
+      );
+      if (!result.ok) setAssignError(result.error);
+    } finally {
+      setAssigningProductId(null);
     }
   };
 
@@ -1912,7 +2032,20 @@ function SitePane() {
           confirmR2Ready={confirmR2Ready}
         />
         <StaffCategoriesEditor draft={draft} setDraft={setDraft} cloudUpload={cloudMedia} />
-        <StaffCustomCategoriesEditor draft={draft} setDraft={setDraft} cloudUpload={cloudMedia} />
+        <StaffCustomCategoriesEditor
+          draft={draft}
+          setDraft={setDraft}
+          cloudUpload={cloudMedia}
+          products={products}
+          onViewProducts={onViewProducts}
+          onAssignProduct={assignProductCategory}
+          assigningProductId={assigningProductId}
+        />
+        {assignError && (
+          <p className="text-sm" style={{ color: "var(--color-bordeaux)" }} role="alert">
+            {assignError}
+          </p>
+        )}
         <StaffHomepageEditor draft={draft} setDraft={setDraft} products={products} cloudUpload={cloudMedia} />
 
         {saveError && (

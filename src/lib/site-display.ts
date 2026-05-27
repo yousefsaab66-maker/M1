@@ -65,6 +65,15 @@ export function homeCategoryStripSlugs(site: SiteContent): string[] {
   return [...HOME_CATEGORY_STRIP, ...extra];
 }
 
+/** Custom categories flagged for homepage strip — also shown in header nav. */
+export function navCustomCategories(site: SiteContent): CustomCategory[] {
+  return customCategoriesList(site).filter((c) => c.showInHomeStrip && c.slug.trim());
+}
+
+export function countProductsInCategory(products: Product[], slug: string): number {
+  return products.filter((p) => p.category === slug).length;
+}
+
 export function categoryLabel(
   category: Category,
   site: SiteContent,

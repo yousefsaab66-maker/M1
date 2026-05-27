@@ -60,7 +60,7 @@ export default function HomePage() {
       {/* Category strip */}
       <section className="page-gutter py-20 md:py-28">
         <p className="eyebrow text-center">{t("nav.collections")}</p>
-        <div className="mx-auto mt-8 grid max-w-[1400px] grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
+        <div className="mx-auto mt-8 grid max-w-[1400px] grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:gap-6">
           {categoryStrip.map((key) => (
               <Link
                 key={key}

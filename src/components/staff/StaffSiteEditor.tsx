@@ -14,6 +14,7 @@ import {
   CATEGORY_LANDING_PAGES,
   CATALOG_CATEGORIES,
   HOME_CATEGORY_STRIP,
+  countProductsInCategory,
   featuredCollection,
   featuredCollectionSlug,
 } from "@/lib/site-display";
@@ -384,13 +385,22 @@ export function StaffCustomCategoriesEditor({
   draft,
   setDraft,
   cloudUpload,
+  products = [],
+  onViewProducts,
+  onAssignProduct,
+  assigningProductId,
 }: {
   draft: SiteContent;
   setDraft: React.Dispatch<React.SetStateAction<SiteContent>>;
   cloudUpload: boolean;
+  products?: Product[];
+  onViewProducts?: (slug: string) => void;
+  onAssignProduct?: (productId: string, categorySlug: string, assign: boolean) => void | Promise<void>;
+  assigningProductId?: string | null;
 }) {
   const { t } = useLocale();
   const list = draft.customCategories ?? [];
+  const [expandedAssign, setExpandedAssign] = useState<string | null>(null);
 
   const addCategory = () => {
     setDraft((d) => ({
@@ -409,24 +419,45 @@ export function StaffCustomCategoriesEditor({
   return (
     <StaffSection title={t("staff.site.customCategoriesTitle")} intro={t("staff.site.customCategoriesIntro")}>
       <ul className="grid min-w-0 gap-4">
-        {list.map((cat) => (
+        {list.map((cat) => {
+          const productCount = cat.slug.trim() ? countProductsInCategory(products, cat.slug) : 0;
+          const assignOpen = expandedAssign === cat.id;
+          return (
           <li
             key={cat.id}
             className="min-w-0 rounded-sm p-4 sm:p-5"
             style={{ border: "1px solid var(--line)", background: "var(--surface)" }}
           >
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <span className="eyebrow text-[9px] sm:text-[10px]">
-                {cat.labelAr.trim() || cat.labelEn.trim() || t("staff.site.customCategoryNew")}
-              </span>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-eyebrow opacity-70 hover:opacity-100"
-                onClick={() => removeCategory(cat.id)}
-              >
-                <Trash2 className="h-3.5 w-3.5" strokeWidth={1.4} />
-                {t("staff.site.customCategoryRemove")}
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="eyebrow text-[9px] sm:text-[10px]">
+                  {cat.labelAr.trim() || cat.labelEn.trim() || t("staff.site.customCategoryNew")}
+                </span>
+                {cat.slug.trim() && (
+                  <span className="text-[10px] opacity-60">
+                    {t("staff.site.customCategoryProductCount").replace("{n}", String(productCount))}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {cat.slug.trim() && onViewProducts && (
+                  <button
+                    type="button"
+                    className="text-[10px] uppercase tracking-eyebrow opacity-70 hover:opacity-100"
+                    onClick={() => onViewProducts(cat.slug)}
+                  >
+                    {t("staff.site.customCategoryViewProducts")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-eyebrow opacity-70 hover:opacity-100"
+                  onClick={() => removeCategory(cat.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" strokeWidth={1.4} />
+                  {t("staff.site.customCategoryRemove")}
+                </button>
+              </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t("staff.site.customCategorySlug")}>
@@ -508,8 +539,51 @@ export function StaffCustomCategoriesEditor({
                 <span>{t("staff.site.customCategoryShowHome")}</span>
               </label>
             </div>
+            {cat.slug.trim() && onAssignProduct && products.length > 0 && (
+              <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--line)" }}>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 text-[11px] uppercase tracking-eyebrow opacity-80 hover:opacity-100"
+                  onClick={() => setExpandedAssign(assignOpen ? null : cat.id)}
+                >
+                  <span>{t("staff.site.customCategoryAssignProducts")}</span>
+                  {assignOpen ? (
+                    <ChevronUp className="h-4 w-4" strokeWidth={1.4} />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" strokeWidth={1.4} />
+                  )}
+                </button>
+                {assignOpen && (
+                  <div className="mt-3">
+                    <p className="mb-3 text-[11px] leading-relaxed opacity-60">
+                      {t("staff.site.customCategoryAssignHint")}
+                    </p>
+                    <ul className="max-h-48 space-y-2 overflow-y-auto">
+                      {products.map((p) => {
+                        const checked = p.category === cat.slug;
+                        const busy = assigningProductId === p.id;
+                        return (
+                          <li key={p.id}>
+                            <label className="flex cursor-pointer items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={!!assigningProductId}
+                                onChange={(e) => void onAssignProduct(p.id, cat.slug, e.target.checked)}
+                              />
+                              <span className={busy ? "opacity-50" : ""}>{p.name || p.slug || p.id}</span>
+                            </label>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </li>
-        ))}
+          );
+        })}
       </ul>
       <button type="button" className="btn-ghost mt-5 inline-flex items-center gap-2" onClick={addCategory}>
         <Plus className="h-4 w-4" strokeWidth={1.4} />

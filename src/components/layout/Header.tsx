@@ -20,6 +20,7 @@ import { LOCALES, type Locale } from "@/lib/i18n";
 import { Wordmark } from "@/components/Wordmark";
 import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 import type { SiteCopyKey } from "@/lib/site-copy";
+import { navCustomCategories, productCategoryLabel } from "@/lib/site-display";
 
 const NAV: { href: string; key: string }[] = [
   { href: "/collections", key: "nav.collections" },
@@ -32,13 +33,14 @@ const NAV: { href: string; key: string }[] = [
 ];
 
 export function Header() {
-  const { bagCount, wishlist } = useStore();
+  const { bagCount, wishlist, site } = useStore();
   const { t, locale, setLocale } = useLocale();
   const tc = useSiteCopy();
   const { theme, toggle } = useTheme();
   const [scrolled, setScrolled] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [search, setSearch] = useState(false);
+  const customNav = navCustomCategories(site);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -102,6 +104,15 @@ export function Header() {
                   className="gold-underline text-[11px] tracking-eyebrow uppercase opacity-90 hover:opacity-100"
                 >
                   {tc(item.key as SiteCopyKey)}
+                </Link>
+              ))}
+              {customNav.map((cat) => (
+                <Link
+                  key={cat.id}
+                  href={`/products?category=${cat.slug}` as never}
+                  className="gold-underline text-[11px] tracking-eyebrow uppercase opacity-90 hover:opacity-100"
+                >
+                  {productCategoryLabel(cat.slug, site, t, locale)}
                 </Link>
               ))}
             </nav>
@@ -185,7 +196,7 @@ export function Header() {
 
       <AnimatePresence>
         {drawer && (
-          <MobileDrawer onClose={() => setDrawer(false)} />
+          <MobileDrawer onClose={() => setDrawer(false)} customNav={customNav} />
         )}
       </AnimatePresence>
       <AnimatePresence>
@@ -248,8 +259,15 @@ function LocalePicker({
   );
 }
 
-function MobileDrawer({ onClose }: { onClose: () => void }) {
-  const { t } = useLocale();
+function MobileDrawer({
+  onClose,
+  customNav,
+}: {
+  onClose: () => void;
+  customNav: ReturnType<typeof navCustomCategories>;
+}) {
+  const { t, locale } = useLocale();
+  const { site } = useStore();
   const tc = useSiteCopy();
   return (
     <motion.div
@@ -292,6 +310,24 @@ function MobileDrawer({ onClose }: { onClose: () => void }) {
                 </Link>
               </li>
             ))}
+            {customNav.length > 0 && (
+              <li className="mt-4 pt-4" style={{ borderTop: "1px solid var(--line)" }}>
+                <p className="eyebrow mb-4 text-[10px]">{t("filter.category")}</p>
+                <ul className="flex flex-col gap-3">
+                  {customNav.map((cat) => (
+                    <li key={cat.id}>
+                      <Link
+                        href={`/products?category=${cat.slug}` as never}
+                        onClick={onClose}
+                        className="font-display text-xl tracking-wide opacity-90"
+                      >
+                        {productCategoryLabel(cat.slug, site, t, locale)}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            )}
             <li className="mt-6 pt-6" style={{ borderTop: "1px solid var(--line)" }}>
               <Link
                 href={"/account" as never}
@@ -336,8 +372,8 @@ function MobileDrawer({ onClose }: { onClose: () => void }) {
 }
 
 function SearchOverlay({ onClose }: { onClose: () => void }) {
-  const { products } = useStore();
-  const { t } = useLocale();
+  const { products, site } = useStore();
+  const { t, locale } = useLocale();
   const [q, setQ] = useState("");
   const ql = q.trim().toLowerCase();
   const matches = ql
@@ -399,7 +435,9 @@ function SearchOverlay({ onClose }: { onClose: () => void }) {
                   style={{ borderColor: "var(--line)" }}
                 >
                   <span className="font-display text-lg">{p.name}</span>
-                  <span className="eyebrow opacity-70">{p.category}</span>
+                  <span className="eyebrow opacity-70">
+                    {productCategoryLabel(p.category, site, t, locale)}
+                  </span>
                 </Link>
               </li>
             ))}
