@@ -1083,6 +1083,210 @@ export function StaffHomepageEditor({
   );
 }
 
+export function StaffCommerceSettingsEditor({
+  draft,
+  setDraft,
+  products,
+}: {
+  draft: SiteContent;
+  setDraft: React.Dispatch<React.SetStateAction<SiteContent>>;
+  products: Product[];
+}) {
+  const { t } = useLocale();
+  const codes = draft.discountCodes ?? [];
+
+  const updateCodes = (next: typeof codes) => {
+    setDraft((d) => ({ ...d, discountCodes: next }));
+  };
+
+  const addCode = () => {
+    const id = `dc-${Date.now()}`;
+    updateCodes([
+      ...codes,
+      {
+        id,
+        code: "",
+        percentOff: 10,
+        appliesTo: "all",
+        active: true,
+      },
+    ]);
+  };
+
+  const patchCode = (id: string, patch: Partial<(typeof codes)[number]>) => {
+    updateCodes(codes.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  };
+
+  const removeCode = (id: string) => {
+    updateCodes(codes.filter((c) => c.id !== id));
+  };
+
+  const toggleProduct = (id: string, productId: string) => {
+    const row = codes.find((c) => c.id === id);
+    if (!row) return;
+    const set = new Set(row.productIds ?? []);
+    if (set.has(productId)) set.delete(productId);
+    else set.add(productId);
+    patchCode(id, { productIds: [...set] });
+  };
+
+  return (
+    <>
+      <div className="staff-card grid min-w-0 gap-4 p-5 sm:p-6">
+        <p className="eyebrow text-[10px]">{t("staff.site.commerceTitle")}</p>
+        <p className="text-sm opacity-70">{t("staff.site.shippingHint")}</p>
+        <div className="max-w-xs">
+          <Field label={t("staff.site.shippingFeeLabel")}>
+            <input
+              type="number"
+              className="staff-input w-full"
+              min={0}
+              max={500000}
+              step={500}
+              value={draft.shippingFeeIqd ?? ""}
+              onChange={(e) => {
+                const v = e.target.value.trim();
+                setDraft({
+                  ...draft,
+                  shippingFeeIqd: v === "" ? undefined : Math.round(Number(v)),
+                });
+              }}
+            />
+          </Field>
+        </div>
+      </div>
+
+      <StaffSection title={t("staff.site.discountCodesTitle")} intro={t("staff.site.discountCodesIntro")}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs opacity-65">{t("staff.site.discountCodesCount").replace("{n}", String(codes.length))}</p>
+          <button type="button" className="btn-ghost text-[11px]" onClick={addCode}>
+            <Plus className="me-1 inline h-3.5 w-3.5" aria-hidden />
+            {t("staff.site.discountCodeAdd")}
+          </button>
+        </div>
+        {codes.length === 0 ? (
+          <p className="mt-4 text-sm opacity-65">{t("staff.site.discountCodesEmpty")}</p>
+        ) : (
+          <ul className="mt-6 grid min-w-0 gap-6">
+            {codes.map((row) => (
+              <li
+                key={row.id}
+                className="grid min-w-0 gap-4 border p-4 sm:p-5"
+                style={{ borderColor: "var(--line)" }}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <p className="font-display text-lg">{row.code || t("staff.site.discountCodeNew")}</p>
+                  <button
+                    type="button"
+                    className="btn-ghost text-[10px]"
+                    onClick={() => removeCode(row.id)}
+                    aria-label={t("staff.site.discountCodeRemove")}
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field label={t("staff.site.discountCodeField")}>
+                    <input
+                      className="staff-input w-full uppercase"
+                      value={row.code}
+                      onChange={(e) =>
+                        patchCode(row.id, { code: e.target.value.toUpperCase().replace(/\s+/g, "") })
+                      }
+                      placeholder="SUMMER20"
+                    />
+                  </Field>
+                  <Field label={t("staff.site.discountPercentLabel")}>
+                    <input
+                      type="number"
+                      className="staff-input w-full"
+                      min={1}
+                      max={100}
+                      value={row.percentOff}
+                      onChange={(e) =>
+                        patchCode(row.id, {
+                          percentOff: Math.min(100, Math.max(1, Math.round(Number(e.target.value) || 0))),
+                        })
+                      }
+                    />
+                  </Field>
+                  <Field label={t("staff.site.discountExpiresLabel")}>
+                    <input
+                      type="date"
+                      className="staff-input w-full"
+                      value={row.expiresAt?.slice(0, 10) ?? ""}
+                      onChange={(e) =>
+                        patchCode(row.id, {
+                          expiresAt: e.target.value ? `${e.target.value}T23:59:59.999Z` : undefined,
+                        })
+                      }
+                    />
+                  </Field>
+                </div>
+                <div className="flex flex-wrap items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={row.active}
+                      onChange={(e) => patchCode(row.id, { active: e.target.checked })}
+                    />
+                    {t("staff.site.discountActive")}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="staff-tab text-[11px]"
+                      data-active={row.appliesTo === "all"}
+                      onClick={() => patchCode(row.id, { appliesTo: "all", productIds: undefined })}
+                    >
+                      {t("staff.site.discountAppliesAll")}
+                    </button>
+                    <button
+                      type="button"
+                      className="staff-tab text-[11px]"
+                      data-active={row.appliesTo === "products"}
+                      onClick={() =>
+                        patchCode(row.id, {
+                          appliesTo: "products",
+                          productIds: row.productIds ?? [],
+                        })
+                      }
+                    >
+                      {t("staff.site.discountAppliesProducts")}
+                    </button>
+                  </div>
+                </div>
+                {row.appliesTo === "products" && (
+                  <div className="max-h-48 overflow-y-auto border p-3" style={{ borderColor: "var(--line)" }}>
+                    <p className="mb-3 text-[11px] opacity-65">{t("staff.site.discountProductsHint")}</p>
+                    <ul className="grid gap-2">
+                      {products.map((p) => {
+                        const checked = row.productIds?.includes(p.id) ?? false;
+                        return (
+                          <li key={p.id}>
+                            <label className="flex cursor-pointer items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleProduct(row.id, p.id)}
+                              />
+                              <span className="min-w-0 truncate">{p.name}</span>
+                            </label>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </StaffSection>
+    </>
+  );
+}
+
 export function StaffSiteTextsEditor({
   draft,
   setDraft,

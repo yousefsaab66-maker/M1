@@ -18,16 +18,23 @@ import {
 import { ProductPrice } from "@/components/ProductPrice";
 import { formatCustomerPrice, getCustomerPriceParts } from "@/lib/customer-price";
 import {
+  findDiscountCode,
+  normalizeDiscountCodeInput,
+  validateDiscountCode,
+  buildDiscountLines,
+  computeDiscountIqd,
+  resolveOrderTotals,
+} from "@/lib/discount";
+import {
   IRAQ_GOVERNORATES,
   IRAQI_PHONE_REGEX,
-  SHIPPING_FEE_IQD,
   formatIqd,
   isIraqCountry,
   normalizeIraqiPhone,
   toIqd,
   type GovernorateCode,
 } from "@/lib/iraq";
-import { getUsdIqdRate } from "@/lib/site-display";
+import { getShippingFeeIqd, getUsdIqdRate } from "@/lib/site-display";
 
 type FieldErrors = Partial<{
   name: string;
@@ -64,13 +71,63 @@ export default function CheckoutPage() {
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [discountInput, setDiscountInput] = useState("");
+  const [appliedDiscountCode, setAppliedDiscountCode] = useState<string | null>(null);
+  const [discountError, setDiscountError] = useState<string | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
 
   const isIraq = isIraqCountry(country);
-  const shippingFeeIqd = isIraq ? SHIPPING_FEE_IQD : undefined;
-  const totalIqd = subtotalIqd + (shippingFeeIqd ?? 0);
+  const shippingFeeIqd = isIraq ? getShippingFeeIqd(site) : undefined;
+  const productIds = items.map(({ p }) => p.id);
+  const appliedDiscount = appliedDiscountCode
+    ? findDiscountCode(site.discountCodes, appliedDiscountCode)
+    : undefined;
+  const discountValidation = appliedDiscount
+    ? validateDiscountCode(appliedDiscount, productIds)
+    : null;
+  const discountLines = buildDiscountLines(
+    items.map(({ b, p }) => ({
+      productId: p.id,
+      price: p.price,
+      qty: b.qty,
+      currency: p.currency,
+    })),
+    rateOpts,
+  );
+  const discountAmountIqd =
+    discountValidation?.ok === true
+      ? computeDiscountIqd(discountValidation.discount, discountLines)
+      : 0;
+  const totalIqd = resolveOrderTotals({
+    subtotalIqd,
+    shippingFeeIqd,
+    discountAmountIqd: discountAmountIqd > 0 ? discountAmountIqd : undefined,
+  });
+
+  const applyDiscount = () => {
+    setDiscountError(null);
+    const normalized = normalizeDiscountCodeInput(discountInput);
+    if (!normalized) {
+      setDiscountError(t("checkout.discount.empty"));
+      return;
+    }
+    const found = findDiscountCode(site.discountCodes, normalized);
+    const check = validateDiscountCode(found, productIds);
+    if (!check.ok) {
+      setDiscountError(t(`checkout.discount.error.${check.error}`));
+      return;
+    }
+    setAppliedDiscountCode(check.discount.code);
+    setDiscountInput(check.discount.code);
+  };
+
+  const clearDiscount = () => {
+    setAppliedDiscountCode(null);
+    setDiscountInput("");
+    setDiscountError(null);
+  };
 
   useEffect(() => {
     if (hydrated && items.length === 0 && !submitting) {
@@ -117,7 +174,11 @@ export default function CheckoutPage() {
       notes: notes.trim() || undefined,
       ...(!isIraq ? { international: true } : {}),
     };
-    const result = await placeOrder({ customer, payment: { method: "cod" } });
+    const result = await placeOrder({
+      customer,
+      payment: { method: "cod" },
+      discountCode: appliedDiscountCode ?? undefined,
+    });
     if (!result.ok) {
       setSubmitting(false);
       const errKey =
@@ -127,7 +188,9 @@ export default function CheckoutPage() {
             ? isIraq
               ? "v.phone"
               : "v.phoneInternational"
-            : "checkout.orderFailed";
+            : result.error?.startsWith("discount_")
+              ? `checkout.discount.error.${result.error.replace("discount_", "")}`
+              : "checkout.orderFailed";
       setOrderError(t(errKey));
       return;
     }
@@ -390,6 +453,38 @@ export default function CheckoutPage() {
               ))}
             </ul>
             <div className="hairline my-6" />
+            <div className="space-y-3">
+              <p className="text-[11px] tracking-eyebrow uppercase opacity-65">
+                {t("checkout.discount.label")}
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  className="input-luxe flex-1"
+                  value={discountInput}
+                  onChange={(e) => setDiscountInput(e.target.value.toUpperCase())}
+                  placeholder={t("checkout.discount.placeholder")}
+                  aria-label={t("checkout.discount.label")}
+                />
+                {appliedDiscountCode ? (
+                  <button type="button" className="btn-ghost shrink-0" onClick={clearDiscount}>
+                    {t("checkout.discount.remove")}
+                  </button>
+                ) : (
+                  <button type="button" className="btn-ghost shrink-0" onClick={applyDiscount}>
+                    {t("checkout.discount.apply")}
+                  </button>
+                )}
+              </div>
+              {discountError && (
+                <p className="text-[11px]" style={{ color: "var(--color-bordeaux)" }} role="alert">
+                  {discountError}
+                </p>
+              )}
+              {appliedDiscountCode && discountAmountIqd > 0 && (
+                <p className="text-[11px] opacity-75">{t("checkout.discount.applied")}</p>
+              )}
+            </div>
+            <div className="hairline my-6" />
             <div className="flex flex-col items-end gap-0.5 text-sm">
               <div className="flex w-full items-center justify-between">
                 <span className="opacity-75">{t("common.subtotal")}</span>
@@ -404,6 +499,16 @@ export default function CheckoutPage() {
                   : t("checkout.shippingPending")}
               </span>
             </div>
+            {discountAmountIqd > 0 && (
+              <div className="mt-3 flex items-center justify-between text-sm">
+                <span className="opacity-75">
+                  {t("checkout.discount.line")} ({appliedDiscountCode})
+                </span>
+                <span style={{ color: "var(--color-bordeaux)" }}>
+                  −{formatIqd(discountAmountIqd, locale)}
+                </span>
+              </div>
+            )}
             <div className="hairline my-6" />
             <div className="flex items-center justify-between">
               <span className="eyebrow">{t("checkout.total")}</span>

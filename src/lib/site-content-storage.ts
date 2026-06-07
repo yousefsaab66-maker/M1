@@ -1,6 +1,7 @@
 import type { SiteContent } from "@/lib/catalog";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
-import { CATALOG_CATEGORIES, getUsdIqdRate, normalizeSiteContent } from "@/lib/site-display";
+import { normalizeDiscountCodes } from "@/lib/discount";
+import { CATALOG_CATEGORIES, getShippingFeeIqd, getUsdIqdRate, normalizeSiteContent } from "@/lib/site-display";
 
 export type SanitizeSiteResult =
   | { ok: true; site: SiteContent }
@@ -100,6 +101,8 @@ export function sanitizeSiteContentForServer(site: SiteContent): SanitizeSiteRes
     heroVideo: heroVideo || undefined,
     heroPoster: heroPoster || undefined,
     usdIqdRate: getUsdIqdRate(normalized),
+    shippingFeeIqd: getShippingFeeIqd(normalized),
+    discountCodes: normalizeDiscountCodes(normalized.discountCodes),
     categories,
     customCategories,
     homepage: {

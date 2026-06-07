@@ -31,8 +31,15 @@ import {
   EMPTY_PRODUCTS,
 } from "@/lib/catalog-defaults";
 import type { BagItem, Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
-import { isIraqCountry, SHIPPING_FEE_IQD, toIqd, type GovernorateCode } from "@/lib/iraq";
-import { getUsdIqdRate, normalizeSiteContent } from "@/lib/site-display";
+import {
+  buildDiscountLines,
+  computeDiscountIqd,
+  findDiscountCode,
+  resolveOrderTotals,
+  validateDiscountCode,
+} from "@/lib/discount";
+import { isIraqCountry, toIqd, type GovernorateCode } from "@/lib/iraq";
+import { getShippingFeeIqd, getUsdIqdRate, normalizeSiteContent } from "@/lib/site-display";
 import { sanitizeSiteContentForServer } from "@/lib/site-content-storage";
 import { isR2PublicConfiguredClient } from "@/lib/r2-config";
 import {
@@ -1006,6 +1013,7 @@ export function StoreProvider({
     const currency: Currency = items[0].currency;
     const usdIqdRate = getUsdIqdRate(site);
     const subtotalIqd = toIqd(subtotal, currency, { usdIqdRate });
+    const shippingFeeIqd = getShippingFeeIqd(site);
     const order: Order = {
       id: buildOrderId(),
       createdAt: new Date().toISOString(),
@@ -1016,8 +1024,8 @@ export function StoreProvider({
       }),
       subtotal,
       subtotalIqd,
-      shippingFeeIqd: SHIPPING_FEE_IQD,
-      totalIqd: subtotalIqd + SHIPPING_FEE_IQD,
+      shippingFeeIqd,
+      totalIqd: resolveOrderTotals({ subtotalIqd, shippingFeeIqd }),
       currency,
       status: "pending",
     };
@@ -1056,9 +1064,25 @@ export function StoreProvider({
       const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
       const currency: Currency = items[0].currency;
       const usdIqdRate = getUsdIqdRate(site);
-      const subtotalIqd = toIqd(subtotal, currency, { usdIqdRate });
+      const rateOpts = { usdIqdRate };
+      const subtotalIqd = toIqd(subtotal, currency, rateOpts);
       const international = !isIraqCountry(input.customer.country);
-      const shippingFeeIqd = international ? undefined : SHIPPING_FEE_IQD;
+      const shippingFeeIqd = international ? undefined : getShippingFeeIqd(site);
+
+      let discountCode: string | undefined;
+      let discountAmountIqd: number | undefined;
+      const rawDiscount = input.discountCode?.trim();
+      if (rawDiscount) {
+        const found = findDiscountCode(site.discountCodes, rawDiscount);
+        const productIds = items.map((it) => it.productId);
+        const check = validateDiscountCode(found, productIds);
+        if (!check.ok) return { ok: false, error: `discount_${check.error}` };
+        const lines = buildDiscountLines(items, rateOpts);
+        discountAmountIqd = computeDiscountIqd(check.discount, lines);
+        if (discountAmountIqd <= 0) return { ok: false, error: "discount_no_eligible" };
+        discountCode = check.discount.code;
+      }
+
       const customer = {
         ...input.customer,
         international: international || undefined,
@@ -1075,7 +1099,9 @@ export function StoreProvider({
         subtotal,
         subtotalIqd,
         shippingFeeIqd,
-        totalIqd: subtotalIqd + (shippingFeeIqd ?? 0),
+        discountCode,
+        discountAmountIqd,
+        totalIqd: resolveOrderTotals({ subtotalIqd, shippingFeeIqd, discountAmountIqd }),
         currency,
         status: "pending",
         payment: input.payment,

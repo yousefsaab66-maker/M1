@@ -1,9 +1,12 @@
 import type { Category, Collection, CustomCategory, Product, SiteContent } from "@/lib/catalog";
 import { HERO_POSTER } from "@/lib/catalog";
-import { IQD_PER_USD } from "@/lib/iraq";
+import { normalizeDiscountCodes } from "@/lib/discount";
+import { IQD_PER_USD, SHIPPING_FEE_IQD } from "@/lib/iraq";
 
 const USD_IQD_RATE_MIN = 500;
 const USD_IQD_RATE_MAX = 10_000;
+const SHIPPING_FEE_IQD_MIN = 0;
+const SHIPPING_FEE_IQD_MAX = 500_000;
 
 /** Categories shown on the homepage strip (order fixed). */
 export const HOME_CATEGORY_STRIP: Category[] = ["necklaces", "rings", "earrings", "bracelets"];
@@ -178,9 +181,20 @@ export function getUsdIqdRate(site?: SiteContent | null): number {
   return IQD_PER_USD;
 }
 
+/** Staff-managed flat domestic shipping fee in IQD. Invalid/missing values use the built-in default. */
+export function getShippingFeeIqd(site?: SiteContent | null): number {
+  const raw = site?.shippingFeeIqd;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const rounded = Math.round(raw);
+    if (rounded >= SHIPPING_FEE_IQD_MIN && rounded <= SHIPPING_FEE_IQD_MAX) return rounded;
+  }
+  return SHIPPING_FEE_IQD;
+}
+
 /** Ensures nested keys exist when loading older localStorage snapshots. */
 export function normalizeSiteContent(site: SiteContent): SiteContent {
   const usdIqdRate = getUsdIqdRate(site);
+  const shippingFeeIqd = getShippingFeeIqd(site);
   return {
     ...site,
     heroPoster: site.heroPoster ?? "",
@@ -189,6 +203,8 @@ export function normalizeSiteContent(site: SiteContent): SiteContent {
     copyEn: site.copyEn ?? {},
     copyAr: site.copyAr ?? {},
     usdIqdRate,
+    shippingFeeIqd,
+    discountCodes: normalizeDiscountCodes(site.discountCodes),
     homepage: {
       featuredProductIds: site.homepage?.featuredProductIds ?? [],
       featuredCollectionSlug: site.homepage?.featuredCollectionSlug ?? "",

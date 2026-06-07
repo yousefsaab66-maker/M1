@@ -5,9 +5,16 @@ import type { Product } from "@/lib/catalog";
 import type { Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
 import { isValidInternationalPhone } from "@/lib/countries";
 import { isDatabaseProductId } from "@/lib/catalog-db";
-import { isIraqCountry, normalizeIraqiPhone, SHIPPING_FEE_IQD, toIqd } from "@/lib/iraq";
+import {
+  buildDiscountLines,
+  computeDiscountIqd,
+  findDiscountCode,
+  resolveOrderTotals,
+  validateDiscountCode,
+} from "@/lib/discount";
+import { isIraqCountry, normalizeIraqiPhone, toIqd } from "@/lib/iraq";
 import { fetchStorefront } from "@/lib/storefront-query";
-import { getUsdIqdRate } from "@/lib/site-display";
+import { getShippingFeeIqd, getUsdIqdRate } from "@/lib/site-display";
 import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
@@ -71,10 +78,35 @@ export async function createOrderRemote(
   }
 
   const storefront = await fetchStorefront();
-  const usdIqdRate = storefront.kind === "ok" ? getUsdIqdRate(storefront.site) : undefined;
-  const subtotalIqd = toIqd(subtotal, currency, { usdIqdRate });
-  const shippingFeeIqd = international ? undefined : SHIPPING_FEE_IQD;
-  const totalIqd = subtotalIqd + (shippingFeeIqd ?? 0);
+  const site = storefront.kind === "ok" ? storefront.site : undefined;
+  const usdIqdRate = site ? getUsdIqdRate(site) : undefined;
+  const rateOpts = { usdIqdRate };
+  const subtotalIqd = toIqd(subtotal, currency, rateOpts);
+
+  let discountCode: string | undefined;
+  let discountAmountIqd: number | undefined;
+  const rawDiscount = input.discountCode?.trim();
+  if (rawDiscount) {
+    const found = findDiscountCode(site?.discountCodes, rawDiscount);
+    const productIds = items.map((it) => it.productId);
+    const check = validateDiscountCode(found, productIds);
+    if (!check.ok) return { ok: false, error: `discount_${check.error}` };
+    const lines = buildDiscountLines(
+      items.map((it) => ({
+        productId: it.productId,
+        price: it.price,
+        qty: it.qty,
+        currency,
+      })),
+      rateOpts,
+    );
+    discountAmountIqd = computeDiscountIqd(check.discount, lines);
+    if (discountAmountIqd <= 0) return { ok: false, error: "discount_no_eligible" };
+    discountCode = check.discount.code;
+  }
+
+  const shippingFeeIqd = international ? undefined : getShippingFeeIqd(site);
+  const totalIqd = resolveOrderTotals({ subtotalIqd, shippingFeeIqd, discountAmountIqd });
 
   const customer = {
     ...input.customer,
@@ -93,7 +125,10 @@ export async function createOrderRemote(
       total_iqd: totalIqd,
       currency,
       status: "pending",
-      payment: { method: "cod" as const },
+      payment: {
+        method: "cod" as const,
+        ...(discountCode ? { discountCode, discountAmountIqd } : {}),
+      },
     })
     .select("id, created_at")
     .single();
@@ -109,10 +144,15 @@ export async function createOrderRemote(
     subtotal,
     subtotalIqd,
     shippingFeeIqd,
+    discountCode,
+    discountAmountIqd,
     totalIqd,
     currency,
     status: "pending",
-    payment: { method: "cod" },
+    payment: {
+      method: "cod",
+      ...(discountCode ? { discountCode, discountAmountIqd } : {}),
+    },
   };
 
   return { ok: true, order };
@@ -128,20 +168,29 @@ export async function listOrdersRemote(): Promise<{ ok: true; orders: Order[] } 
     .order("created_at", { ascending: false })
     .limit(500);
   if (error || !data) return { ok: false };
-  const orders: Order[] = data.map((row: Record<string, unknown>) => ({
-    id: row.id as string,
-    createdAt: row.created_at as string,
-    customerName: row.customer_name as string,
-    customer: row.customer as Order["customer"],
-    items: row.items as Order["items"],
-    subtotal: Number(row.subtotal),
-    subtotalIqd: row.subtotal_iqd != null ? Number(row.subtotal_iqd) : undefined,
-    shippingFeeIqd: row.shipping_fee_iqd != null ? Number(row.shipping_fee_iqd) : undefined,
-    totalIqd: row.total_iqd != null ? Number(row.total_iqd) : undefined,
-    currency: row.currency as Order["currency"],
-    status: row.status as OrderStatus,
-    payment: row.payment as Order["payment"],
-  }));
+  const orders: Order[] = data.map((row: Record<string, unknown>) => {
+    const payment = row.payment as Order["payment"] & {
+      discountCode?: string;
+      discountAmountIqd?: number;
+    };
+    return {
+      id: row.id as string,
+      createdAt: row.created_at as string,
+      customerName: row.customer_name as string,
+      customer: row.customer as Order["customer"],
+      items: row.items as Order["items"],
+      subtotal: Number(row.subtotal),
+      subtotalIqd: row.subtotal_iqd != null ? Number(row.subtotal_iqd) : undefined,
+      shippingFeeIqd: row.shipping_fee_iqd != null ? Number(row.shipping_fee_iqd) : undefined,
+      discountCode: payment?.discountCode,
+      discountAmountIqd:
+        payment?.discountAmountIqd != null ? Number(payment.discountAmountIqd) : undefined,
+      totalIqd: row.total_iqd != null ? Number(row.total_iqd) : undefined,
+      currency: row.currency as Order["currency"],
+      status: row.status as OrderStatus,
+      payment,
+    };
+  });
   return { ok: true, orders };
 }
 

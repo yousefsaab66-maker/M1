@@ -90,6 +90,17 @@ function SuccessInner() {
                 <span>{formatIqd(order.shippingFeeIqd, locale)}</span>
               </div>
             )}
+            {typeof order.discountAmountIqd === "number" && order.discountAmountIqd > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="opacity-75">
+                  {t("checkout.discount.line")}
+                  {order.discountCode ? ` (${order.discountCode})` : ""}
+                </span>
+                <span style={{ color: "var(--color-bordeaux)" }}>
+                  −{formatIqd(order.discountAmountIqd, locale)}
+                </span>
+              </div>
+            )}
             {international && (
               <div className="flex items-center justify-between text-sm">
                 <span className="opacity-75">{t("checkout.shipping")}</span>

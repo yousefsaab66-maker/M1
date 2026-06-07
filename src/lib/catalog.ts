@@ -129,6 +129,22 @@ export interface SiteContent {
   copyAr?: SiteCopyBundle;
   /** IQD per 1 USD — updated daily by staff for IQD conversion on the storefront. */
   usdIqdRate?: number;
+  /** Flat domestic shipping fee in IQD (Iraq checkout). Falls back to {@link SHIPPING_FEE_IQD}. */
+  shippingFeeIqd?: number;
+  /** Promotional discount codes managed by staff. */
+  discountCodes?: DiscountCode[];
+}
+
+export type DiscountAppliesTo = "all" | "products";
+
+export interface DiscountCode {
+  id: string;
+  code: string;
+  percentOff: number;
+  appliesTo: DiscountAppliesTo;
+  productIds?: string[];
+  active: boolean;
+  expiresAt?: string;
 }
 
 const u = (id: string, w: number = 1600) =>

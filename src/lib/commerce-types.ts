@@ -36,6 +36,8 @@ export interface OrderPayment {
   /** Legacy rows from older demo checkout versions. */
   cardLast4?: string;
   zaincashPhone?: string;
+  discountCode?: string;
+  discountAmountIqd?: number;
 }
 
 export interface Order {
@@ -47,6 +49,8 @@ export interface Order {
   subtotal: number;
   subtotalIqd?: number;
   shippingFeeIqd?: number;
+  discountCode?: string;
+  discountAmountIqd?: number;
   totalIqd?: number;
   currency: Currency;
   status: OrderStatus;
@@ -56,4 +60,5 @@ export interface Order {
 export interface PlaceOrderInput {
   customer: OrderCustomer;
   payment: OrderPayment;
+  discountCode?: string;
 }

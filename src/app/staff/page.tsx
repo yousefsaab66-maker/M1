@@ -55,6 +55,7 @@ import {
   StaffAllImagesEditor,
   StaffBoutiquesEditor,
   StaffCategoriesEditor,
+  StaffCommerceSettingsEditor,
   StaffCustomCategoriesEditor,
   StaffHomepageEditor,
   StaffSiteTextsEditor,
@@ -1610,6 +1611,17 @@ function OrdersPane() {
                               <span className="opacity-75">{t("common.subtotal")}</span>
                               <span>{formatPrice(o.subtotal, o.currency, locale)}</span>
                             </div>
+                            {typeof o.discountAmountIqd === "number" && o.discountAmountIqd > 0 && (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="opacity-75">
+                                  {t("checkout.discount.line")}
+                                  {o.discountCode ? ` (${o.discountCode})` : ""}
+                                </span>
+                                <span style={{ color: "var(--color-bordeaux)" }}>
+                                  −{formatIqd(o.discountAmountIqd, locale)}
+                                </span>
+                              </div>
+                            )}
                             {typeof o.shippingFeeIqd === "number" && (
                               <div className="flex items-center justify-between text-sm">
                                 <span className="opacity-75">{t("checkout.shipping")}</span>
@@ -2017,6 +2029,8 @@ function SitePane({ onViewProducts }: { onViewProducts?: (slug: string) => void 
             </Field>
           </div>
         </div>
+
+        <StaffCommerceSettingsEditor draft={draft} setDraft={setDraft} products={products} />
 
         <StaffSiteTextsEditor draft={draft} setDraft={setDraft} />
         <StaffAllImagesEditor
