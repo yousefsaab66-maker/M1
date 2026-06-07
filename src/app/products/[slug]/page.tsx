@@ -6,12 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Heart, Plus, Minus } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
-import { SafeImage } from "@/components/SafeImage";
+import { ProductGallery } from "@/components/ProductGallery";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 import { ProductPrice } from "@/components/ProductPrice";
-import { productGallerySources, productImageAt } from "@/lib/product-media";
+import { productGallerySources } from "@/lib/product-media";
 import type { Product } from "@/lib/catalog";
 import { productCategoryLabel } from "@/lib/site-display";
 
@@ -46,7 +46,6 @@ export default function ProductPage() {
   }, [products, product]);
 
   const gallery = useMemo(() => (product ? productGallerySources(product) : []), [product]);
-  const [active, setActive] = useState(0);
 
   if (!product) {
     return (
@@ -63,39 +62,7 @@ export default function ProductPage() {
     <article key={product.id}>
       <section className="page-gutter py-12 md:py-16">
         <div className="mx-auto grid max-w-[1500px] gap-12 lg:grid-cols-[1.2fr_1fr] lg:gap-20">
-          <div>
-            <div
-              className="product-image-zoom relative overflow-hidden"
-              style={{ aspectRatio: "4/5", background: "var(--surface-2)" }}
-            >
-              <SafeImage
-                key={productImageAt(product, active)}
-                src={productImageAt(product, active)}
-                alt={product.name}
-                fill
-                priority
-                sizes="(min-width: 1024px) 60vw, 100vw"
-                className="object-cover"
-              />
-            </div>
-            <div className="mt-4 grid grid-cols-4 gap-3">
-              {gallery.map((src, i) => (
-                <button
-                  key={src + i}
-                  type="button"
-                  aria-label={`${t("product.imageAlt")} ${i + 1}`}
-                  onClick={() => setActive(i)}
-                  className="relative aspect-square overflow-hidden"
-                  style={{
-                    border: i === active ? "1px solid var(--color-gold)" : "1px solid var(--line)",
-                    background: "var(--surface-2)",
-                  }}
-                >
-                  <SafeImage src={src} alt="" fill sizes="120px" className="object-cover" />
-                </button>
-              ))}
-            </div>
-          </div>
+          <ProductGallery product={product} images={gallery} />
 
           <div className="lg:sticky lg:top-28 self-start">
             <ProductBuyColumn key={product.id} product={product} />
