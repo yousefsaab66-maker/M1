@@ -6,10 +6,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { SectionTitle } from "@/components/Section";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
-import type { Material, Stone } from "@/lib/catalog";
 import { catalogFilterSlugs, productCategoryLabel } from "@/lib/site-display";
-const MATERIALS: Material[] = ["gold", "white-gold", "rose-gold", "platinum", "silver"];
-const STONES: Stone[] = ["diamond", "emerald", "ruby", "sapphire", "pearl", "topaz", "amethyst"];
 
 type Sort = "featured" | "priceAsc" | "priceDesc" | "new";
 
@@ -20,8 +17,6 @@ export function ProductsCatalog() {
   const filterSlugs = useMemo(() => catalogFilterSlugs(site), [site]);
 
   const [category, setCategory] = useState<string | null>(null);
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [stones, setStones] = useState<Stone[]>([]);
   const [sort, setSort] = useState<Sort>("featured");
 
   useEffect(() => {
@@ -33,18 +28,11 @@ export function ProductsCatalog() {
   const filtered = useMemo(() => {
     let list = products.slice();
     if (category) list = list.filter((p) => p.category === category);
-    if (materials.length > 0)
-      list = list.filter((p) => p.materials.some((m) => materials.includes(m)));
-    if (stones.length > 0)
-      list = list.filter((p) => p.stones.some((s) => stones.includes(s)));
     if (sort === "priceAsc") list.sort((a, b) => a.price - b.price);
     else if (sort === "priceDesc") list.sort((a, b) => b.price - a.price);
     else if (sort === "new") list.sort((a, b) => Number(!!b.isNew) - Number(!!a.isNew));
     return list;
-  }, [products, category, materials, stones, sort]);
-
-  const toggle = <T,>(arr: T[], v: T): T[] =>
-    arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
+  }, [products, category, sort]);
 
   return (
     <div>
@@ -96,36 +84,7 @@ export function ProductsCatalog() {
             </div>
           </div>
 
-          <div className="grid gap-3 py-6 md:grid-cols-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="eyebrow me-2">{t("filter.material")}</p>
-              {MATERIALS.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMaterials((s) => toggle(s, m))}
-                  className={`chip ${materials.includes(m) ? "chip-active" : ""}`}
-                >
-                  {t(`material.${m}`)}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="eyebrow me-2">{t("filter.stone")}</p>
-              {STONES.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStones((arr) => toggle(arr, s))}
-                  className={`chip ${stones.includes(s) ? "chip-active" : ""}`}
-                >
-                  {t(`stone.${s}`)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <p className="text-[11px] tracking-eyebrow uppercase opacity-65">
+          <p className="py-6 text-[11px] tracking-eyebrow uppercase opacity-65">
             {filtered.length} {t("filter.results")}
           </p>
 
