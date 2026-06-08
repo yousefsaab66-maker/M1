@@ -46,6 +46,7 @@
 	// are configured via `wrangler secret put` or the dashboard — never commit them here.
 	// STAFF_USERNAME is configured per-environment via dashboard (defaults to "staff" if unset).
 	"vars": {
+		"NEXT_PUBLIC_SITE_URL": "https://www.muhrajewelry.com",
 		"SUPABASE_URL": "https://jqiznpmpenabzudcljdl.supabase.co",
 		"NEXT_PUBLIC_SUPABASE_URL": "https://jqiznpmpenabzudcljdl.supabase.co",
 		"R2_PUBLIC_BASE_URL": "https://media.muhrajewelry.com",

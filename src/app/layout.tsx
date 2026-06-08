@@ -4,6 +4,8 @@ import "./globals.css";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
 import { Providers } from "@/components/providers/Providers";
+import { MaisonJsonLd } from "@/components/seo/JsonLd";
+import { DEFAULT_OG_IMAGE, getMetadataBase } from "@/lib/site-url";
 
 const serif = Cormorant_Garamond({
   variable: "--font-serif",
@@ -19,28 +21,14 @@ const sans = Inter({
   display: "swap",
 });
 
-/** Netlify sets `URL` / `DEPLOY_PRIME_URL` at build time; Vercel sets `VERCEL_URL`. */
-function metadataBaseUrl(): URL {
-  const raw =
-    process.env.URL ||
-    process.env.DEPLOY_PRIME_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
-  if (raw) {
-    try {
-      const base = raw.endsWith("/") ? raw : `${raw}/`;
-      return new URL(base);
-    } catch {
-      /* fall through */
-    }
-  }
-  return new URL("http://localhost:3000/");
-}
-
 export const metadata: Metadata = {
-  metadataBase: metadataBaseUrl(),
+  metadataBase: getMetadataBase(),
   title: "MUHRA JEWELRY — The Art of Adornment",
   description:
     "MUHRA JEWELRY: a Maison of high jewelry, watches and bridal — composed since 1919.",
+  alternates: {
+    canonical: "/",
+  },
   formatDetection: {
     telephone: false,
   },
@@ -51,6 +39,22 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     siteName: "MUHRA JEWELRY",
+    url: "/",
+    images: [
+      {
+        url: DEFAULT_OG_IMAGE,
+        width: 1200,
+        height: 630,
+        alt: "MUHRA JEWELRY — The Art of Adornment",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MUHRA JEWELRY — The Art of Adornment",
+    description:
+      "MUHRA JEWELRY: a Maison of high jewelry, watches and bridal — composed since 1919.",
+    images: [DEFAULT_OG_IMAGE],
   },
 };
 
@@ -82,6 +86,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="site-body flex min-h-full min-h-dvh flex-col">
+        <MaisonJsonLd />
         <Providers>
           <Header />
           <main className="site-main flex w-full min-w-0 min-h-0 flex-1 flex-col">{children}</main>

@@ -4,10 +4,10 @@ import { NOINDEX_ROBOTS } from "@/lib/seo-metadata";
 export { staticPageDynamic as dynamic } from "@/lib/static-page";
 
 export const metadata: Metadata = {
-  title: "Checkout — MUHRA JEWELRY",
+  title: "Account — MUHRA JEWELRY",
   robots: NOINDEX_ROBOTS,
 };
 
-export default function CheckoutLayout({ children }: { children: React.ReactNode }) {
+export default function AccountLayout({ children }: { children: React.ReactNode }) {
   return children;
 }

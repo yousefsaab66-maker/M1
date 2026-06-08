@@ -3,8 +3,8 @@ import { staticPageMetadata } from "@/lib/seo-metadata";
 
 export { staticPageDynamic as dynamic } from "@/lib/static-page";
 
-export const metadata: Metadata = staticPageMetadata("/journal");
+export const metadata: Metadata = staticPageMetadata("/boutiques");
 
-export default function JournalLayout({ children }: { children: React.ReactNode }) {
+export default function BoutiquesLayout({ children }: { children: React.ReactNode }) {
   return children;
 }
