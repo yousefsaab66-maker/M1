@@ -4,7 +4,6 @@ import { cookies, headers } from "next/headers";
 import type { Product } from "@/lib/catalog";
 import type { Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
 import { isValidInternationalPhone } from "@/lib/countries";
-import { isDatabaseProductId } from "@/lib/catalog-db";
 import {
   buildDiscountLines,
   computeDiscountIqd,
@@ -15,6 +14,7 @@ import {
 import { isIraqCountry, normalizeIraqiPhone, toIqd } from "@/lib/iraq";
 import { fetchStorefront } from "@/lib/storefront-query";
 import { getShippingFeeIqd, getUsdIqdRate } from "@/lib/site-display";
+import { deleteProductFromSupabase } from "@/lib/muhra-product-delete";
 import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
@@ -216,11 +216,9 @@ export async function upsertProductRemote(p: Product): Promise<{ ok: true; produ
   return upsertProductToSupabase(p);
 }
 
+/** Prefer `DELETE /api/staff/products` from the browser on Cloudflare — lighter than this action. */
 export async function deleteProductRemote(id: string): Promise<boolean> {
   if (!(await requireStaff())) return false;
-  if (!isSupabaseBackendConfigured()) return false;
-  if (!isDatabaseProductId(id)) return false;
-  const sb = supabaseAdmin();
-  const { error } = await sb.from("products").delete().eq("id", id);
-  return !error;
+  const result = await deleteProductFromSupabase(id);
+  return result.ok;
 }

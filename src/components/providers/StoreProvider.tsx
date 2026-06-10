@@ -131,6 +131,8 @@ type StoreCtx = {
   refreshCatalog: () => Promise<void>;
   /** بعد حفظ منتج عبر API — يحدّث القائمة واللقطة حتى لا يختفي المنتج إذا فشل refresh (CF 1102). */
   mergeRemoteProduct: (p: Product) => void;
+  /** بعد حذف منتج عبر API — يزيله محلياً دون إعادة جلب الكتالوج كاملاً (CF 1102). */
+  removeRemoteProduct: (id: string) => void;
   pullRemoteOrders: () => Promise<void>;
 
   orders: Order[];
@@ -646,6 +648,16 @@ export function StoreProvider({
     setProductsState((prev) => {
       const i = prev.findIndex((x) => x.id === p.id);
       const next = i >= 0 ? prev.map((x, j) => (j === i ? p : x)) : [...prev, p];
+      writeCatalogSnapshot(next);
+      return next;
+    });
+    setRemoteCatalog(true);
+  }, []);
+
+  const removeRemoteProduct = useCallback((id: string) => {
+    catalogApplyGenRef.current += 1;
+    setProductsState((prev) => {
+      const next = prev.filter((x) => x.id !== id);
       writeCatalogSnapshot(next);
       return next;
     });
@@ -1244,6 +1256,7 @@ export function StoreProvider({
       confirmR2Ready,
       refreshCatalog,
       mergeRemoteProduct,
+      removeRemoteProduct,
       pullRemoteOrders,
       orders,
       placeDemoOrder,
@@ -1289,6 +1302,7 @@ export function StoreProvider({
       confirmR2Ready,
       refreshCatalog,
       mergeRemoteProduct,
+      removeRemoteProduct,
       pullRemoteOrders,
       orders,
       placeDemoOrder,

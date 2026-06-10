@@ -335,11 +335,14 @@ function mapRemoteProductError(error: string, t: (key: string) => string): strin
   return error;
 }
 
+function hintPurgeEdgeCacheAfterProductChange() {
+  void fetch("/api/staff/purge-cache", { method: "POST", credentials: "include" }).catch(() => {});
+}
+
 async function persistProductRemote(
   p: Product,
   t: (key: string) => string,
   mergeRemoteProduct: (product: Product) => void,
-  refreshCatalog: () => Promise<void>,
 ): Promise<{ ok: true; product: Product } | { ok: false; error: string }> {
   const fixed = ensureProductOrderable(p);
   const ac = new AbortController();
@@ -367,8 +370,7 @@ async function persistProductRemote(
       };
     }
     mergeRemoteProduct(body.product);
-    void refreshCatalog();
-    mergeRemoteProduct(body.product);
+    hintPurgeEdgeCacheAfterProductChange();
     return { ok: true, product: body.product };
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") {
@@ -396,6 +398,7 @@ function ProductsPane({
     staffCloudUpload,
     refreshCatalog,
     mergeRemoteProduct,
+    removeRemoteProduct,
     site,
   } = useStore();
   const { t, locale } = useLocale();
@@ -422,7 +425,7 @@ function ProductsPane({
       setSaveError(t("staff.products.remoteRequired"));
       return false;
     }
-    const result = await persistProductRemote(p, t, mergeRemoteProduct, refreshCatalog);
+    const result = await persistProductRemote(p, t, mergeRemoteProduct);
     if (!result.ok) {
       setSaveError(result.error);
       return false;
@@ -445,11 +448,31 @@ function ProductsPane({
     }
     if (typeof window !== "undefined" && !window.confirm(t("staff.products.deleteConfirm"))) return;
     setSaveError(null);
+    const removed = products.find((p) => p.id === id);
+    removeRemoteProduct(id);
+    if (editing?.id === id) {
+      setEditing(null);
+      setCreating(false);
+    }
     try {
-      const { deleteProductRemote } = await import("@/app/actions/muhra-backend");
-      await deleteProductRemote(id);
-      await refreshCatalog();
+      const res = await fetch(`/api/staff/products?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (res.status === 401 || body.error === "unauthorized") {
+        if (removed) mergeRemoteProduct(removed);
+        setSaveError(mapRemoteProductError("unauthorized", t));
+        return;
+      }
+      if (!res.ok || !body.ok) {
+        if (removed) mergeRemoteProduct(removed);
+        setSaveError(t("staff.products.errorDelete"));
+        return;
+      }
+      hintPurgeEdgeCacheAfterProductChange();
     } catch {
+      if (removed) mergeRemoteProduct(removed);
       setSaveError(t("staff.products.errorDelete"));
     }
   };
@@ -2112,12 +2135,7 @@ function SitePane({ onViewProducts }: { onViewProducts?: (slug: string) => void 
     setAssignError(null);
     setAssigningProductId(productId);
     try {
-      const result = await persistProductRemote(
-        { ...product, category: targetCategory },
-        t,
-        mergeRemoteProduct,
-        refreshCatalog,
-      );
+      const result = await persistProductRemote({ ...product, category: targetCategory }, t, mergeRemoteProduct);
       if (!result.ok) setAssignError(result.error);
     } finally {
       setAssigningProductId(null);

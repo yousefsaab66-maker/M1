@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { Product } from "@/lib/catalog";
 import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
+import { deleteProductFromSupabase } from "@/lib/muhra-product-delete";
 import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 
@@ -38,4 +39,34 @@ export async function POST(req: Request) {
     ...(result.ok ? { "X-Muhra-Cache-Hint": "purge-catalog-after-deploy" } : {}),
   };
   return NextResponse.json(result, { headers });
+}
+
+/** Staff product delete — avoids Next Server Action overhead on Cloudflare Workers (1102). */
+export async function DELETE(req: Request) {
+  if (!(await requireStaff())) {
+    return NextResponse.json({ ok: false, error: "unauthorized" } as const, {
+      status: 401,
+      headers: NO_STORE_JSON_HEADERS,
+    });
+  }
+
+  const url = new URL(req.url);
+  const id = url.searchParams.get("id")?.trim();
+  if (!id) {
+    return NextResponse.json({ ok: false, error: "missing_id" } as const, {
+      status: 400,
+      headers: NO_STORE_JSON_HEADERS,
+    });
+  }
+
+  const result = await deleteProductFromSupabase(id);
+  const headers = {
+    ...NO_STORE_JSON_HEADERS,
+    ...(result.ok ? { "X-Muhra-Cache-Hint": "purge-catalog-after-deploy" } : {}),
+  };
+  if (!result.ok) {
+    const status = result.error === "not_configured" ? 503 : result.error === "invalid_id" ? 400 : 500;
+    return NextResponse.json({ ok: false, error: result.error } as const, { status, headers });
+  }
+  return NextResponse.json({ ok: true } as const, { headers });
 }
