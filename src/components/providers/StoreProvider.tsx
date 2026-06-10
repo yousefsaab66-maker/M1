@@ -209,10 +209,6 @@ function clearStaleLocalProductCache() {
   }
 }
 
-function isStaffPath(): boolean {
-  return typeof window !== "undefined" && window.location.pathname.startsWith("/staff");
-}
-
 function isStaffLoginPath(): boolean {
   if (typeof window === "undefined") return false;
   const p = window.location.pathname;
@@ -232,7 +228,7 @@ function catalogProductsUrl() {
 
 function catalogFetchOpts(): RequestInit {
   return {
-    cache: isStaffPath() ? "no-store" : "default",
+    cache: "no-store",
     credentials: "same-origin",
   };
 }
@@ -393,12 +389,6 @@ async function loadStorefrontVisitorCatalog(
     return;
   }
 
-  if (cdnSf.ok && cdnSf.catalogProducts && cdnSf.catalogProducts.length > 0) {
-    applyRemoteCatalog(gen, cdnSf.catalogProducts, catalogHandlers);
-    markStoreNetworkInitComplete();
-    return;
-  }
-
   if (!cdnSf.ok) {
     const apiSf = await fetchStorefrontFromApi(signal);
     if (apiSf.ok) {
@@ -412,11 +402,6 @@ async function loadStorefrontVisitorCatalog(
         sfHandlers,
       );
       if (apiSf.source === "r2") sfHandlers.setR2Ready(true);
-      if (apiSf.catalogProducts && apiSf.catalogProducts.length > 0) {
-        applyRemoteCatalog(gen, apiSf.catalogProducts, catalogHandlers);
-        markStoreNetworkInitComplete();
-        return;
-      }
     }
   }
 
@@ -434,7 +419,8 @@ async function loadStaffCatalog(
   recoverCatalog: () => void,
   setR2PresignConfigured: (v: boolean) => void,
 ): Promise<void> {
-  const bootstrap = await fetchStaffBootstrapClient(signal);
+  bustStorefrontClientCache();
+  const bootstrap = await fetchStaffBootstrapClient(signal, { bust: true });
   if (!bootstrap.ok) {
     if (gen === catalogHandlers.catalogApplyGenRef.current) recoverCatalog();
     return;
@@ -726,7 +712,9 @@ export function StoreProvider({
       }
 
       const skipNetwork =
-        minimalInit || isStaffLoginPath() || shouldSkipStoreNetworkInit();
+        minimalInit ||
+        isStaffLoginPath() ||
+        (!isStaffAppPath() && shouldSkipStoreNetworkInit());
 
       if (skipNetwork) {
         if (!minimalInit && !isStaffLoginPath() && shouldSkipStoreNetworkInit()) {
