@@ -27,12 +27,12 @@ export async function upsertProductToSupabase(
       .select("*")
       .single();
     if (error || !data) return { ok: false, error: error?.message ?? "update_failed" };
-    await syncCatalogAfterProductChange();
+    syncCatalogAfterProductChange();
     return { ok: true, product: rowToProduct(data as ProductRow) };
   }
 
   const { data, error } = await sb.from("products").insert(row).select("*").single();
   if (error || !data) return { ok: false, error: error?.message ?? "insert_failed" };
-  await syncCatalogAfterProductChange();
+  syncCatalogAfterProductChange();
   return { ok: true, product: rowToProduct(data as ProductRow) };
 }

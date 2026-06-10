@@ -452,6 +452,51 @@ async function loadStaffCatalog(
   applyRemoteCatalog(gen, bootstrap.products, catalogHandlers);
 }
 
+/**
+ * When init is throttled (5min public / 2min staff), show sessionStorage snapshot immediately
+ * but still revalidate catalog in the background — fixes ghost products after staff delete on another device.
+ * Single CDN-cached GET; avoids the full parallel bootstrap that triggers CF 1102.
+ */
+function scheduleBackgroundCatalogRevalidate(
+  sfHandlers: StorefrontHandlers,
+  catalogHandlers: CatalogHandlers,
+  setR2PresignConfigured: (v: boolean) => void,
+) {
+  void runStoreInitSingleFlight(async () => {
+    const gen = (catalogHandlers.catalogApplyGenRef.current += 1);
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), CATALOG_INIT_MS);
+    try {
+      if (isStaffAppPath()) {
+        const bootstrap = await fetchStaffBootstrapClient(ac.signal);
+        if (gen !== catalogHandlers.catalogApplyGenRef.current || !bootstrap.ok) return;
+        if (bootstrap.r2Ready) sfHandlers.setR2Ready(true);
+        setR2PresignConfigured(bootstrap.presignConfigured);
+        applyRemoteStorefrontIfNewer(
+          gen,
+          bootstrap.site,
+          bootstrap.collections,
+          null,
+          null,
+          bootstrap.updatedAt,
+          sfHandlers,
+        );
+        applyRemoteCatalog(gen, bootstrap.products, catalogHandlers);
+      } else {
+        const catalogRes = await fetchCatalogJson(1, ac.signal);
+        if (gen !== catalogHandlers.catalogApplyGenRef.current || !catalogRes.ok) return;
+        applyRemoteCatalog(gen, catalogRes.products, catalogHandlers);
+      }
+      catalogHandlers.onCatalogLoaded?.();
+      markStoreNetworkInitComplete();
+    } catch {
+      /* keep snapshot UI */
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+}
+
 async function putStorefrontJson(
   body: {
     site?: SiteContent;
@@ -739,6 +784,19 @@ export function StoreProvider({
             setRemoteCatalog(true);
             catalogLoadedAtRef.current = Date.now();
           }
+          scheduleBackgroundCatalogRevalidate(
+            { applyStorefront, setR2Ready, catalogApplyGenRef },
+            {
+              setRemoteCatalog,
+              setSupabaseReady,
+              setProductsState,
+              catalogApplyGenRef,
+              onCatalogLoaded: () => {
+                catalogLoadedAtRef.current = Date.now();
+              },
+            },
+            setR2PresignConfigured,
+          );
         }
         return;
       }

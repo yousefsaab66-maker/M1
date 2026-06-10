@@ -10,6 +10,6 @@ export async function deleteProductFromSupabase(id: string): Promise<{ ok: true 
   const { data, error } = await sb.from("products").delete().eq("id", id).select("id");
   if (error) return { ok: false, error: error.message };
   if (!data || data.length === 0) return { ok: false, error: "not_found" };
-  await syncCatalogAfterProductChange();
+  syncCatalogAfterProductChange();
   return { ok: true };
 }

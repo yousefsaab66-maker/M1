@@ -357,10 +357,6 @@ function mapRemoteProductError(error: string, t: (key: string) => string): strin
   return error;
 }
 
-function hintPurgeEdgeCacheAfterProductChange() {
-  void fetch("/api/staff/purge-cache", { method: "POST", credentials: "include" }).catch(() => {});
-}
-
 async function persistProductRemote(
   p: Product,
   t: (key: string) => string,
@@ -393,7 +389,6 @@ async function persistProductRemote(
     }
     mergeRemoteProduct(body.product);
     bustStorefrontClientCache();
-    hintPurgeEdgeCacheAfterProductChange();
     return { ok: true, product: body.product };
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") {
@@ -494,7 +489,6 @@ function ProductsPane({
         return;
       }
       bustStorefrontClientCache();
-      hintPurgeEdgeCacheAfterProductChange();
     } catch {
       if (removed) mergeRemoteProduct(removed);
       setSaveError(t("staff.products.errorDelete"));

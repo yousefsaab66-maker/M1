@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
-import { purgeCloudflareCacheSoft } from "@/lib/cloudflare-purge";
+import { purgeCloudflareCacheSoft, purgeCloudflareCatalogCache } from "@/lib/cloudflare-purge";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ async function requireStaff(): Promise<boolean> {
 }
 
 /** Optional post-save purge when CLOUDFLARE_* env vars are configured. */
-export async function POST() {
+export async function POST(req: Request) {
   if (!(await requireStaff())) {
     return NextResponse.json({ ok: false, error: "unauthorized" } as const, {
       status: 401,
@@ -21,6 +21,8 @@ export async function POST() {
     });
   }
 
-  const purged = await purgeCloudflareCacheSoft();
+  const scope = new URL(req.url).searchParams.get("scope")?.trim();
+  const purged =
+    scope === "catalog" ? await purgeCloudflareCatalogCache() : await purgeCloudflareCacheSoft();
   return NextResponse.json({ ok: true, purged } as const, { headers: NO_STORE_JSON_HEADERS });
 }
