@@ -7,7 +7,7 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 
 /** العراق 078… → صيغة واتساب الدولية بدون + */
 const WHATSAPP_RETAIL = "9647715937565";
-const WHATSAPP_WHOLESALE = "9647513261257";
+const WHATSAPP_WHOLESALE = "9647717200022";
 
 const FAB_CLASS =
   "flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-white shadow-[0_4px_24px_rgba(0,0,0,0.2)] transition-[filter,transform] hover:brightness-105 active:scale-[0.98] sm:px-5";
