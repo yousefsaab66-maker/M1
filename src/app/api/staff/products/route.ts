@@ -2,11 +2,9 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { Product } from "@/lib/catalog";
 import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
-import { purgeCloudflareCacheSoft } from "@/lib/cloudflare-purge";
 import { deleteProductFromSupabase } from "@/lib/muhra-product-delete";
 import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
-import { writeStorefrontToR2 } from "@/lib/storefront-r2";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +34,6 @@ export async function POST(req: Request) {
   }
 
   const result = await upsertProductToSupabase(payload);
-  if (result.ok) {
-    void writeStorefrontToR2({}).catch(() => {});
-    void purgeCloudflareCacheSoft().catch(() => {});
-  }
   const headers = {
     ...NO_STORE_JSON_HEADERS,
     ...(result.ok ? { "X-Muhra-Cache-Hint": "purge-catalog-after-deploy" } : {}),
@@ -66,10 +60,6 @@ export async function DELETE(req: Request) {
   }
 
   const result = await deleteProductFromSupabase(id);
-  if (result.ok) {
-    void writeStorefrontToR2({}).catch(() => {});
-    void purgeCloudflareCacheSoft().catch(() => {});
-  }
   const headers = {
     ...NO_STORE_JSON_HEADERS,
     ...(result.ok ? { "X-Muhra-Cache-Hint": "purge-catalog-after-deploy" } : {}),
