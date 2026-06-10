@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { JOURNAL } from "@/lib/catalog";
-import { fetchStorefront } from "@/lib/storefront-query";
 import { buildPageMetadata } from "@/lib/seo-metadata";
+export { staticPageDynamic as dynamic } from "@/lib/static-page";
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -10,10 +10,7 @@ type LayoutProps = {
 
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
   const { slug } = await params;
-  const storefront = await fetchStorefront();
-  const journal =
-    storefront.kind === "ok" && storefront.journal?.length ? storefront.journal : JOURNAL;
-  const article = journal.find((a) => a.slug === slug);
+  const article = JOURNAL.find((a) => a.slug === slug);
 
   if (article) {
     return buildPageMetadata({

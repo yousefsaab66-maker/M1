@@ -251,7 +251,7 @@ export async function fetchStaffBootstrapClient(
 
   try {
     const res = await fetch("/api/staff/bootstrap", {
-      cache: "no-store",
+      cache: "default",
       credentials: "same-origin",
       signal,
     });

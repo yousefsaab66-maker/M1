@@ -43,6 +43,11 @@ import { getShippingFeeIqd, getUsdIqdRate, normalizeSiteContent } from "@/lib/si
 import { sanitizeSiteContentForServer } from "@/lib/site-content-storage";
 import { isR2PublicConfiguredClient } from "@/lib/r2-config";
 import {
+  markStoreNetworkInitComplete,
+  runStoreInitSingleFlight,
+  shouldSkipStoreNetworkInit,
+} from "@/lib/store-init-client";
+import {
   bustStorefrontClientCache,
   CLIENT_CACHE_MS,
   fetchStaffBootstrapClient,
@@ -366,7 +371,7 @@ type CatalogHandlers = {
   onCatalogLoaded?: () => void;
 };
 
-/** Storefront visitors: R2 CDN (site + slim catalogProducts), products API only as fallback. */
+/** Storefront visitors: R2 CDN first — skip Worker `/api/catalog/products` when CDN has catalogProducts. */
 async function loadStorefrontVisitorCatalog(
   gen: number,
   signal: AbortSignal,
@@ -386,20 +391,27 @@ async function loadStorefrontVisitorCatalog(
       sfHandlers,
     );
     if (cdnSf.source === "r2") sfHandlers.setR2Ready(true);
+    if (cdnSf.catalogProducts && cdnSf.catalogProducts.length > 0) {
+      applyRemoteCatalog(gen, cdnSf.catalogProducts, catalogHandlers);
+      markStoreNetworkInitComplete();
+      return;
+    }
   }
 
   const catalogAc = new AbortController();
   const catalogTimer = setTimeout(() => catalogAc.abort(), CATALOG_INIT_MS);
-  const catalogRes = await fetchCatalogJson(2, catalogAc.signal);
+  const catalogRes = await fetchCatalogJson(1, catalogAc.signal);
   clearTimeout(catalogTimer);
 
   if (catalogRes.ok) {
     applyRemoteCatalog(gen, catalogRes.products, catalogHandlers);
+    markStoreNetworkInitComplete();
     return;
   }
 
   if (cdnSf.ok && cdnSf.catalogProducts && cdnSf.catalogProducts.length > 0) {
     applyRemoteCatalog(gen, cdnSf.catalogProducts, catalogHandlers);
+    markStoreNetworkInitComplete();
     return;
   }
 
@@ -418,6 +430,7 @@ async function loadStorefrontVisitorCatalog(
       if (apiSf.source === "r2") sfHandlers.setR2Ready(true);
       if (apiSf.catalogProducts && apiSf.catalogProducts.length > 0) {
         applyRemoteCatalog(gen, apiSf.catalogProducts, catalogHandlers);
+        markStoreNetworkInitComplete();
         return;
       }
     }
@@ -462,17 +475,6 @@ async function loadStaffCatalog(
   }
 }
 
-function scheduleStaffCatalogLoad(fn: () => Promise<void>) {
-  const run = () => {
-    void fn();
-  };
-  if (typeof requestIdleCallback !== "undefined") {
-    requestIdleCallback(run, { timeout: 2500 });
-  } else {
-    setTimeout(run, 80);
-  }
-}
-
 async function putStorefrontJson(
   body: {
     site?: SiteContent;
@@ -512,10 +514,13 @@ const CATALOG_INIT_MS = 22_000;
 export function StoreProvider({
   children,
   initialRemoteProducts,
+  minimalInit = false,
 }: {
   children: React.ReactNode;
   /** من `RootLayout` بعد جلب Supabase — يمنع أول طلاء بمنتجات الـ demo المدمجة. */
   initialRemoteProducts?: Product[];
+  /** Staff login shell: local hydrate only — no catalog/bootstrap API (CF 1102). */
+  minimalInit?: boolean;
 }) {
   const bootstrapFromServer = initialRemoteProducts !== undefined;
   /** يُحدَّد وقت التشغيل من `/api/catalog/products` حتى يعمل الكتالوج لو غاب NEXT_PUBLIC وقت بناء الاستضافة. */
@@ -549,6 +554,7 @@ export function StoreProvider({
   /** Last successful remote products fetch — skips duplicate GETs within CLIENT_CACHE_MS. */
   const catalogLoadedAtRef = useRef(0);
   const staffExtrasLoadedRef = useRef(false);
+  const pageLoadedAtRef = useRef(0);
 
   const refreshCatalog = useCallback(async () => {
     catalogRefreshAbortRef.current?.abort();
@@ -688,6 +694,7 @@ export function StoreProvider({
   useLayoutEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
+    pageLoadedAtRef.current = Date.now();
 
     const hydrateSiteAndUi = () => {
       setSiteState(normalizeSiteContent(readJSON<SiteContent>(KEY_SITE, DEFAULT_SITE)));
@@ -744,7 +751,20 @@ export function StoreProvider({
         setOrders(readJSON<Order[]>(KEY_ORDERS, []));
       }
 
-      void (async () => {
+      const skipNetwork =
+        minimalInit ||
+        isStaffLoginPath() ||
+        (shouldSkipStoreNetworkInit() &&
+          (readCatalogSnapshot()?.length ?? 0) > 0);
+
+      if (skipNetwork) {
+        if (!minimalInit && !isStaffLoginPath()) {
+          catalogLoadedAtRef.current = Date.now();
+        }
+        return;
+      }
+
+      void runStoreInitSingleFlight(async () => {
         const gen = (catalogApplyGenRef.current += 1);
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
@@ -763,21 +783,19 @@ export function StoreProvider({
             catalogApplyGenRef,
             onCatalogLoaded: () => {
               catalogLoadedAtRef.current = Date.now();
+              markStoreNetworkInitComplete();
             },
           };
 
-          if (isStaffLoginPath()) {
-            /* Login: local hydrate only — no catalog/bootstrap (CF 1102 on reload). */
-          } else if (isStaffAppPath()) {
-            scheduleStaffCatalogLoad(() =>
-              loadStaffCatalog(
-                gen,
-                ac.signal,
-                sfHandlers,
-                catalogHandlers,
-                recoverCatalogAfterNetworkFailure,
-              ),
+          if (isStaffAppPath()) {
+            await loadStaffCatalog(
+              gen,
+              ac.signal,
+              sfHandlers,
+              catalogHandlers,
+              recoverCatalogAfterNetworkFailure,
             );
+            markStoreNetworkInitComplete();
           } else {
             await loadStorefrontVisitorCatalog(
               gen,
@@ -793,16 +811,17 @@ export function StoreProvider({
           clearTimeout(timer);
           setStoreReady(true);
         }
-      })();
+      });
     };
 
     loadRemote();
-  }, []);
+  }, [minimalInit, bootstrapFromServer, initialRemoteProducts, applyStorefront]);
 
   /** تحديث خفيف عند الرجوع للتطبيق — تسلسلي لتقليل 1102 على Cloudflare. */
   const remoteRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleRemoteRefresh = useCallback(() => {
-    if (isStaffAppPath() || isStaffLoginPath()) return;
+    if (minimalInit || isStaffAppPath() || isStaffLoginPath()) return;
+    if (Date.now() - pageLoadedAtRef.current < CLIENT_CACHE_MS) return;
     if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
     remoteRefreshTimerRef.current = setTimeout(() => {
       void (async () => {
@@ -852,7 +871,7 @@ export function StoreProvider({
         });
       })();
     }, 5000);
-  }, [applyStorefront]);
+  }, [applyStorefront, minimalInit]);
 
   useEffect(() => {
     const onVis = () => {
@@ -1330,6 +1349,11 @@ export function StoreProvider({
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+}
+
+/** Staff login route group — same context API, zero catalog/network init. */
+export function MinimalStoreProvider({ children }: { children: React.ReactNode }) {
+  return <StoreProvider minimalInit>{children}</StoreProvider>;
 }
 
 export function useStore() {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
+import { STAFF_BOOTSTRAP_JSON_CACHE_HEADERS } from "@/lib/api-cache-headers";
 import { fetchCatalogProductsForList } from "@/lib/catalog-products-query";
 import { isR2PublicConfigured } from "@/lib/r2-config";
 import { readStorefrontFromR2 } from "@/lib/storefront-r2";
@@ -40,7 +40,7 @@ export async function GET() {
         storefrontSource: "r2" as const,
         r2Ready: isR2PublicConfigured(),
       },
-      { headers: NO_STORE_JSON_HEADERS },
+      { headers: STAFF_BOOTSTRAP_JSON_CACHE_HEADERS },
     );
   }
 
@@ -54,6 +54,6 @@ export async function GET() {
       storefrontSource: "none" as const,
       r2Ready: isR2PublicConfigured(),
     },
-    { headers: NO_STORE_JSON_HEADERS },
+    { headers: STAFF_BOOTSTRAP_JSON_CACHE_HEADERS },
   );
 }

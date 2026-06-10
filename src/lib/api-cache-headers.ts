@@ -4,14 +4,20 @@
  * triggers a soft zone purge when CLOUDFLARE_ZONE_ID + CLOUDFLARE_API_TOKEN are set.
  */
 export const CATALOG_JSON_CACHE_HEADERS = {
-  "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=600",
-  "CDN-Cache-Control": "max-age=300",
+  "Cache-Control": "public, max-age=0, s-maxage=600, stale-while-revalidate=1800",
+  "CDN-Cache-Control": "max-age=600",
 } as const;
 
 /** Site + collections from `/api/catalog/storefront` (same TTL as products). */
 export const STOREFRONT_JSON_CACHE_HEADERS = {
-  "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=600",
-  "CDN-Cache-Control": "max-age=300",
+  "Cache-Control": "public, max-age=0, s-maxage=600, stale-while-revalidate=1800",
+  "CDN-Cache-Control": "max-age=600",
+} as const;
+
+/** Staff panel init — short edge cache to absorb reload bursts (auth not required). */
+export const STAFF_BOOTSTRAP_JSON_CACHE_HEADERS = {
+  "Cache-Control": "public, max-age=0, s-maxage=120, stale-while-revalidate=600",
+  "CDN-Cache-Control": "max-age=120",
 } as const;
 
 /**

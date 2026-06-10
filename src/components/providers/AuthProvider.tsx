@@ -91,7 +91,19 @@ type AuthCtx = {
 
 const AuthContext = createContext<AuthCtx | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+function isStaffAreaPath(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.location.pathname.startsWith("/staff");
+}
+
+export function AuthProvider({
+  children,
+  staffSessionOnly = false,
+}: {
+  children: React.ReactNode;
+  /** Login shell: skip GET /api/staff/session until user submits credentials. */
+  staffSessionOnly?: boolean;
+}) {
   const [hydrated, setHydrated] = useState(false);
   const [staffSession, setStaffSession] = useState<string | null>(null);
   const [adminSession, setAdminSession] = useState<string | null>(null);
@@ -120,28 +132,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      let staffUser: string | null = null;
-      try {
-        const session = await fetchStaffSessionGet();
-        if (session.ok && session.user) staffUser = session.user;
-      } catch {
-        // ignore
-      }
-      if (staffUser) {
+      if (!staffSessionOnly && isStaffAreaPath()) {
+        let staffUser: string | null = null;
         try {
-          sessionStorage.setItem(KEY_SESSION("staff"), staffUser);
+          const session = await fetchStaffSessionGet();
+          if (session.ok && session.user) staffUser = session.user;
         } catch {
           // ignore
         }
-        setStaffSession(staffUser);
+        if (staffUser) {
+          try {
+            sessionStorage.setItem(KEY_SESSION("staff"), staffUser);
+          } catch {
+            // ignore
+          }
+          setStaffSession(staffUser);
+        } else {
+          clearClientStaffSession();
+          setStaffSession(null);
+        }
       } else {
-        clearClientStaffSession();
-        setStaffSession(null);
+        try {
+          const cached = sessionStorage.getItem(KEY_SESSION("staff"));
+          if (cached) setStaffSession(cached);
+        } catch {
+          // ignore
+        }
       }
 
       setHydrated(true);
     })();
-  }, []);
+  }, [staffSessionOnly]);
 
   const signIn = useCallback(async (role: Role, username: string, password: string) => {
     try {
