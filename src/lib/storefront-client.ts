@@ -183,6 +183,7 @@ export type StaffBootstrapClientResult =
       updatedAt: string | null;
       source: "r2" | "none";
       r2Ready: boolean;
+      presignConfigured: boolean;
     }
   | { ok: false };
 
@@ -265,6 +266,7 @@ export async function fetchStaffBootstrapClient(
       storefrontUpdatedAt?: string | null;
       storefrontSource?: "r2" | "none";
       r2Ready?: boolean;
+      presignConfigured?: boolean;
     };
     const products = Array.isArray(d.products) ? d.products : [];
     const result: StaffBootstrapClientResult = {
@@ -275,6 +277,7 @@ export async function fetchStaffBootstrapClient(
       updatedAt: typeof d.storefrontUpdatedAt === "string" ? d.storefrontUpdatedAt : null,
       source: d.storefrontSource === "r2" ? "r2" : "none",
       r2Ready: d.r2Ready === true,
+      presignConfigured: d.presignConfigured === true,
     };
     staffBootstrapCache = writeCache(staffBootstrapCache, result, res.headers.get("etag"));
     return result;

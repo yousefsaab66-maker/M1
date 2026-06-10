@@ -1,17 +1,30 @@
 import { NextResponse } from "next/server";
 import { STAFF_BOOTSTRAP_JSON_CACHE_HEADERS } from "@/lib/api-cache-headers";
 import { fetchCatalogProductsForList } from "@/lib/catalog-products-query";
-import { isR2StaffUploadReady } from "@/lib/r2-staff-context";
-import { readStorefrontFromR2 } from "@/lib/storefront-r2";
+import { isR2PresignConfigured } from "@/lib/r2-presign";
+import { getR2StaffContext } from "@/lib/r2-staff-context";
+import { readStorefrontFromR2, type ReadStorefrontR2Result } from "@/lib/storefront-r2";
 
 export const dynamic = "force-dynamic";
 
+async function readStorefrontSafe(): Promise<ReadStorefrontR2Result> {
+  try {
+    return await readStorefrontFromR2();
+  } catch {
+    return { ok: false, error: "r2_read_failed" };
+  }
+}
+
 /**
  * Staff init — list products + site/collections only (no journal/boutiques bodies).
- * Products first; storefront R2 read is best-effort so an empty catalog still returns fast (1102).
+ * Parallel Supabase + R2 + upload gate; includes presign flag so the client skips `/api/health/r2`.
  */
 export async function GET() {
-  const productsResult = await fetchCatalogProductsForList();
+  const [productsResult, storefrontR2, r2Ctx] = await Promise.all([
+    fetchCatalogProductsForList(),
+    readStorefrontSafe(),
+    getR2StaffContext(),
+  ]);
 
   const products =
     productsResult.kind === "ok" ? productsResult.products : [];
@@ -21,13 +34,8 @@ export async function GET() {
       : productsResult.kind === "error"
         ? productsResult.message
         : "not_configured";
-
-  let storefrontR2: Awaited<ReturnType<typeof readStorefrontFromR2>>;
-  try {
-    storefrontR2 = await readStorefrontFromR2();
-  } catch {
-    storefrontR2 = { ok: false, error: "r2_read_failed" };
-  }
+  const r2Ready = r2Ctx.ready;
+  const presignConfigured = isR2PresignConfigured();
 
   if (storefrontR2.ok && storefrontR2.data) {
     return NextResponse.json(
@@ -38,7 +46,8 @@ export async function GET() {
         collections: storefrontR2.data.collections,
         storefrontUpdatedAt: storefrontR2.data.updatedAt,
         storefrontSource: "r2" as const,
-        r2Ready: await isR2StaffUploadReady(),
+        r2Ready,
+        presignConfigured,
       },
       { headers: STAFF_BOOTSTRAP_JSON_CACHE_HEADERS },
     );
@@ -52,7 +61,8 @@ export async function GET() {
       collections: null,
       storefrontUpdatedAt: null,
       storefrontSource: "none" as const,
-      r2Ready: await isR2StaffUploadReady(),
+      r2Ready,
+      presignConfigured,
     },
     { headers: STAFF_BOOTSTRAP_JSON_CACHE_HEADERS },
   );

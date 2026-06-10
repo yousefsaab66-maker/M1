@@ -296,19 +296,6 @@ async function fetchStorefrontJson(signal?: AbortSignal) {
   };
 }
 
-async function probeR2Health(
-  signal?: AbortSignal,
-): Promise<{ ready: boolean; presignConfigured: boolean }> {
-  try {
-    const res = await fetch("/api/health/r2", { cache: "no-store", credentials: "same-origin", signal });
-    if (!res.ok) return { ready: false, presignConfigured: false };
-    const d = (await res.json()) as { ready?: boolean; presignConfigured?: boolean };
-    return { ready: d.ready === true, presignConfigured: d.presignConfigured === true };
-  } catch {
-    return { ready: false, presignConfigured: false };
-  }
-}
-
 function readLocalSiteRemoteAt(): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -323,7 +310,7 @@ function applyRemoteCatalog(
   products: Product[],
   handlers: CatalogHandlers,
 ) {
-  if (gen !== handlers.catalogApplyGenRef.current || products.length === 0) return;
+  if (gen !== handlers.catalogApplyGenRef.current) return;
   writeCatalogSnapshot(products);
   clearStaleLocalProductCache();
   handlers.setRemoteCatalog(true);
@@ -350,10 +337,6 @@ function applyRemoteStorefrontIfNewer(
     });
     if (updatedAt) handlers.setR2Ready(true);
   }
-}
-
-function shouldProbeR2OnLoad(): boolean {
-  return isStaffAppPath();
 }
 
 type StorefrontHandlers = {
@@ -449,6 +432,7 @@ async function loadStaffCatalog(
   sfHandlers: StorefrontHandlers,
   catalogHandlers: CatalogHandlers,
   recoverCatalog: () => void,
+  setR2PresignConfigured: (v: boolean) => void,
 ): Promise<void> {
   const bootstrap = await fetchStaffBootstrapClient(signal);
   if (!bootstrap.ok) {
@@ -456,6 +440,7 @@ async function loadStaffCatalog(
     return;
   }
   if (bootstrap.r2Ready) sfHandlers.setR2Ready(true);
+  setR2PresignConfigured(bootstrap.presignConfigured);
   applyRemoteStorefrontIfNewer(
     gen,
     bootstrap.site,
@@ -465,15 +450,7 @@ async function loadStaffCatalog(
     bootstrap.updatedAt,
     sfHandlers,
   );
-  if (bootstrap.products.length > 0) {
-    applyRemoteCatalog(gen, bootstrap.products, catalogHandlers);
-  } else if (gen === catalogHandlers.catalogApplyGenRef.current) {
-    catalogHandlers.setSupabaseReady(true);
-    catalogHandlers.setRemoteCatalog(true);
-    catalogHandlers.setProductsState([]);
-    writeCatalogSnapshot([]);
-    catalogHandlers.onCatalogLoaded?.();
-  }
+  applyRemoteCatalog(gen, bootstrap.products, catalogHandlers);
 }
 
 async function putStorefrontJson(
@@ -570,6 +547,7 @@ export function StoreProvider({
       writeCatalogSnapshot(res.products);
       clearStaleLocalProductCache();
       setRemoteCatalog(true);
+      setSupabaseReady(true);
       setProductsState(res.products);
       catalogLoadedAtRef.current = Date.now();
     } finally {
@@ -658,6 +636,8 @@ export function StoreProvider({
       return next;
     });
     setRemoteCatalog(true);
+    setSupabaseReady(true);
+    markStoreNetworkInitComplete();
   }, []);
 
   const removeRemoteProduct = useCallback((id: string) => {
@@ -668,6 +648,8 @@ export function StoreProvider({
       return next;
     });
     setRemoteCatalog(true);
+    setSupabaseReady(true);
+    markStoreNetworkInitComplete();
   }, []);
 
   const pullRemoteOrders = useCallback(async () => {
@@ -709,6 +691,7 @@ export function StoreProvider({
       const snap = readCatalogSnapshot();
       if (snap && snap.length > 0) {
         setRemoteCatalog(true);
+        setSupabaseReady(true);
         setProductsState(snap);
         return;
       }
@@ -730,6 +713,7 @@ export function StoreProvider({
         if (snapBootstrap && snapBootstrap.length > 0) {
           setProductsState(snapBootstrap);
           setRemoteCatalog(true);
+          setSupabaseReady(true);
           catalogLoadedAtRef.current = Date.now();
         } else {
           const local = readJSON<Product[]>(KEY_PRODUCTS, []);
@@ -745,7 +729,9 @@ export function StoreProvider({
         minimalInit || isStaffLoginPath() || shouldSkipStoreNetworkInit();
 
       if (skipNetwork) {
-        if (!minimalInit && !isStaffLoginPath()) {
+        if (!minimalInit && !isStaffLoginPath() && shouldSkipStoreNetworkInit()) {
+          setSupabaseReady(true);
+          setRemoteCatalog(true);
           catalogLoadedAtRef.current = Date.now();
         }
         return;
@@ -756,14 +742,6 @@ export function StoreProvider({
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
-          if (shouldProbeR2OnLoad()) {
-            void probeR2Health(ac.signal).then((health) => {
-              if (gen !== catalogApplyGenRef.current) return;
-              if (health.ready) setR2Ready(true);
-              setR2PresignConfigured(health.presignConfigured);
-            });
-          }
-
           const sfHandlers = { applyStorefront, setR2Ready, catalogApplyGenRef };
           const catalogHandlers = {
             setRemoteCatalog,
@@ -783,6 +761,7 @@ export function StoreProvider({
               sfHandlers,
               catalogHandlers,
               recoverCatalogAfterNetworkFailure,
+              setR2PresignConfigured,
             );
             markStoreNetworkInitComplete();
           } else {
