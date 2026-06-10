@@ -50,11 +50,13 @@ import {
 } from "@/lib/product-media";
 import {
   formatSizeOptionsSummary,
+  formatOrderSizeDisplay,
+  getProductSizeGroups,
   isSizeKindEnabled,
   normalizeSizeOptions,
   productSizeKindForCategory,
-  resolveProductSizes,
   SIZE_PRESETS,
+  sizeKindLabelKey,
   type ProductSizeKind,
   type ProductSizeOptions,
 } from "@/lib/product-sizes";
@@ -1028,7 +1030,7 @@ function ProductStaffPreview({
   const gallery = productGallerySources(draft);
   const safeIdx = Math.min(imgIdx, Math.max(0, gallery.length - 1));
   const mainSrc = gallery[safeIdx] ?? productImageAt(draft, 0);
-  const previewSizes = resolveProductSizes(draft, site);
+  const previewSizeGroups = getProductSizeGroups(draft, site);
   const sizeKind = productSizeKindForCategory(draft.category, site);
 
   return (
@@ -1097,24 +1099,35 @@ function ProductStaffPreview({
         )}
         <div className="border-t pt-3" style={{ borderColor: "var(--line)" }}>
           <p className="staff-label !mb-2">{t("common.size")}</p>
-          {!sizeKind && (
+          {!sizeKind && previewSizeGroups.length === 0 && (
             <p className="text-sm leading-relaxed opacity-75">{t("staff.preview.noSizes")}</p>
           )}
-          {sizeKind && previewSizes.length === 0 && (
+          {previewSizeGroups.length === 0 && sizeKind && (
             <p className="text-sm leading-relaxed text-amber-800 dark:text-amber-400/95">
               {t("staff.preview.sizesEmpty")}
             </p>
           )}
-          {previewSizes.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {previewSizes.map((s) => (
-                <span
-                  key={s}
-                  className="border px-2.5 py-1 text-xs sm:text-sm"
-                  style={{ borderColor: "var(--line)" }}
-                >
-                  {s}
-                </span>
+          {previewSizeGroups.length > 0 && (
+            <div className="space-y-3">
+              {previewSizeGroups.map((group) => (
+                <div key={group.kind}>
+                  <p className="mb-1.5 text-[10px] uppercase tracking-eyebrow opacity-60">
+                    {previewSizeGroups.length > 1
+                      ? t(sizeKindLabelKey(group.kind))
+                      : t("common.size")}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {group.sizes.map((s) => (
+                      <span
+                        key={`${group.kind}-${s}`}
+                        className="border px-2.5 py-1 text-xs sm:text-sm"
+                        style={{ borderColor: "var(--line)" }}
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -1852,6 +1865,7 @@ function OrdersPane() {
                               {o.items.map((it, idx) => {
                                 const p = products.find((x) => x.id === it.productId);
                                 const thumbSrc = orderLineThumbnail(it.productId, products);
+                                const sizeLabel = formatOrderSizeDisplay(it.size, t);
                                 return (
                                   <li
                                     key={idx}
@@ -1869,7 +1883,7 @@ function OrdersPane() {
                                         <p className="text-sm">{it.name}</p>
                                         <p className="text-[11px] opacity-65">
                                           {it.qty} × {formatPrice(it.price, o.currency, locale)}
-                                          {it.size ? ` · ${it.size}` : ""}
+                                          {sizeLabel ? ` · ${sizeLabel}` : ""}
                                           {p ? ` · /${p.slug}` : ""}
                                         </p>
                                       </div>

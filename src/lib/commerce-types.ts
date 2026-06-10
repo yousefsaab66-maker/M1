@@ -1,11 +1,15 @@
 import type { Currency } from "@/lib/catalog";
+import type { ProductSizeSelections } from "@/lib/product-sizes";
 import type { CountryCode } from "@/lib/countries";
 import type { GovernorateCode } from "@/lib/iraq";
 
 export type BagItem = {
   productId: string;
   qty: number;
+  /** Legacy single-size products. */
   size?: string;
+  /** Multi-group size selections (necklace / bracelet / ring). */
+  sizeSelections?: ProductSizeSelections;
 };
 
 export type OrderStatus =

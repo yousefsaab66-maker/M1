@@ -34,6 +34,7 @@ import {
   toIqd,
   type GovernorateCode,
 } from "@/lib/iraq";
+import { bagLineSizeKey, formatBagItemSizeDisplay } from "@/lib/product-sizes";
 import { getShippingFeeIqd, getUsdIqdRate } from "@/lib/site-display";
 
 type FieldErrors = Partial<{
@@ -417,9 +418,11 @@ export default function CheckoutPage() {
           <div className="p-7">
             <h3 className="font-display text-2xl">{t("checkout.summary")}</h3>
             <ul className="mt-6 flex flex-col gap-4">
-              {items.map(({ b, p }) => (
+              {items.map(({ b, p }) => {
+                const sizeLabel = formatBagItemSizeDisplay(b, t);
+                return (
                 <li
-                  key={p.id + (b.size ?? "")}
+                  key={p.id + bagLineSizeKey(b)}
                   className="grid grid-cols-[64px_1fr_auto] items-center gap-4"
                 >
                   <div
@@ -440,7 +443,7 @@ export default function CheckoutPage() {
                     <p className="font-display text-base leading-tight">{p.name}</p>
                     <p className="mt-0.5 text-[10px] tracking-eyebrow uppercase opacity-65">
                       {b.qty} × {formatCustomerPrice(p.price, p.currency, locale, rateOpts)}
-                      {b.size ? ` · ${b.size}` : ""}
+                      {sizeLabel ? ` · ${sizeLabel}` : ""}
                     </p>
                   </div>
                   <ProductPrice
@@ -450,7 +453,8 @@ export default function CheckoutPage() {
                     align="end"
                   />
                 </li>
-              ))}
+                );
+              })}
             </ul>
             <div className="hairline my-6" />
             <div className="space-y-3">

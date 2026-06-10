@@ -5,6 +5,13 @@ export type ProductSizeKind = "necklace" | "bracelet" | "ring";
 
 export type ProductSizeOptions = Partial<Record<ProductSizeKind, string[]>>;
 
+export type ProductSizeSelections = Partial<Record<ProductSizeKind, string>>;
+
+export type ProductSizeGroup = {
+  kind: ProductSizeKind;
+  sizes: string[];
+};
+
 const SIZE_KINDS: ProductSizeKind[] = ["necklace", "bracelet", "ring"];
 
 /** Common MUHRA presets — staff can apply or edit per product. */
@@ -55,15 +62,110 @@ export function productSizeKindForCategory(
   return null;
 }
 
+/** Enabled size groups for PDP — every toggled group, not just the product category. */
+export function getProductSizeGroups(product: Product, site?: SiteContent): ProductSizeGroup[] {
+  const opts = normalizeSizeOptions(product.sizeOptions);
+  if (opts) {
+    const groups: ProductSizeGroup[] = [];
+    for (const kind of SIZE_KINDS) {
+      const sizes = opts[kind];
+      if (sizes?.length) groups.push({ kind, sizes });
+    }
+    if (groups.length > 0) return groups;
+  }
+  const legacy = product.sizes?.length
+    ? [...new Set(product.sizes.map((s) => s.trim()).filter(Boolean))]
+    : [];
+  if (legacy.length === 0) return [];
+  const kind = productSizeKindForCategory(product.category, site);
+  if (kind) return [{ kind, sizes: legacy }];
+  return [{ kind: "ring", sizes: legacy }];
+}
+
 /** Sizes shown on PDP / bag for this product (category-aware). */
 export function resolveProductSizes(product: Product, site?: SiteContent): string[] {
-  const kind = productSizeKindForCategory(product.category, site);
-  const opts = normalizeSizeOptions(product.sizeOptions);
-  if (opts && kind && opts[kind]?.length) return opts[kind]!;
-  if (product.sizes?.length) {
-    return [...new Set(product.sizes.map((s) => s.trim()).filter(Boolean))];
-  }
+  const groups = getProductSizeGroups(product, site);
+  if (groups.length === 1) return groups[0]!.sizes;
+  if (groups.length > 1) return flattenSizeOptions(product.sizeOptions);
   return [];
+}
+
+export function sizeKindLabelKey(kind: ProductSizeKind): `product.size.${ProductSizeKind}` {
+  return `product.size.${kind}`;
+}
+
+/** Stable bag line key for single or multi-group size selections. */
+export function bagLineSizeKey(item: {
+  size?: string;
+  sizeSelections?: ProductSizeSelections;
+}): string {
+  const sel = item.sizeSelections;
+  if (sel && Object.keys(sel).length > 0) {
+    return SIZE_KINDS.map((k) => `${k}=${sel[k] ?? ""}`).join("|");
+  }
+  return item.size ?? "";
+}
+
+/** Persist multi-group selections in order `size` column (legacy plain values unchanged). */
+export function serializeSizeForOrder(
+  sizeSelections?: ProductSizeSelections,
+  legacySize?: string,
+): string | undefined {
+  if (sizeSelections && Object.keys(sizeSelections).length > 0) {
+    const parts = SIZE_KINDS.filter((k) => sizeSelections[k]).map(
+      (k) => `${k}:${sizeSelections[k]}`,
+    );
+    if (parts.length > 0) return parts.join("|");
+  }
+  return legacySize?.trim() || undefined;
+}
+
+export function parseSerializedSize(size: string | undefined): ProductSizeSelections | null {
+  if (!size?.includes(":")) return null;
+  const out: ProductSizeSelections = {};
+  for (const part of size.split("|")) {
+    const idx = part.indexOf(":");
+    if (idx <= 0) continue;
+    const kind = part.slice(0, idx) as ProductSizeKind;
+    const value = part.slice(idx + 1).trim();
+    if (SIZE_KINDS.includes(kind) && value) out[kind] = value;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+export function formatSizeSelectionsDisplay(
+  sizeSelections: ProductSizeSelections | undefined,
+  t: (key: string) => string,
+  legacySize?: string,
+): string | undefined {
+  if (sizeSelections && Object.keys(sizeSelections).length > 0) {
+    const parts = SIZE_KINDS.filter((k) => sizeSelections[k]).map(
+      (k) => `${t(sizeKindLabelKey(k))}: ${sizeSelections[k]}`,
+    );
+    if (parts.length > 0) return parts.join(" · ");
+  }
+  if (legacySize) return `${t("common.size")}: ${legacySize}`;
+  return undefined;
+}
+
+export function formatBagItemSizeDisplay(
+  item: { size?: string; sizeSelections?: ProductSizeSelections },
+  t: (key: string) => string,
+): string | undefined {
+  return formatSizeSelectionsDisplay(item.sizeSelections, t, item.size);
+}
+
+export function formatOrderSizeDisplay(size: string | undefined, t: (key: string) => string): string | undefined {
+  const parsed = parseSerializedSize(size);
+  if (parsed) return formatSizeSelectionsDisplay(parsed, t);
+  return size ? `${t("common.size")}: ${size}` : undefined;
+}
+
+export function isSizeSelectionsComplete(
+  groups: ProductSizeGroup[],
+  selections: ProductSizeSelections,
+): boolean {
+  return groups.every((g) => Boolean(selections[g.kind]?.trim()));
 }
 
 /** Flatten enabled size groups for staff table / legacy `sizes` column. */

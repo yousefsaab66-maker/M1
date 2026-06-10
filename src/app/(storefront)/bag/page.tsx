@@ -9,6 +9,7 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore, type BagItem } from "@/components/providers/StoreProvider";
 import { ProductPrice } from "@/components/ProductPrice";
 import { getCustomerPriceParts } from "@/lib/customer-price";
+import { bagLineSizeKey, formatBagItemSizeDisplay } from "@/lib/product-sizes";
 import { getUsdIqdRate } from "@/lib/site-display";
 
 export default function BagPage() {
@@ -44,9 +45,12 @@ export default function BagPage() {
         ) : (
           <div className="grid gap-12 lg:grid-cols-[1.5fr_1fr] lg:gap-16">
             <ul className="flex flex-col" aria-live="polite">
-              {items.map(({ b, p }) => (
+              {items.map(({ b, p }) => {
+                const sizeLabel = formatBagItemSizeDisplay(b, t);
+                const lineKey = bagLineSizeKey(b);
+                return (
                 <li
-                  key={p.id + (b.size ?? "")}
+                  key={p.id + lineKey}
                   className="grid grid-cols-[110px_1fr_auto] items-center gap-5 py-6"
                   style={{ borderTop: "1px solid var(--line)" }}
                 >
@@ -75,9 +79,9 @@ export default function BagPage() {
                     <p className="mt-1 text-[11px] tracking-eyebrow uppercase opacity-65">
                       {p.collection.replace("muhra-", "")}
                     </p>
-                    {b.size && (
+                    {sizeLabel && (
                       <p className="mt-1 text-[11px] tracking-eyebrow uppercase opacity-65">
-                        {t("common.size")}: {b.size}
+                        {sizeLabel}
                       </p>
                     )}
                     <div className="mt-3 flex items-center gap-3">
@@ -88,7 +92,7 @@ export default function BagPage() {
                         <button
                           type="button"
                           aria-label={t("bag.qtyDecrease")}
-                          onClick={() => setBagQty(p.id, b.qty - 1, b.size)}
+                          onClick={() => setBagQty(p.id, b.qty - 1, b.size, b.sizeSelections)}
                           className="px-2 py-1.5"
                         >
                           <Minus className="h-3.5 w-3.5" strokeWidth={1.4} />
@@ -97,7 +101,7 @@ export default function BagPage() {
                         <button
                           type="button"
                           aria-label={t("bag.qtyIncrease")}
-                          onClick={() => setBagQty(p.id, b.qty + 1, b.size)}
+                          onClick={() => setBagQty(p.id, b.qty + 1, b.size, b.sizeSelections)}
                           className="px-2 py-1.5"
                         >
                           <Plus className="h-3.5 w-3.5" strokeWidth={1.4} />
@@ -105,7 +109,7 @@ export default function BagPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => removeFromBag(p.id, b.size)}
+                        onClick={() => removeFromBag(p.id, b.size, b.sizeSelections)}
                         aria-label={t("bag.remove")}
                         className="opacity-65 hover:opacity-100"
                       >
@@ -120,7 +124,8 @@ export default function BagPage() {
                     align="end"
                   />
                 </li>
-              ))}
+                );
+              })}
               <div className="border-t" style={{ borderColor: "var(--line)" }} />
             </ul>
 

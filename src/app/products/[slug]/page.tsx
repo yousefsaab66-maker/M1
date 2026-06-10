@@ -12,7 +12,13 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 import { ProductPrice } from "@/components/ProductPrice";
 import { findProductBySlug, productGallerySources } from "@/lib/product-media";
-import { resolveProductSizes } from "@/lib/product-sizes";
+import {
+  getProductSizeGroups,
+  isSizeSelectionsComplete,
+  sizeKindLabelKey,
+  type ProductSizeKind,
+  type ProductSizeSelections,
+} from "@/lib/product-sizes";
 import type { Product } from "@/lib/catalog";
 import { productCategoryLabel } from "@/lib/site-display";
 
@@ -131,33 +137,52 @@ function ProductBuyColumn({ product }: { product: Product }) {
   const router = useRouter();
   const { addToBag, toggleWish, inWishlist, site } = useStore();
 
-  const sizesList = useMemo(
-    () => resolveProductSizes(product, site),
+  const sizeGroups = useMemo(
+    () => getProductSizeGroups(product, site),
     [product, site],
   );
+  const hasSizes = sizeGroups.length > 0;
+  const multiGroup = sizeGroups.length > 1;
 
-  const [size, setSize] = useState<string | undefined>(() =>
-    sizesList.length === 1 ? sizesList[0] : undefined,
-  );
+  const [size, setSize] = useState<string | undefined>(() => {
+    if (sizeGroups.length !== 1) return undefined;
+    const only = sizeGroups[0]!.sizes;
+    return only.length === 1 ? only[0] : undefined;
+  });
+  const [sizeSelections, setSizeSelections] = useState<ProductSizeSelections>({});
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [sizeError, setSizeError] = useState(false);
   const wished = inWishlist(product.id);
 
   const onAdd = () => {
-    if (sizesList.length > 0) {
-      if (!size) {
-        setSizeError(true);
-        return;
+    if (hasSizes) {
+      if (multiGroup) {
+        if (!isSizeSelectionsComplete(sizeGroups, sizeSelections)) {
+          setSizeError(true);
+          return;
+        }
+        setSizeError(false);
+        addToBag({ productId: product.id, sizeSelections, qty });
+      } else {
+        if (!size) {
+          setSizeError(true);
+          return;
+        }
+        setSizeError(false);
+        addToBag({ productId: product.id, size, qty });
       }
-      setSizeError(false);
-      addToBag({ productId: product.id, size, qty });
     } else {
       setSizeError(false);
       addToBag({ productId: product.id, qty });
     }
     setAdded(true);
     setTimeout(() => setAdded(false), 2200);
+  };
+
+  const selectGroupSize = (kind: ProductSizeKind, value: string) => {
+    setSizeSelections((prev) => ({ ...prev, [kind]: value }));
+    setSizeError(false);
   };
 
   return (
@@ -180,29 +205,41 @@ function ProductBuyColumn({ product }: { product: Product }) {
         <dd>{productCategoryLabel(product.category, site, t, locale)}</dd>
       </dl>
 
-      {sizesList.length > 0 && (
-        <div className="mt-8">
-          <p className="eyebrow mb-3">{t("common.size")}</p>
-          <div className="flex flex-wrap gap-2">
-            {sizesList.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => {
-                  setSize(s);
-                  setSizeError(false);
-                }}
-                aria-pressed={size === s}
-                className="size-chip"
-                data-active={size === s}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+      {hasSizes && (
+        <div className="mt-8 space-y-6">
+          {sizeGroups.map((group) => (
+            <div key={group.kind}>
+              <p className="eyebrow mb-3">
+                {multiGroup ? t(sizeKindLabelKey(group.kind)) : t("common.size")}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {group.sizes.map((s) => {
+                  const active = multiGroup ? sizeSelections[group.kind] === s : size === s;
+                  return (
+                    <button
+                      key={`${group.kind}-${s}`}
+                      type="button"
+                      onClick={() => {
+                        if (multiGroup) selectGroupSize(group.kind, s);
+                        else {
+                          setSize(s);
+                          setSizeError(false);
+                        }
+                      }}
+                      aria-pressed={active}
+                      className="size-chip"
+                      data-active={active}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
           {sizeError && (
-            <p className="mt-3 text-sm text-[var(--color-bordeaux)]" role="alert">
-              {t("product.sizeRequired")}
+            <p className="text-sm text-[var(--color-bordeaux)]" role="alert">
+              {multiGroup ? t("product.sizesRequired") : t("product.sizeRequired")}
             </p>
           )}
         </div>
