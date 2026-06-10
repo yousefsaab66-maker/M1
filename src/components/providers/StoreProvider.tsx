@@ -349,7 +349,7 @@ function applyRemoteStorefrontIfNewer(
 }
 
 function shouldProbeR2OnLoad(): boolean {
-  return false;
+  return isStaffAppPath();
 }
 
 type StorefrontHandlers = {

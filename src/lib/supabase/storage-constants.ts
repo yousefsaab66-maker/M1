@@ -1,13 +1,13 @@
 /**
- * Staff media uploads use **direct browser → R2** presigned PUT (`POST /api/staff/upload-url`)
- * when `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` are set on the Worker.
- * That bypasses the Cloudflare Worker HTTP body limit (~100 MB on Free/Pro).
+ * Staff media uploads prefer **Worker → MUHRA_MEDIA binding** (`/api/staff/upload*`) for images
+ * and videos ≤50 MB — no R2 API secrets required.
  *
- * **No app-level file-size cap** — MIME type is validated; empty files are rejected.
- * Remaining limit is R2 bucket/object size (multi‑TB per object on paid plans).
+ * Videos **>50 MB** use presigned browser → R2 PUT (`POST /api/staff/upload-url`) when
+ * `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` are set on the Worker.
  *
- * Without presign secrets, uploads fall back to Worker proxy (`/api/staff/upload*`) and inherit
- * edge body limits. Apply CORS with PUT: `npx wrangler r2 bucket cors put muhra-media --file scripts/r2-cors.json`
+ * **No app-level file-size cap** for images — MIME type is validated; empty files are rejected.
+ * Apply CORS with PUT for large direct uploads:
+ * `npx wrangler r2 bucket cors put muhra-media --file scripts/r2-cors.json`
  */
 
 /** Allowed MIME types for product uploads (staff API + bucket policy alignment). */

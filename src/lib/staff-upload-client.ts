@@ -13,7 +13,26 @@ export type StaffUploadResult = { ok: true; url: string } | { ok: false; code: s
 export { STAFF_WORKER_VIDEO_MAX_BYTES };
 
 const RETRY_STATUSES = new Set([429, 502, 503, 524]);
-const PRESIGN_FALLBACK_ERRORS = new Set(["r2_presign_not_configured"]);
+
+/** Presign route errors that should fall through to Worker proxy upload. */
+const PRESIGN_FALLBACK_ERRORS = new Set([
+  "r2_presign_not_configured",
+  "r2_public_base_missing",
+  "r2_media_required",
+]);
+
+/** Worker failed — do not retry via presigned PUT (auth, validation, size). */
+const WORKER_ERRORS_NO_PRESIGN_RETRY = new Set([
+  "unauthorized",
+  "invalid_type",
+  "empty_file",
+  "missing_file",
+  "invalid_kind",
+  "aborted",
+  "decode_failed",
+  "video_requires_direct_upload",
+  "video_too_large",
+]);
 
 function delay(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
@@ -119,26 +138,6 @@ async function uploadViaWorkerProxy(
   return { ok: false, code };
 }
 
-async function finishDirectOrWorkerFallback(
-  file: File,
-  workerFallback: {
-    endpoint: "/api/staff/upload" | "/api/staff/upload-media";
-    fields: Record<string, string>;
-  },
-  signal?: AbortSignal,
-): Promise<StaffUploadResult> {
-  const fallback = await uploadViaWorkerFallback(file, workerFallback, signal);
-  if (fallback.ok) return fallback;
-  if (
-    fallback.code === "video_requires_direct_upload" ||
-    fallback.code === "video_too_large" ||
-    fallback.code === "unauthorized"
-  ) {
-    return fallback;
-  }
-  return { ok: false, code: "direct_upload_failed" };
-}
-
 async function uploadViaWorkerFallback(
   file: File,
   workerFallback: {
@@ -157,15 +156,44 @@ async function uploadViaWorkerFallback(
   }
 }
 
-async function uploadStaffFileDirect(
+async function finishPresignPutWithWorkerFallback(
+  file: File,
+  workerFallback: {
+    endpoint: "/api/staff/upload" | "/api/staff/upload-media";
+    fields: Record<string, string>;
+  },
+  signal?: AbortSignal,
+): Promise<StaffUploadResult> {
+  const fallback = await uploadViaWorkerFallback(file, workerFallback, signal);
+  if (fallback.ok) return fallback;
+  if (
+    fallback.code === "video_requires_direct_upload" ||
+    fallback.code === "video_too_large" ||
+    fallback.code === "unauthorized"
+  ) {
+    return fallback;
+  }
+  if (fallback.code !== "unknown") return fallback;
+  return { ok: false, code: "direct_upload_failed" };
+}
+
+/** Presigned browser → R2 PUT; optional Worker retry when PUT fails (CORS / network). */
+async function uploadViaPresignedPut(
   file: File,
   presignPayload: Record<string, string>,
   workerFallback: {
     endpoint: "/api/staff/upload" | "/api/staff/upload-media";
     fields: Record<string, string>;
   },
-  opts?: { onSuccess?: () => void; signal?: AbortSignal },
+  opts?: {
+    onSuccess?: () => void;
+    signal?: AbortSignal;
+    /** When false, large-video presign-only path skips Worker after PUT failure. */
+    workerFallbackOnPutFail?: boolean;
+  },
 ): Promise<StaffUploadResult> {
+  const workerOnPutFail = opts?.workerFallbackOnPutFail !== false;
+
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (opts?.signal?.aborted) return { ok: false, code: "aborted" };
 
@@ -178,12 +206,18 @@ async function uploadStaffFileDirect(
         await delay(500 * (attempt + 1));
         continue;
       }
-      return uploadViaWorkerFallback(file, workerFallback, opts?.signal);
+      if (workerOnPutFail) {
+        return uploadViaWorkerFallback(file, workerFallback, opts?.signal);
+      }
+      return { ok: false, code: "network" };
     }
 
     const parsed = resultFromPresign(presign.status, presign);
     if (parsed === "fallback") {
-      return uploadViaWorkerFallback(file, workerFallback, opts?.signal);
+      if (workerOnPutFail) {
+        return uploadViaWorkerFallback(file, workerFallback, opts?.signal);
+      }
+      return { ok: false, code: "r2_presign_not_configured" };
     }
     if (parsed === "retry") {
       if (attempt >= 2) return { ok: false, code: "unknown" };
@@ -191,7 +225,7 @@ async function uploadStaffFileDirect(
       continue;
     }
     if ("ok" in parsed && !parsed.ok) {
-      if (presignErrorShouldFallback(parsed.code)) {
+      if (presignErrorShouldFallback(parsed.code) && workerOnPutFail) {
         return uploadViaWorkerFallback(file, workerFallback, opts?.signal);
       }
       return parsed;
@@ -209,12 +243,18 @@ async function uploadStaffFileDirect(
         await delay(500 * (attempt + 1));
         continue;
       }
-      return finishDirectOrWorkerFallback(file, workerFallback, opts?.signal);
+      if (workerOnPutFail) {
+        return finishPresignPutWithWorkerFallback(file, workerFallback, opts?.signal);
+      }
+      return { ok: false, code: "direct_upload_failed" };
     }
 
     if (!putOk) {
       if (attempt >= 2) {
-        return finishDirectOrWorkerFallback(file, workerFallback, opts?.signal);
+        if (workerOnPutFail) {
+          return finishPresignPutWithWorkerFallback(file, workerFallback, opts?.signal);
+        }
+        return { ok: false, code: "direct_upload_failed" };
       }
       await delay(500 * (attempt + 1));
       continue;
@@ -227,7 +267,37 @@ async function uploadStaffFileDirect(
   return { ok: false, code: "unknown" };
 }
 
-/** Product / site / collection images — direct to R2 when presign secrets are set. */
+async function uploadStaffFileWithStrategy(
+  file: File,
+  presignPayload: Record<string, string>,
+  workerFallback: {
+    endpoint: "/api/staff/upload" | "/api/staff/upload-media";
+    fields: Record<string, string>;
+  },
+  strategy: "worker_first" | "presign_first",
+  opts?: { onSuccess?: () => void; signal?: AbortSignal },
+): Promise<StaffUploadResult> {
+  if (strategy === "worker_first") {
+    const worker = await uploadViaWorkerFallback(file, workerFallback, opts?.signal);
+    if (worker.ok) {
+      opts?.onSuccess?.();
+      return worker;
+    }
+    if (WORKER_ERRORS_NO_PRESIGN_RETRY.has(worker.code)) return worker;
+
+    const presign = await uploadViaPresignedPut(file, presignPayload, workerFallback, {
+      ...opts,
+      workerFallbackOnPutFail: false,
+    });
+    if (presign.ok) return presign;
+    if (presign.code === "r2_presign_not_configured") return worker;
+    return presign;
+  }
+
+  return uploadViaPresignedPut(file, presignPayload, workerFallback, opts);
+}
+
+/** Product / site / collection images — Worker binding first (no R2 API secrets required). */
 export async function uploadStaffImageFile(
   file: File,
   scope: "site" | "collections" | "products" = "products",
@@ -241,31 +311,40 @@ export async function uploadStaffImageFile(
   }
 
   const mime = staffImageMimeFromFile(prepared);
-  return uploadStaffFileDirect(
+  return uploadStaffFileWithStrategy(
     prepared,
     { mime, scope, fileName: prepared.name },
     { endpoint: "/api/staff/upload", fields: { scope } },
+    "worker_first",
     opts,
   );
 }
 
 export type StaffMediaKind = "hero" | "journal" | "product" | "site";
 
-/** Hero video / journal image / product video — direct to R2 when presign secrets are set. */
+/** Hero video / journal image / product video — Worker for images & small video; presign for large video. */
 export async function uploadStaffMediaFile(
   file: File,
   kind: StaffMediaKind,
   opts?: { onSuccess?: () => void; signal?: AbortSignal },
 ): Promise<StaffUploadResult> {
   const videoMime = staffVideoMimeFromFile(file);
-  const mime = videoMime.startsWith("video/") ? videoMime : staffImageMimeFromFile(file);
+  const isVideo = videoMime.startsWith("video/");
+  const mime = isVideo ? videoMime : staffImageMimeFromFile(file);
+  const presignPayload = { mime, kind, fileName: file.name };
+  const workerFallback = {
+    endpoint: "/api/staff/upload-media" as const,
+    fields: { kind },
+  };
 
-  return uploadStaffFileDirect(
-    file,
-    { mime, kind, fileName: file.name },
-    { endpoint: "/api/staff/upload-media", fields: { kind } },
-    opts,
-  );
+  if (isVideo && file.size > STAFF_WORKER_VIDEO_MAX_BYTES) {
+    return uploadStaffFileWithStrategy(file, presignPayload, workerFallback, "presign_first", {
+      ...opts,
+      signal: opts?.signal,
+    });
+  }
+
+  return uploadStaffFileWithStrategy(file, presignPayload, workerFallback, "worker_first", opts);
 }
 
 export function translateStaffUploadError(code: string, t: (key: string) => string): string {

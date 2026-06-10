@@ -277,9 +277,9 @@ export const DICTS: Record<Locale, Dict> = {
       "Video uploads require Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). Allowed: MP4, WebM, MOV.",
     "staff.images.uploadErr.invalid_kind": "Invalid media kind for this upload.",
     "staff.images.uploadErr.direct_upload_failed":
-      "Direct upload to R2 failed (often CORS). Run: npx wrangler r2 bucket cors set muhra-media --file scripts/r2-cors.json — origins must include this site. Small videos (≤50 MB) will retry via Worker.",
+      "Direct browser upload to R2 failed (often CORS on the bucket). Run: npx wrangler r2 bucket cors put muhra-media --file scripts/r2-cors.json — AllowedOrigins must include this site. Images and small videos (≤50 MB) upload via the Worker without those secrets.",
     "staff.images.uploadErr.r2_presign_not_configured":
-      "Direct R2 upload secrets missing on the Worker (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY). Small videos fall back to Worker upload; large videos require direct upload.",
+      "Direct R2 upload secrets are not set (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY). Images and small videos still upload via the Worker; videos over 50 MB need direct upload + CORS.",
     "staff.images.uploadErr.aborted": "Upload cancelled.",
     "staff.images.remove": "Remove",
     "staff.images.tooLarge": "{name} could not be uploaded.",
@@ -2107,9 +2107,9 @@ export const DICTS: Record<Locale, Dict> = {
       "رفع الفيديو يحتاج Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). المسموح: MP4، WebM، MOV.",
     "staff.images.uploadErr.invalid_kind": "نوع الوسائط غير صالح لهذا الرفع.",
     "staff.images.uploadErr.direct_upload_failed":
-      "فشل الرفع المباشر إلى R2 (غالباً CORS). نفّذ: npx wrangler r2 bucket cors set muhra-media --file scripts/r2-cors.json — يجب أن يتضمّن أصل هذا الموقع. الفيديوهات الصغيرة (≤50 ميغابايت) تُعاد المحاولة عبر الـ Worker.",
+      "فشل الرفع المباشر من المتصفح إلى R2 (غالباً CORS على الـ bucket). نفّذ: npx wrangler r2 bucket cors put muhra-media --file scripts/r2-cors.json — يجب أن يتضمّن أصل هذا الموقع (muhrajewelry.com). الصور والفيديوهات الصغيرة (≤50 ميغابايت) تُرفع عبر الـ Worker بدون هذه الأسرار.",
     "staff.images.uploadErr.r2_presign_not_configured":
-      "أسرار الرفع المباشر إلى R2 غير مضبوطة على الـ Worker (R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY). الفيديوهات الصغيرة تُرفع عبر الـ Worker؛ الكبيرة تحتاج رفعاً مباشراً.",
+      "أسرار الرفع المباشر غير مضبوطة (R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY). الصور والفيديوهات الصغيرة تُرفع عبر ربط MUHRA_MEDIA؛ الفيديوهات الأكبر من 50 ميغابايت تحتاج رفعاً مباشراً + CORS.",
     "staff.images.uploadErr.aborted": "تم إلغاء الرفع.",
     "staff.images.remove": "إزالة",
     "staff.images.tooLarge": "تعذّر رفع {name}.",

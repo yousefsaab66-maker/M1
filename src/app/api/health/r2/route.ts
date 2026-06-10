@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isR2PresignConfigured } from "@/lib/r2-presign";
 import { getR2StaffContext } from "@/lib/r2-staff-context";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export async function GET() {
     {
       ready: ctx.ready,
       error: ctx.ready ? null : ctx.error,
+      presignConfigured: isR2PresignConfigured(),
     },
     { headers: { "Cache-Control": "private, no-store, max-age=0" } },
   );
