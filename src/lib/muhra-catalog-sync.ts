@@ -1,12 +1,13 @@
 import { invalidateCatalogProductsCache } from "@/lib/catalog-products-query";
-import { writeStorefrontToR2 } from "@/lib/storefront-r2";
+import { purgeCloudflareCatalogCache } from "@/lib/cloudflare-purge";
+import { refreshStorefrontCatalogInR2 } from "@/lib/storefront-r2";
 
-/** After staff product save/delete — refresh R2 embedded catalog and drop in-flight Supabase list caches. */
-export async function syncCatalogAfterProductChange(): Promise<void> {
+/**
+ * After staff product save/delete — invalidate Worker list cache, refresh R2 catalog embed,
+ * and purge catalog CDN URLs. Background work is fire-and-forget to keep POST/DELETE fast (CF 1102).
+ */
+export function syncCatalogAfterProductChange(): void {
   invalidateCatalogProductsCache();
-  try {
-    await writeStorefrontToR2({});
-  } catch {
-    /* R2 optional — Supabase remains source of truth */
-  }
+  void refreshStorefrontCatalogInR2().catch(() => {});
+  void purgeCloudflareCatalogCache().catch(() => {});
 }
