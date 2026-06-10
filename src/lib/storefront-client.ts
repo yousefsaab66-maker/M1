@@ -260,7 +260,7 @@ export function afterStaffCatalogMutation() {
   markStaffCatalogMutationComplete();
 }
 
-/** Redundant client purge when server-side CLOUDFLARE_* purge is slow or missing. */
+/** Targeted CDN catalog purge after staff save/delete (server save path stays Supabase-only). */
 export function hintPurgeCatalogCache() {
   void fetch("/api/staff/purge-cache?scope=catalog", {
     method: "POST",

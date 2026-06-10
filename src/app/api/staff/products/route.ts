@@ -34,11 +34,7 @@ export async function POST(req: Request) {
   }
 
   const result = await upsertProductToSupabase(payload);
-  const headers = {
-    ...NO_STORE_JSON_HEADERS,
-    ...(result.ok ? { "X-Muhra-Cache-Hint": "purge-catalog-after-deploy" } : {}),
-  };
-  return NextResponse.json(result, { headers });
+  return NextResponse.json(result, { headers: NO_STORE_JSON_HEADERS });
 }
 
 /** Staff product delete — avoids Next Server Action overhead on Cloudflare Workers (1102). */
@@ -60,10 +56,6 @@ export async function DELETE(req: Request) {
   }
 
   const result = await deleteProductFromSupabase(id);
-  const headers = {
-    ...NO_STORE_JSON_HEADERS,
-    ...(result.ok ? { "X-Muhra-Cache-Hint": "purge-catalog-after-deploy" } : {}),
-  };
   if (!result.ok) {
     const status =
       result.error === "not_configured"
@@ -71,7 +63,10 @@ export async function DELETE(req: Request) {
         : result.error === "invalid_id" || result.error === "not_found"
           ? 400
           : 500;
-    return NextResponse.json({ ok: false, error: result.error } as const, { status, headers });
+    return NextResponse.json({ ok: false, error: result.error } as const, {
+      status,
+      headers: NO_STORE_JSON_HEADERS,
+    });
   }
-  return NextResponse.json({ ok: true } as const, { headers });
+  return NextResponse.json({ ok: true } as const, { headers: NO_STORE_JSON_HEADERS });
 }

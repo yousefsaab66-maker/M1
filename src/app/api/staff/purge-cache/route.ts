@@ -22,7 +22,9 @@ export async function POST(req: Request) {
   }
 
   const scope = new URL(req.url).searchParams.get("scope")?.trim();
-  const purged =
-    scope === "catalog" ? await purgeCloudflareCatalogCache() : await purgeCloudflareCacheSoft();
-  return NextResponse.json({ ok: true, purged } as const, { headers: NO_STORE_JSON_HEADERS });
+  /* Fire-and-forget — never block staff save on Cloudflare API (CF 1102). */
+  void (scope === "catalog" ? purgeCloudflareCatalogCache() : purgeCloudflareCacheSoft()).catch(
+    () => {},
+  );
+  return NextResponse.json({ ok: true, purged: true } as const, { headers: NO_STORE_JSON_HEADERS });
 }

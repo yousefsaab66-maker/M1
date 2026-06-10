@@ -1,7 +1,7 @@
 /**
  * Edge catalog JSON — keep Worker CPU low (CF 1102).
- * After staff product save/delete: `syncCatalogAfterProductChange` purges catalog URLs when
- * CLOUDFLARE_* env is set. After deploy or storefront edits: `npm run cf:purge` (or `cf:purge:local`);
+ * After staff product save/delete: client calls `/api/staff/purge-cache?scope=catalog` (targeted, async).
+ * After deploy or storefront edits: `npm run cf:purge` (or `cf:purge:local`);
  * PUT `/api/staff/storefront` triggers a soft zone purge when CLOUDFLARE_* is set.
  */
 export const CATALOG_JSON_CACHE_HEADERS = {
