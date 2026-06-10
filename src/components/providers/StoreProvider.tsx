@@ -752,10 +752,7 @@ export function StoreProvider({
       }
 
       const skipNetwork =
-        minimalInit ||
-        isStaffLoginPath() ||
-        (shouldSkipStoreNetworkInit() &&
-          (readCatalogSnapshot()?.length ?? 0) > 0);
+        minimalInit || isStaffLoginPath() || shouldSkipStoreNetworkInit();
 
       if (skipNetwork) {
         if (!minimalInit && !isStaffLoginPath()) {
@@ -817,10 +814,11 @@ export function StoreProvider({
     loadRemote();
   }, [minimalInit, bootstrapFromServer, initialRemoteProducts, applyStorefront]);
 
-  /** تحديث خفيف عند الرجوع للتطبيق — تسلسلي لتقليل 1102 على Cloudflare. */
+  /** تحديث خفيف عند الرجوع للتطبيق — معطّل 5 دقائق بعد التحميل لتقليل 1102 على Cloudflare. */
   const remoteRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleRemoteRefresh = useCallback(() => {
     if (minimalInit || isStaffAppPath() || isStaffLoginPath()) return;
+    if (shouldSkipStoreNetworkInit()) return;
     if (Date.now() - pageLoadedAtRef.current < CLIENT_CACHE_MS) return;
     if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
     remoteRefreshTimerRef.current = setTimeout(() => {

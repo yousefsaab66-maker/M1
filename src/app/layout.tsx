@@ -5,6 +5,7 @@ import { ConditionalStorefrontChrome } from "@/components/layout/ConditionalStor
 import { Providers } from "@/components/providers/Providers";
 import { MaisonJsonLd } from "@/components/seo/JsonLd";
 import { DEFAULT_OG_IMAGE, getMetadataBase } from "@/lib/site-url";
+export { staticPageDynamic as dynamic } from "@/lib/static-page";
 
 const serif = Cormorant_Garamond({
   variable: "--font-serif",

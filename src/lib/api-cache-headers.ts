@@ -33,3 +33,12 @@ export const NO_STORE_JSON_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0, must-revalidate",
   "CDN-Cache-Control": "no-store",
 } as const;
+
+/**
+ * Pre-rendered HTML shells (storefront + /staff/*) — edge cache so reloads skip Worker CPU (CF 1102).
+ * Purge zone cache after deploy: `npm run cf:purge`.
+ */
+export const HTML_PAGE_CACHE_HEADERS = {
+  "Cache-Control": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
+  "CDN-Cache-Control": "max-age=3600",
+} as const;

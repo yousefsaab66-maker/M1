@@ -23,8 +23,10 @@ export type FetchStorefrontClientResult =
     }
   | { ok: false };
 
+import { STORE_INIT_SKIP_MS } from "@/lib/store-init-client";
+
 /** In-memory client cache for storefront/bootstrap fetches (visibility refresh respects this). */
-export const CLIENT_CACHE_MS = 60_000;
+export const CLIENT_CACHE_MS = STORE_INIT_SKIP_MS;
 
 type CachedEntry<T> = { at: number; etag: string | null; value: T };
 
@@ -231,7 +233,7 @@ export async function fetchCatalogBootstrapClient(
   }
 }
 
-/** Force next client fetch to bypass the 60s in-memory cache (e.g. after staff save). */
+/** Force next client fetch to bypass the in-memory cache (e.g. after staff save). */
 export function bustStorefrontClientCache() {
   cdnStorefrontCache = null;
   apiStorefrontCache = null;

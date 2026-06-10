@@ -46,10 +46,10 @@
 	},
 	/*
 	 * Error 1102 = Worker exceeded CPU time (script timeout). Mitigations in this repo:
-	 *   run_worker_first: false — HTML/JS/CSS from ASSETS without Worker on every asset hit
-	 *   force-static storefront + staff shells — prebuilt HTML in .open-next/assets
-	 *   Client loads catalog from R2 CDN first; API JSON has s-maxage edge cache
-	 *   StoreProvider single-flight + 60s session throttle on rapid reload
+	 *   run_worker_first: false — JS/CSS/fonts from ASSETS without Worker on asset hits
+	 *   middleware HTML_PAGE_CACHE_HEADERS — CDN caches prerendered HTML (reload HIT skips Worker)
+	 *   force-static storefront + staff shells — prebuilt HTML via OpenNext prerender
+	 *   Client: 5min sessionStorage skip + CDN-first catalog; API JSON has s-maxage edge cache
 	 * Paid Workers raise CPU limits; free tier ~10ms CPU/request — avoid SSR + parallel API per reload.
 	 * workers_dev: true (default) exposes *.workers.dev; production uses custom domain routes.
 	 */

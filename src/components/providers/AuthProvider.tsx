@@ -10,6 +10,9 @@ import {
 } from "react";
 import { hashCredential } from "@/lib/hash";
 import { fetchStaffSessionGet } from "@/lib/staff-session-client";
+import { STORE_INIT_SKIP_MS } from "@/lib/store-init-client";
+
+const KEY_STAFF_SESSION_CHECK_AT = "muhra-staff-session-check-at-v1";
 
 export type Role = "staff" | "admin";
 
@@ -133,23 +136,44 @@ export function AuthProvider({
       }
 
       if (!staffSessionOnly && isStaffAreaPath()) {
-        let staffUser: string | null = null;
-        try {
-          const session = await fetchStaffSessionGet();
-          if (session.ok && session.user) staffUser = session.user;
-        } catch {
-          // ignore
-        }
-        if (staffUser) {
+        const lastCheck = (() => {
           try {
-            sessionStorage.setItem(KEY_SESSION("staff"), staffUser);
+            return Number(sessionStorage.getItem(KEY_STAFF_SESSION_CHECK_AT)) || 0;
+          } catch {
+            return 0;
+          }
+        })();
+        if (Date.now() - lastCheck < STORE_INIT_SKIP_MS) {
+          try {
+            const cached = sessionStorage.getItem(KEY_SESSION("staff"));
+            if (cached) setStaffSession(cached);
           } catch {
             // ignore
           }
-          setStaffSession(staffUser);
         } else {
-          clearClientStaffSession();
-          setStaffSession(null);
+          let staffUser: string | null = null;
+          try {
+            const session = await fetchStaffSessionGet();
+            if (session.ok && session.user) staffUser = session.user;
+          } catch {
+            // ignore
+          }
+          try {
+            sessionStorage.setItem(KEY_STAFF_SESSION_CHECK_AT, String(Date.now()));
+          } catch {
+            // ignore
+          }
+          if (staffUser) {
+            try {
+              sessionStorage.setItem(KEY_SESSION("staff"), staffUser);
+            } catch {
+              // ignore
+            }
+            setStaffSession(staffUser);
+          } else {
+            clearClientStaffSession();
+            setStaffSession(null);
+          }
         }
       } else {
         try {

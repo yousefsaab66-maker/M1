@@ -1,4 +1,5 @@
-import { CLIENT_CACHE_MS } from "@/lib/storefront-client";
+/** Skip duplicate catalog/bootstrap Worker calls on rapid reload (sessionStorage survives reload). */
+export const STORE_INIT_SKIP_MS = 5 * 60 * 1000;
 
 const KEY_STORE_INIT_AT = "muhra-store-init-at-v1";
 
@@ -26,10 +27,9 @@ export function markStoreNetworkInitComplete() {
   }
 }
 
-/** Skip duplicate catalog/bootstrap Worker calls on rapid reload (sessionStorage survives reload). */
 export function shouldSkipStoreNetworkInit(): boolean {
   const at = readStoreNetworkInitAt();
-  return at > 0 && Date.now() - at < CLIENT_CACHE_MS;
+  return at > 0 && Date.now() - at < STORE_INIT_SKIP_MS;
 }
 
 /** One in-flight init per tab — concurrent mounts share the same promise. */
