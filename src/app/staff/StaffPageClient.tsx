@@ -60,7 +60,7 @@ import {
   type ProductSizeKind,
   type ProductSizeOptions,
 } from "@/lib/product-sizes";
-import { bustStorefrontClientCache } from "@/lib/storefront-client";
+import { afterStaffCatalogMutation, hintPurgeCatalogCache } from "@/lib/storefront-client";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import { isAllowedStaffVideoMime, staffVideoMimeFromFile } from "@/lib/supabase/storage-constants";
 import {
@@ -390,7 +390,8 @@ async function persistProductRemote(
       };
     }
     mergeRemoteProduct(body.product);
-    bustStorefrontClientCache();
+    afterStaffCatalogMutation();
+    hintPurgeCatalogCache();
     return { ok: true, product: body.product };
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") {
@@ -490,7 +491,8 @@ function ProductsPane({
         setSaveError(mapRemoteProductError(typeof body.error === "string" ? body.error : "unknown", t));
         return;
       }
-      bustStorefrontClientCache();
+      afterStaffCatalogMutation();
+      hintPurgeCatalogCache();
     } catch {
       if (removed) mergeRemoteProduct(removed);
       setSaveError(t("staff.products.errorDelete"));

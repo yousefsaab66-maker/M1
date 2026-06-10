@@ -44,11 +44,13 @@ import { getShippingFeeIqd, getUsdIqdRate, normalizeSiteContent } from "@/lib/si
 import { sanitizeSiteContentForServer } from "@/lib/site-content-storage";
 import { isR2PublicConfiguredClient } from "@/lib/r2-config";
 import {
-  BACKGROUND_REVALIDATE_DEBOUNCE_MS,
+  bumpCatalogLocalEdit,
   markBackgroundRevalidateComplete,
   markStoreNetworkInitComplete,
   markStoreNetworkInitPending,
+  readCatalogLocalEdit,
   runStoreInitSingleFlight,
+  scheduleBackgroundRevalidateTimer,
   shouldRunBackgroundRevalidate,
   shouldSkipDueToPendingInit,
   shouldSkipStaffNetworkInit,
@@ -271,7 +273,11 @@ async function fetchCatalogJson(
 ): Promise<{ ok: true; products: Product[] } | { ok: false }> {
   for (let i = 0; i < attempts; i += 1) {
     try {
-      const r = await fetch(catalogProductsUrl(bust), { ...catalogFetchOpts(), signal });
+      const r = await fetch(catalogProductsUrl(bust), {
+        ...catalogFetchOpts(),
+        signal,
+        ...(bust ? { cache: "no-store" as RequestCache } : {}),
+      });
       if (r.ok) {
         const d = (await r.json()) as { products?: Product[] };
         if (Array.isArray(d.products)) {
@@ -485,17 +491,25 @@ function scheduleBackgroundCatalogRevalidate(
   const staffPath = isStaffAppPath();
   if (!shouldRunBackgroundRevalidate(staffPath)) return;
 
-  setTimeout(() => {
+  scheduleBackgroundRevalidateTimer(() => {
     if (!shouldRunBackgroundRevalidate(staffPath)) return;
+    const localEditAtStart = readCatalogLocalEdit();
     void runStoreInitSingleFlight(async () => {
       if (!shouldRunBackgroundRevalidate(staffPath)) return;
+      if (localEditAtStart !== readCatalogLocalEdit()) return;
       const gen = (catalogHandlers.catalogApplyGenRef.current += 1);
       const ac = new AbortController();
       const timer = setTimeout(() => ac.abort(), CATALOG_INIT_MS);
       try {
         if (staffPath) {
-          const bootstrap = await fetchStaffBootstrapClient(ac.signal);
-          if (gen !== catalogHandlers.catalogApplyGenRef.current || !bootstrap.ok) return;
+          const bootstrap = await fetchStaffBootstrapClient(ac.signal, { bust: true });
+          if (
+            localEditAtStart !== readCatalogLocalEdit() ||
+            gen !== catalogHandlers.catalogApplyGenRef.current ||
+            !bootstrap.ok
+          ) {
+            return;
+          }
           if (bootstrap.r2Ready) sfHandlers.setR2Ready(true);
           setR2PresignConfigured(bootstrap.presignConfigured);
           applyRemoteStorefrontIfNewer(
@@ -509,8 +523,14 @@ function scheduleBackgroundCatalogRevalidate(
           );
           applyRemoteCatalog(gen, bootstrap.products, catalogHandlers);
         } else {
-          const catalogRes = await fetchCatalogJson(1, ac.signal);
-          if (gen !== catalogHandlers.catalogApplyGenRef.current || !catalogRes.ok) return;
+          const catalogRes = await fetchCatalogJson(1, ac.signal, true);
+          if (
+            localEditAtStart !== readCatalogLocalEdit() ||
+            gen !== catalogHandlers.catalogApplyGenRef.current ||
+            !catalogRes.ok
+          ) {
+            return;
+          }
           applyRemoteCatalog(gen, catalogRes.products, catalogHandlers);
         }
         catalogHandlers.onCatalogLoaded?.();
@@ -522,7 +542,7 @@ function scheduleBackgroundCatalogRevalidate(
         clearTimeout(timer);
       }
     });
-  }, BACKGROUND_REVALIDATE_DEBOUNCE_MS);
+  });
 }
 
 async function putStorefrontJson(
@@ -700,6 +720,7 @@ export function StoreProvider({
 
   const mergeRemoteProduct = useCallback((p: Product) => {
     /* Bumps generation so init/refresh that started before this merge cannot overwrite fresher UI + snapshot. */
+    bumpCatalogLocalEdit();
     catalogApplyGenRef.current += 1;
     setProductsState((prev) => {
       const i = prev.findIndex((x) => x.id === p.id);
@@ -709,10 +730,10 @@ export function StoreProvider({
     });
     setRemoteCatalog(true);
     setSupabaseReady(true);
-    markStoreNetworkInitComplete();
   }, []);
 
   const removeRemoteProduct = useCallback((id: string) => {
+    bumpCatalogLocalEdit();
     catalogApplyGenRef.current += 1;
     setProductsState((prev) => {
       const next = prev.filter((x) => x.id !== id);
@@ -721,7 +742,6 @@ export function StoreProvider({
     });
     setRemoteCatalog(true);
     setSupabaseReady(true);
-    markStoreNetworkInitComplete();
   }, []);
 
   const pullRemoteOrders = useCallback(async () => {

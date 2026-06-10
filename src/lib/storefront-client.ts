@@ -23,7 +23,7 @@ export type FetchStorefrontClientResult =
     }
   | { ok: false };
 
-import { resetBackgroundRevalidateMarker, STORE_INIT_SKIP_MS } from "@/lib/store-init-client";
+import { markStaffCatalogMutationComplete, STORE_INIT_SKIP_MS } from "@/lib/store-init-client";
 
 /** In-memory client cache for storefront/bootstrap fetches (visibility refresh respects this). */
 export const CLIENT_CACHE_MS = STORE_INIT_SKIP_MS;
@@ -252,7 +252,20 @@ export function bustStorefrontClientCache() {
   apiStorefrontCache = null;
   bootstrapCache = null;
   staffBootstrapCache = null;
-  resetBackgroundRevalidateMarker();
+}
+
+/** After staff product save/delete — bust client caches and block stale background revalidate. */
+export function afterStaffCatalogMutation() {
+  bustStorefrontClientCache();
+  markStaffCatalogMutationComplete();
+}
+
+/** Redundant client purge when server-side CLOUDFLARE_* purge is slow or missing. */
+export function hintPurgeCatalogCache() {
+  void fetch("/api/staff/purge-cache?scope=catalog", {
+    method: "POST",
+    credentials: "include",
+  }).catch(() => {});
 }
 
 /** Staff panel init — list products + site/collections only (defer journal/boutiques). */

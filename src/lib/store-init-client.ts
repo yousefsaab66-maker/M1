@@ -5,6 +5,35 @@ export const STAFF_INIT_SKIP_MS = 2 * 60 * 1000;
 /** Debounce background revalidate so reload #2–3 do not each hit the Worker (CF 1102). */
 export const BACKGROUND_REVALIDATE_DEBOUNCE_MS = 2_500;
 
+let catalogLocalEditCounter = 0;
+let backgroundRevalidateTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Staff save/delete — cancel pending bg revalidate and block stale CDN from overwriting local UI. */
+export function bumpCatalogLocalEdit(): number {
+  catalogLocalEditCounter += 1;
+  cancelScheduledBackgroundRevalidate();
+  return catalogLocalEditCounter;
+}
+
+export function readCatalogLocalEdit(): number {
+  return catalogLocalEditCounter;
+}
+
+export function scheduleBackgroundRevalidateTimer(fn: () => void): void {
+  cancelScheduledBackgroundRevalidate();
+  backgroundRevalidateTimer = setTimeout(() => {
+    backgroundRevalidateTimer = null;
+    fn();
+  }, BACKGROUND_REVALIDATE_DEBOUNCE_MS);
+}
+
+export function cancelScheduledBackgroundRevalidate(): void {
+  if (backgroundRevalidateTimer !== null) {
+    clearTimeout(backgroundRevalidateTimer);
+    backgroundRevalidateTimer = null;
+  }
+}
+
 const KEY_STORE_INIT_AT = "muhra-store-init-at-v1";
 const KEY_INIT_PENDING_AT = "muhra-store-init-pending-at-v1";
 const KEY_BG_REVALIDATE_AT = "muhra-bg-revalidate-at-v1";
@@ -97,14 +126,9 @@ export function markBackgroundRevalidateComplete() {
   }
 }
 
-/** After staff save/delete bust — allow one fresh background revalidate again. */
-export function resetBackgroundRevalidateMarker() {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.removeItem(KEY_BG_REVALIDATE_AT);
-  } catch {
-    /* ignore */
-  }
+/** After staff save/delete — skip stale bg revalidate until next init window. */
+export function markStaffCatalogMutationComplete() {
+  markBackgroundRevalidateComplete();
 }
 
 /** One in-flight init per tab — concurrent mounts share the same promise. */

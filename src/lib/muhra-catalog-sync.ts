@@ -8,6 +8,7 @@ import { refreshStorefrontCatalogInR2 } from "@/lib/storefront-r2";
  */
 export function syncCatalogAfterProductChange(): void {
   invalidateCatalogProductsCache();
-  void refreshStorefrontCatalogInR2().catch(() => {});
+  /* Purge CDN first — public `/api/catalog/products` reads Supabase; R2 patch can follow. */
   void purgeCloudflareCatalogCache().catch(() => {});
+  void refreshStorefrontCatalogInR2().catch(() => {});
 }
