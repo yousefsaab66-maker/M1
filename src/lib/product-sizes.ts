@@ -7,6 +7,20 @@ export type ProductSizeOptions = Partial<Record<ProductSizeKind, string[]>>;
 
 const SIZE_KINDS: ProductSizeKind[] = ["necklace", "bracelet", "ring"];
 
+/** Common MUHRA presets — staff can apply or edit per product. */
+export const SIZE_PRESETS: Record<ProductSizeKind, string[]> = {
+  necklace: ["40", "42", "45"],
+  bracelet: ["15", "16", "17", "18", "19"],
+  ring: ["48", "50", "52", "54"],
+};
+
+export function isSizeKindEnabled(
+  opts: ProductSizeOptions | undefined,
+  kind: ProductSizeKind,
+): boolean {
+  return opts != null && Object.prototype.hasOwnProperty.call(opts, kind);
+}
+
 function dedupeSizes(list: string[] | undefined): string[] | undefined {
   if (!list) return undefined;
   const out = [...new Set(list.map((s) => s.trim()).filter(Boolean))];

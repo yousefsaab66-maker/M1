@@ -50,9 +50,11 @@ import {
 } from "@/lib/product-media";
 import {
   formatSizeOptionsSummary,
+  isSizeKindEnabled,
   normalizeSizeOptions,
   productSizeKindForCategory,
   resolveProductSizes,
+  SIZE_PRESETS,
   type ProductSizeKind,
   type ProductSizeOptions,
 } from "@/lib/product-sizes";
@@ -1148,14 +1150,14 @@ function CategorySizesEditor({
   onChange: (next: ProductSizeOptions | undefined) => void;
 }) {
   const { t } = useLocale();
-  const normalized = normalizeSizeOptions(sizeOptions) ?? {};
+  const options = sizeOptions ?? {};
   const activeKind = productSizeKindForCategory(category, site);
 
   const updateKind = (kind: ProductSizeKind, list: string[] | undefined) => {
-    const next = { ...normalized };
-    if (list && list.length > 0) next[kind] = list;
-    else delete next[kind];
-    onChange(normalizeSizeOptions(next));
+    const next = { ...options };
+    if (list === undefined) delete next[kind];
+    else next[kind] = list;
+    onChange(Object.keys(next).length > 0 ? next : undefined);
   };
 
   return (
@@ -1166,11 +1168,14 @@ function CategorySizesEditor({
         <SizeGroupEditor
           key={kind}
           kind={kind}
-          enabled={Boolean(normalized[kind])}
-          list={normalized[kind] ?? []}
+          enabled={isSizeKindEnabled(sizeOptions, kind)}
+          list={options[kind] ?? []}
           highlighted={activeKind === kind}
-          onEnabledChange={(on) => updateKind(kind, on ? [] : undefined)}
-          onListChange={(list) => updateKind(kind, list.length > 0 ? list : normalized[kind] ? [] : undefined)}
+          onEnabledChange={(on) => updateKind(kind, on ? (options[kind] ?? []) : undefined)}
+          onListChange={(list) => {
+            if (isSizeKindEnabled(sizeOptions, kind) || list.length > 0) updateKind(kind, list);
+            else updateKind(kind, undefined);
+          }}
         />
       ))}
     </div>
@@ -1223,6 +1228,20 @@ function SizeGroupEditor({
       </label>
       {enabled && (
         <>
+          <div className="flex flex-wrap gap-2">
+            {SIZE_PRESETS[kind].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                className="btn-ghost px-3 py-1 text-[11px] tracking-eyebrow uppercase"
+                onClick={() => {
+                  if (!list.includes(preset)) onListChange([...list, preset]);
+                }}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
           <div className="flex flex-wrap gap-2">
             <input
               className="staff-input min-w-[140px] flex-1"
