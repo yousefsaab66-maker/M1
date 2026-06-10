@@ -89,7 +89,8 @@ type TabId =
 
 export default function StaffPageClient() {
   const { signedInAs, signOut, hydrated } = useAuth();
-  const { supabaseReady, pullRemoteOrders, refreshStaffStorefrontExtras } = useStore();
+  const { supabaseReady, pullRemoteOrders, refreshStaffStorefrontExtras, staffCloudUpload, r2PresignConfigured } =
+    useStore();
   const { t } = useLocale();
   const router = useRouter();
   const [tab, setTab] = useState<TabId>("dashboard");
@@ -145,6 +146,15 @@ export default function StaffPageClient() {
             </button>
           </div>
         </header>
+
+        {staffCloudUpload && r2PresignConfigured === false ? (
+          <p
+            role="status"
+            className="mt-4 rounded border border-amber-600/40 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:text-amber-200"
+          >
+            {t("staff.images.presignWarning")}
+          </p>
+        ) : null}
 
         <div className="mt-6 grid min-w-0 gap-6 sm:mt-8 sm:gap-8 lg:mt-10 lg:grid-cols-[minmax(0,220px)_1fr] lg:gap-12">
           <nav className="lg:sticky lg:top-28 lg:self-start">

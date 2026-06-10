@@ -1,13 +1,13 @@
 /**
- * Staff media uploads prefer **Worker → MUHRA_MEDIA binding** (`/api/staff/upload*`) for images
- * and videos ≤50 MB — no R2 API secrets required.
+ * Staff media uploads use **presigned browser → R2 PUT** first (`POST /api/staff/upload-url`)
+ * for all images and videos (any size). Worker binding (`/api/staff/upload*`) is fallback only.
  *
- * Videos **>50 MB** use presigned browser → R2 PUT (`POST /api/staff/upload-url`) when
- * `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` are set on the Worker.
- *
- * **No app-level file-size cap** for images — MIME type is validated; empty files are rejected.
- * Apply CORS with PUT for large direct uploads:
+ * **Production (unlimited):** set Worker secrets `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
+ * `R2_SECRET_ACCESS_KEY`, then apply bucket CORS:
  * `npx wrangler r2 bucket cors put muhra-media --file scripts/r2-cors.json`
+ *
+ * **No app-level file-size cap** — MIME type is validated; empty files are rejected.
+ * Worker cannot hold multi-GB bodies; presign + CORS is required for large files.
  */
 
 /** Allowed MIME types for product uploads (staff API + bucket policy alignment). */

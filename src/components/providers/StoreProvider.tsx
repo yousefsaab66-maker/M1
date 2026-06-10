@@ -130,6 +130,8 @@ type StoreCtx = {
   supabaseReady: boolean;
   /** Worker مربوط بـ R2 مع عنوان عام — رفع الوسائط بدون الاعتماد على Supabase Storage. */
   r2Ready: boolean;
+  /** أسرار الرفع المباشر (presign) مضبوطة — null = لم يُفحص بعد. */
+  r2PresignConfigured: boolean | null;
   /** لوحة الموظفين: استخدم رفع السحابة (لا data: URLs) عندما R2 مضبوط في البناء أو مؤكد من السيرفر. */
   staffCloudUpload: boolean;
   confirmR2Ready: () => void;
@@ -294,14 +296,16 @@ async function fetchStorefrontJson(signal?: AbortSignal) {
   };
 }
 
-async function probeR2Ready(signal?: AbortSignal): Promise<boolean> {
+async function probeR2Health(
+  signal?: AbortSignal,
+): Promise<{ ready: boolean; presignConfigured: boolean }> {
   try {
     const res = await fetch("/api/health/r2", { cache: "no-store", credentials: "same-origin", signal });
-    if (!res.ok) return false;
-    const d = (await res.json()) as { ready?: boolean };
-    return d.ready === true;
+    if (!res.ok) return { ready: false, presignConfigured: false };
+    const d = (await res.json()) as { ready?: boolean; presignConfigured?: boolean };
+    return { ready: d.ready === true, presignConfigured: d.presignConfigured === true };
   } catch {
-    return false;
+    return { ready: false, presignConfigured: false };
   }
 }
 
@@ -527,6 +531,7 @@ export function StoreProvider({
   const [remoteCatalog, setRemoteCatalog] = useState(() => bootstrapFromServer);
   const [supabaseReady, setSupabaseReady] = useState(false);
   const [r2Ready, setR2Ready] = useState(false);
+  const [r2PresignConfigured, setR2PresignConfigured] = useState<boolean | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [storeReady, setStoreReady] = useState(false);
 
@@ -767,8 +772,10 @@ export function StoreProvider({
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
           if (shouldProbeR2OnLoad()) {
-            void probeR2Ready(ac.signal).then((ok) => {
-              if (ok && gen === catalogApplyGenRef.current) setR2Ready(true);
+            void probeR2Health(ac.signal).then((health) => {
+              if (gen !== catalogApplyGenRef.current) return;
+              if (health.ready) setR2Ready(true);
+              setR2PresignConfigured(health.presignConfigured);
             });
           }
 
@@ -1281,6 +1288,7 @@ export function StoreProvider({
       remoteCatalog,
       supabaseReady,
       r2Ready,
+      r2PresignConfigured,
       staffCloudUpload,
       confirmR2Ready,
       refreshCatalog,
@@ -1327,6 +1335,7 @@ export function StoreProvider({
       remoteCatalog,
       supabaseReady,
       r2Ready,
+      r2PresignConfigured,
       staffCloudUpload,
       confirmR2Ready,
       refreshCatalog,

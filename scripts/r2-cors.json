@@ -5,7 +5,7 @@
       "https://www.muhrajewelry.com",
       "http://localhost:3000"
     ],
-    "AllowedMethods": ["GET", "HEAD", "PUT"],
+    "AllowedMethods": ["GET", "HEAD", "PUT", "POST"],
     "AllowedHeaders": ["*"],
     "ExposeHeaders": ["ETag"],
     "MaxAgeSeconds": 3600
