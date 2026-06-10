@@ -5,7 +5,7 @@ import { Maximize2 } from "lucide-react";
 import { SafeImage } from "@/components/SafeImage";
 import { ProductImageLightbox } from "@/components/ProductImageLightbox";
 import { useLocale } from "@/components/providers/LocaleProvider";
-import { productImageAt } from "@/lib/product-media";
+import { productImageAt, productVideoSources } from "@/lib/product-media";
 import type { Product } from "@/lib/catalog";
 
 interface ProductGalleryProps {
@@ -17,6 +17,7 @@ export function ProductGallery({ product, images }: ProductGalleryProps) {
   const { t } = useLocale();
   const [active, setActive] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const videos = productVideoSources(product);
 
   const openLightbox = (index: number) => {
     setActive(index);
@@ -76,6 +77,25 @@ export function ProductGallery({ product, images }: ProductGalleryProps) {
               >
                 <SafeImage src={src} alt="" fill sizes="120px" className="object-cover" />
               </button>
+            ))}
+          </div>
+        )}
+
+        {videos.length > 0 && (
+          <div className="mt-8 space-y-4">
+            <p className="eyebrow opacity-75">{t("product.videosTitle")}</p>
+            {videos.map((src, i) => (
+              <video
+                key={src + i}
+                controls
+                playsInline
+                preload="metadata"
+                className="w-full"
+                style={{ aspectRatio: "16/9", background: "var(--surface-2)" }}
+                aria-label={`${t("product.videoAlt")} ${i + 1}`}
+              >
+                <source src={src} />
+              </video>
             ))}
           </div>
         )}

@@ -1,4 +1,5 @@
-import type { Product, Category, Material, Stone, Currency } from "@/lib/catalog";
+import type { Product, Material, Stone, Currency } from "@/lib/catalog";
+import { ensureProductOrderable } from "@/lib/product-media";
 
 export type ProductRow = {
   id: string;
@@ -11,6 +12,7 @@ export type ProductRow = {
   materials: string[] | null;
   stones: string[] | null;
   images: string[] | null;
+  videos?: string[] | null;
   description: string | null;
   story: string | null;
   related_slugs: string[] | null;
@@ -20,7 +22,8 @@ export type ProductRow = {
 };
 
 export function rowToProduct(row: ProductRow): Product {
-  return {
+  const videos = row.videos && row.videos.length > 0 ? row.videos : undefined;
+  return ensureProductOrderable({
     id: row.id,
     slug: row.slug,
     name: row.name,
@@ -31,13 +34,14 @@ export function rowToProduct(row: ProductRow): Product {
     materials: (row.materials ?? []) as Material[],
     stones: (row.stones ?? []) as Stone[],
     images: row.images ?? [],
+    videos,
     description: row.description ?? "",
     story: row.story ?? "",
     related: row.related_slugs ?? [],
     sizes: row.sizes && row.sizes.length > 0 ? row.sizes : undefined,
     isHighJewelry: row.is_high_jewelry,
     isNew: row.is_new,
-  };
+  });
 }
 
 export function productToInsert(p: Product) {
@@ -51,6 +55,7 @@ export function productToInsert(p: Product) {
     materials: p.materials,
     stones: p.stones,
     images: p.images,
+    videos: p.videos ?? [],
     description: p.description ?? "",
     story: p.story ?? "",
     related_slugs: p.related ?? [],

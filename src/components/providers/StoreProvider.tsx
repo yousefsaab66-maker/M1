@@ -369,19 +369,20 @@ async function loadStorefrontVisitorCatalog(
       sfHandlers,
     );
     if (cdnSf.source === "r2") sfHandlers.setR2Ready(true);
-    if (cdnSf.catalogProducts && cdnSf.catalogProducts.length > 0) {
-      applyRemoteCatalog(gen, cdnSf.catalogProducts, catalogHandlers);
-      return;
-    }
   }
 
   const catalogAc = new AbortController();
   const catalogTimer = setTimeout(() => catalogAc.abort(), CATALOG_INIT_MS);
-  const catalogRes = await fetchCatalogJson(1, catalogAc.signal);
+  const catalogRes = await fetchCatalogJson(2, catalogAc.signal);
   clearTimeout(catalogTimer);
 
   if (catalogRes.ok) {
     applyRemoteCatalog(gen, catalogRes.products, catalogHandlers);
+    return;
+  }
+
+  if (cdnSf.ok && cdnSf.catalogProducts && cdnSf.catalogProducts.length > 0) {
+    applyRemoteCatalog(gen, cdnSf.catalogProducts, catalogHandlers);
     return;
   }
 

@@ -5,7 +5,8 @@ export const MUHRA_MAX_IMAGE_UPLOAD_BYTES = 25 * 1024 * 1024;
  * Staff hero / site video uploads via Worker (buffer in memory).
  * Keep conservative for Worker RAM; raise later with direct-to-R2 (presigned multipart) if needed.
  */
-export const MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES = 80 * 1024 * 1024;
+/** 4K product / hero clips — buffered in Worker; use direct-to-R2 multipart later if needed. */
+export const MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES = 200 * 1024 * 1024;
 
 /** Allowed MIME types for product uploads (staff API + bucket policy alignment). */
 export const MUHRA_IMAGE_UPLOAD_MIME: readonly string[] = [

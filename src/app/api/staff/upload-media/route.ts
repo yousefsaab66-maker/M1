@@ -82,7 +82,7 @@ export async function POST(req: Request) {
   if (kind === "journal" && isVideo) {
     return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400 });
   }
-  if ((kind === "product" || kind === "site") && isVideo) {
+  if (kind === "site" && isVideo) {
     return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400 });
   }
 

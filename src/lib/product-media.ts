@@ -2,6 +2,31 @@ import type { Product } from "./catalog";
 import { slugify } from "./format";
 import { normalizeStaffMediaUrl } from "./staff-media-url";
 
+/** Decode URL slug and compare case-insensitively (PDP + cards). */
+export function normalizeSlugParam(slug: string): string {
+  try {
+    return decodeURIComponent(slug).trim().toLowerCase();
+  } catch {
+    return slug.trim().toLowerCase();
+  }
+}
+
+export function findProductBySlug(products: Product[], slug: string | undefined): Product | undefined {
+  if (!slug) return undefined;
+  const norm = normalizeSlugParam(slug);
+  return products.find((p) => normalizeSlugParam(p.slug) === norm);
+}
+
+/** Stable slug for Arabic-only names and legacy rows with empty slug. */
+export function stableProductSlug(p: Pick<Product, "slug" | "name" | "id">): string {
+  const trimmed = (p.slug ?? "").trim();
+  if (trimmed) return trimmed;
+  const fromName = slugify(p.name);
+  if (fromName) return fromName;
+  const idPart = p.id.replace(/^tmp-/, "").replace(/-/g, "").slice(0, 12);
+  return `muhra-${idPart || "item"}`;
+}
+
 /** Placeholder when staff saves a product without images — keeps catalogue & PDP usable for ordering. */
 export const MUHRA_PLACEHOLDER_IMAGE =
   "data:image/svg+xml," +
@@ -43,14 +68,38 @@ export function productGallerySources(product: Product): string[] {
 /**
  * Ensures slug + images so the product resolves at `/products/[slug]` and can be added to bag / checkout.
  */
+function normalizeCatalogVideoUrl(src: string): string {
+  const t = src.trim();
+  if (!t || t.startsWith("data:")) return t;
+  if (!t.startsWith("http://") && !t.startsWith("https://")) {
+    return normalizeStaffMediaUrl(t);
+  }
+  try {
+    const u = new URL(t);
+    u.pathname = u.pathname.replace(/\/{2,}/g, "/");
+    return u.href;
+  } catch {
+    return normalizeStaffMediaUrl(t);
+  }
+}
+
+export function productVideoSources(product: Product): string[] {
+  return (product.videos ?? []).map((u) => u.trim()).filter(Boolean).map(normalizeCatalogVideoUrl);
+}
+
+export function productHasVideos(product: Product): boolean {
+  return productVideoSources(product).length > 0;
+}
+
 export function ensureProductOrderable(p: Product): Product {
-  let slug = (p.slug ?? "").trim() || slugify(p.name);
-  if (!slug) slug = `muhra-${Date.now()}`;
+  const slug = stableProductSlug(p);
   const imgs = (p.images ?? []).map((u) => u.trim()).filter(Boolean);
   const images = imgs.length > 0 ? imgs : [MUHRA_PLACEHOLDER_IMAGE];
+  const vids = (p.videos ?? []).map((u) => u.trim()).filter(Boolean);
+  const videos = vids.length > 0 ? vids : undefined;
   const sizeList = [...new Set((p.sizes ?? []).map((s) => s.trim()).filter(Boolean))];
   const sizes = sizeList.length > 0 ? sizeList : undefined;
-  return { ...p, slug, images, sizes };
+  return { ...p, slug, images, videos, sizes };
 }
 
 /**
@@ -73,13 +122,18 @@ export function productHasEmbeddedImages(p: Product): boolean {
  * Preserves image order and count so bag/checkout slug resolution stay stable.
  */
 export function sanitizeProductForCatalogApi(p: Product): Product {
-  const images = (p.images ?? []).map((u) => {
+  const normalized = ensureProductOrderable(p);
+  const images = (normalized.images ?? []).map((u) => {
     const t = u.trim();
     if (!t) return t;
     if (t.startsWith("data:")) return t === MUHRA_PLACEHOLDER_IMAGE ? t : MUHRA_PLACEHOLDER_IMAGE;
     return normalizeCatalogImageUrl(t);
   });
-  return { ...p, images };
+  const videos = (normalized.videos ?? [])
+    .map((u) => u.trim())
+    .filter((u) => u && !u.startsWith("data:"))
+    .map(normalizeCatalogVideoUrl);
+  return { ...normalized, images, videos: videos.length > 0 ? videos : undefined };
 }
 
 /** Returns an error code if the payload is unsafe to send through a Worker to Supabase. */

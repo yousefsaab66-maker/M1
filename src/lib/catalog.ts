@@ -46,6 +46,8 @@ export interface Product {
   materials: Material[];
   stones: Stone[];
   images: string[];
+  /** MP4 / WebM URLs on R2 (e.g. media.muhrajewelry.com). */
+  videos?: string[];
   description: string;
   story: string;
   related: string[];

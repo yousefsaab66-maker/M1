@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Heart } from "lucide-react";
+import { Heart, Play } from "lucide-react";
 import type { Product } from "@/lib/catalog";
 import { SafeImage } from "@/components/SafeImage";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { ProductPrice } from "@/components/ProductPrice";
-import { productImageAt } from "@/lib/product-media";
+import { productHasVideos, productImageAt } from "@/lib/product-media";
 
 interface ProductCardProps {
   product: Product;
@@ -58,6 +58,19 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
             color={wished ? "var(--color-bordeaux)" : "currentColor"}
           />
         </button>
+        {productHasVideos(product) && (
+          <span
+            className="absolute bottom-3 end-3 z-10 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur"
+            style={{
+              background: "color-mix(in srgb, var(--color-onyx) 55%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--color-gold) 45%, transparent)",
+              color: "var(--color-ivory)",
+            }}
+            aria-hidden
+          >
+            <Play className="h-4 w-4" strokeWidth={1.4} fill="currentColor" />
+          </span>
+        )}
         {product.isNew && (
           <span
             className="absolute start-3 top-3 z-10 px-2 py-1 text-[9px] tracking-eyebrow uppercase"

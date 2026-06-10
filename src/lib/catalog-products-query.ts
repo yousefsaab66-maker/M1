@@ -1,6 +1,6 @@
 import type { Product } from "@/lib/catalog";
 import { rowToProduct, type ProductRow } from "@/lib/catalog-db";
-import { sanitizeProductForCatalogApi } from "@/lib/product-media";
+import { ensureProductOrderable, sanitizeProductForCatalogApi } from "@/lib/product-media";
 import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin";
 
 export type FetchCatalogProductsResult =
@@ -14,28 +14,30 @@ export type FetchCatalogProductsOptions = {
 };
 
 const LIST_SELECT =
-  "id,slug,name,collection_slug,category,price,currency,materials,stones,images,sizes,is_high_jewelry,is_new";
+  "id,slug,name,collection_slug,category,price,currency,materials,stones,images,videos,sizes,is_high_jewelry,is_new";
 
 function rowToProductList(row: ProductRow): Product {
   const images = row.images ?? [];
-  return {
+  const videos = row.videos && row.videos.length > 0 ? row.videos : undefined;
+  return ensureProductOrderable({
     id: row.id,
     slug: row.slug,
     name: row.name,
     collection: row.collection_slug,
-    category: row.category as Product["category"],
+    category: row.category,
     price: Number(row.price),
     currency: row.currency as Product["currency"],
     materials: (row.materials ?? []) as Product["materials"],
     stones: (row.stones ?? []) as Product["stones"],
     images: images.length > 0 ? [images[0]!] : [],
+    videos,
     description: "",
     story: "",
     related: [],
     sizes: row.sizes && row.sizes.length > 0 ? row.sizes : undefined,
     isHighJewelry: row.is_high_jewelry,
     isNew: row.is_new,
-  };
+  });
 }
 
 const listInflight = new Map<string, Promise<FetchCatalogProductsResult>>();
@@ -125,7 +127,13 @@ export async function fetchCatalogProductBySlug(
   if (!isSupabaseBackendConfigured()) return { kind: "not_configured" };
   try {
     const sb = supabaseAdmin();
-    const { data, error } = await sb.from("products").select("*").eq("slug", slug.trim()).maybeSingle();
+    const trimmed = slug.trim();
+    let { data, error } = await sb.from("products").select("*").ilike("slug", trimmed).maybeSingle();
+    if (!data && !error) {
+      const exact = await sb.from("products").select("*").eq("slug", trimmed).maybeSingle();
+      data = exact.data;
+      error = exact.error;
+    }
     if (error) return { kind: "error", message: error.message };
     if (!data) return { kind: "not_found" };
     const product = options?.rawImages

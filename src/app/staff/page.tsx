@@ -49,8 +49,17 @@ import {
   productImageAt,
 } from "@/lib/product-media";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
-import { MUHRA_MAX_IMAGE_UPLOAD_BYTES } from "@/lib/supabase/storage-constants";
-import { translateStaffUploadError, uploadStaffImageFile } from "@/lib/staff-upload-client";
+import {
+  isAllowedStaffVideoMime,
+  MUHRA_MAX_IMAGE_UPLOAD_BYTES,
+  MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES,
+  staffVideoMimeFromFile,
+} from "@/lib/supabase/storage-constants";
+import {
+  translateStaffUploadError,
+  uploadStaffImageFile,
+  uploadStaffMediaFile,
+} from "@/lib/staff-upload-client";
 import {
   StaffAllImagesEditor,
   StaffBoutiquesEditor,
@@ -912,6 +921,11 @@ function ProductEditor({
             images={draft.images}
             onChange={(next) => update("images", next)}
           />
+          <VideosField
+            cloudUpload={cloudUpload}
+            videos={draft.videos ?? []}
+            onChange={(next) => update("videos", next.length > 0 ? next : undefined)}
+          />
           <Field label={t("staff.form.description")}>
             <textarea className="staff-input" rows={3} value={draft.description} onChange={(e) => update("description", e.target.value)} />
           </Field>
@@ -1313,6 +1327,146 @@ function ImagesField({
                 }}
               >
                 <X className="h-3.5 w-3.5" strokeWidth={1.5} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function VideosField({
+  videos,
+  onChange,
+  cloudUpload = false,
+}: {
+  videos: string[];
+  onChange: (next: string[]) => void;
+  cloudUpload?: boolean;
+}) {
+  const { t } = useLocale();
+  const { staffCloudUpload, confirmR2Ready } = useStore();
+  const useCloud = cloudUpload || staffCloudUpload;
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setError(null);
+    const accepted: string[] = [];
+    const errors: string[] = [];
+    const list = Array.from(files);
+    if (!useCloud) {
+      setError(t("staff.images.uploadErr.video_not_supported_without_r2"));
+      return;
+    }
+    setBusy(true);
+    try {
+      for (const file of list) {
+        const videoMime = staffVideoMimeFromFile(file);
+        if (!isAllowedStaffVideoMime(videoMime)) {
+          errors.push(t("staff.videos.notVideo").replace("{name}", file.name));
+          continue;
+        }
+        if (file.size <= 0 || file.size > MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES) {
+          errors.push(t("staff.videos.tooLarge").replace("{name}", file.name));
+          continue;
+        }
+        const up = await uploadStaffMediaFile(file, "product", { onSuccess: confirmR2Ready });
+        if (up.ok) accepted.push(up.url);
+        else if (up.code === "unauthorized") errors.push(translateStaffUploadError("unauthorized", t));
+        else errors.push(`${file.name}: ${translateStaffUploadError(up.code, t)}`);
+      }
+      if (accepted.length > 0) onChange([...videos, ...accepted]);
+      if (errors.length > 0) setError(errors.join(" "));
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeAt = (idx: number) => {
+    const next = videos.slice();
+    next.splice(idx, 1);
+    onChange(next);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  return (
+    <div>
+      <p className="staff-label">{t("staff.videos.title")}</p>
+      <Field label={t("staff.videos.urls")}>
+        <textarea
+          className="staff-input"
+          rows={2}
+          value={videos.join("\n")}
+          dir="ltr"
+          style={{ textAlign: "left" }}
+          onChange={(e) =>
+            onChange(
+              e.target.value
+                .split("\n")
+                .map((s) => normalizeStaffMediaUrl(s.trim()))
+                .filter(Boolean),
+            )
+          }
+          onBlur={(e) =>
+            onChange(
+              e.target.value
+                .split("\n")
+                .map((s) => normalizeStaffMediaUrl(s.trim()))
+                .filter(Boolean),
+            )
+          }
+        />
+      </Field>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/mp4,video/webm,video/quicktime"
+          multiple
+          className="hidden"
+          disabled={busy || !useCloud}
+          onChange={(e) => void handleFiles(e.target.files)}
+        />
+        <button
+          type="button"
+          disabled={busy || !useCloud}
+          onClick={() => fileInputRef.current?.click()}
+          className="btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Upload className="h-4 w-4" strokeWidth={1.4} />{" "}
+          {busy ? t("staff.images.uploading") : t("staff.videos.upload")}
+        </button>
+        <span className="text-[11px] opacity-65">{t("staff.videos.uploadHint")}</span>
+      </div>
+      {error && (
+        <p className="mt-2 text-xs" style={{ color: "var(--color-bordeaux)" }}>
+          {error}
+        </p>
+      )}
+      {videos.length > 0 && (
+        <ul className="mt-4 space-y-3">
+          {videos.map((src, idx) => (
+            <li key={src + idx} className="flex items-center gap-3">
+              <video
+                src={src}
+                controls
+                playsInline
+                preload="metadata"
+                className="max-h-28 w-full max-w-xs"
+                style={{ background: "var(--surface-2)", border: "1px solid var(--line)" }}
+              />
+              <button
+                type="button"
+                aria-label={t("staff.images.remove")}
+                onClick={() => removeAt(idx)}
+                className="btn-ghost shrink-0"
+              >
+                <X className="h-4 w-4" strokeWidth={1.4} />
               </button>
             </li>
           ))}

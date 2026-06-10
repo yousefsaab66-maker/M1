@@ -11,7 +11,7 @@ import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 import { ProductPrice } from "@/components/ProductPrice";
-import { productGallerySources } from "@/lib/product-media";
+import { findProductBySlug, productGallerySources } from "@/lib/product-media";
 import type { Product } from "@/lib/catalog";
 import { productCategoryLabel } from "@/lib/site-display";
 
@@ -21,18 +21,24 @@ export default function ProductPage() {
   const { products, mergeRemoteProduct } = useStore();
   const { t } = useLocale();
 
-  const product = useMemo(() => products.find((p) => p.slug === slug), [products, slug]);
+  const product = useMemo(() => findProductBySlug(products, slug), [products, slug]);
+  const [slugLoading, setSlugLoading] = useState(false);
 
   useEffect(() => {
-    if (!slug || !product) return;
-    if (product.description.trim() && product.story.trim()) return;
+    if (!slug) return;
     const ac = new AbortController();
+    const needsFetch =
+      !product || !product.description.trim() || !product.story.trim();
+    if (!needsFetch) return () => ac.abort();
+
+    setSlugLoading(!product);
     void fetch(`/api/catalog/products?slug=${encodeURIComponent(slug)}`, { signal: ac.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { product?: Product } | null) => {
         if (d?.product) mergeRemoteProduct(d.product);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setSlugLoading(false));
     return () => ac.abort();
   }, [slug, product, mergeRemoteProduct]);
   const related = useMemo(() => {
@@ -48,6 +54,13 @@ export default function ProductPage() {
   const gallery = useMemo(() => (product ? productGallerySources(product) : []), [product]);
 
   if (!product) {
+    if (slugLoading) {
+      return (
+        <div className="px-6 py-32 text-center">
+          <p className="eyebrow opacity-70">{t("product.loading")}</p>
+        </div>
+      );
+    }
     return (
       <div className="px-6 py-32 text-center">
         <p className="font-display text-3xl">{t("product.notFound")}</p>
