@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { BOOTSTRAP_JSON_CACHE_HEADERS } from "@/lib/api-cache-headers";
 import { fetchCatalogBootstrap } from "@/lib/catalog-bootstrap";
-import { isR2StaffUploadReady } from "@/lib/r2-staff-context";
+import { isR2PublicConfigured } from "@/lib/r2-config";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const result = await fetchCatalogBootstrap();
-  const r2Ready = await isR2StaffUploadReady();
 
   return NextResponse.json(
     {
@@ -19,7 +18,7 @@ export async function GET() {
       boutiques: result.storefront.boutiques,
       storefrontUpdatedAt: result.storefront.updatedAt,
       storefrontSource: result.storefront.source,
-      r2Ready,
+      r2Ready: isR2PublicConfigured(),
     },
     { headers: BOOTSTRAP_JSON_CACHE_HEADERS },
   );

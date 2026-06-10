@@ -172,6 +172,20 @@ export type CatalogBootstrapClientResult =
     }
   | { ok: false };
 
+export type StaffBootstrapClientResult =
+  | {
+      ok: true;
+      products: import("@/lib/catalog").Product[];
+      site: SiteContent | null;
+      collections: Collection[] | null;
+      updatedAt: string | null;
+      source: "r2" | "none";
+      r2Ready: boolean;
+    }
+  | { ok: false };
+
+let staffBootstrapCache: CachedEntry<StaffBootstrapClientResult> | null = null;
+
 export async function fetchCatalogBootstrapClient(
   signal?: AbortSignal,
   opts?: { bust?: boolean },
@@ -222,4 +236,47 @@ export function bustStorefrontClientCache() {
   cdnStorefrontCache = null;
   apiStorefrontCache = null;
   bootstrapCache = null;
+  staffBootstrapCache = null;
+}
+
+/** Staff panel init — list products + site/collections only (defer journal/boutiques). */
+export async function fetchStaffBootstrapClient(
+  signal?: AbortSignal,
+  opts?: { bust?: boolean },
+): Promise<StaffBootstrapClientResult> {
+  if (!opts?.bust) {
+    const hit = readCache(staffBootstrapCache);
+    if (hit) return hit;
+  }
+
+  try {
+    const res = await fetch("/api/staff/bootstrap", {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal,
+    });
+    if (!res.ok) return { ok: false };
+    const d = (await res.json()) as {
+      products?: unknown;
+      site?: SiteContent | null;
+      collections?: Collection[] | null;
+      storefrontUpdatedAt?: string | null;
+      storefrontSource?: "r2" | "none";
+      r2Ready?: boolean;
+    };
+    const products = Array.isArray(d.products) ? d.products : [];
+    const result: StaffBootstrapClientResult = {
+      ok: true,
+      products: products as import("@/lib/catalog").Product[],
+      site: d.site && typeof d.site === "object" ? normalizeSiteContent(d.site) : null,
+      collections: Array.isArray(d.collections) ? d.collections : null,
+      updatedAt: typeof d.storefrontUpdatedAt === "string" ? d.storefrontUpdatedAt : null,
+      source: d.storefrontSource === "r2" ? "r2" : "none",
+      r2Ready: d.r2Ready === true,
+    };
+    staffBootstrapCache = writeCache(staffBootstrapCache, result, res.headers.get("etag"));
+    return result;
+  } catch {
+    return { ok: false };
+  }
 }

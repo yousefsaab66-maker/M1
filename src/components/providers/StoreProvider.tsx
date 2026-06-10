@@ -45,7 +45,7 @@ import { isR2PublicConfiguredClient } from "@/lib/r2-config";
 import {
   bustStorefrontClientCache,
   CLIENT_CACHE_MS,
-  fetchCatalogBootstrapClient,
+  fetchStaffBootstrapClient,
   fetchStorefrontForClient,
   fetchStorefrontFromApi,
   fetchStorefrontFromPublicCdn,
@@ -104,6 +104,8 @@ type StoreCtx = {
     boutiques: Boutique[];
   }) => Promise<{ ok: true } | { ok: false; error: string }>;
   refreshStorefront: () => Promise<void>;
+  /** Staff: lazy-load journal + boutiques when editor tabs open. */
+  refreshStaffStorefrontExtras: () => Promise<void>;
   resetCatalog: () => void;
 
   bag: BagItem[];
@@ -202,8 +204,15 @@ function isStaffPath(): boolean {
   return typeof window !== "undefined" && window.location.pathname.startsWith("/staff");
 }
 
+/** Main staff panel only — skip heavy init on /staff/login. */
+function isStaffAppPath(): boolean {
+  if (typeof window === "undefined") return false;
+  const p = window.location.pathname;
+  return p === "/staff" || (p.startsWith("/staff/") && !p.startsWith("/staff/login"));
+}
+
 function catalogProductsUrl() {
-  return isStaffPath() ? "/api/catalog/products?full=1" : "/api/catalog/products";
+  return "/api/catalog/products";
 }
 
 function catalogFetchOpts(): RequestInit {
@@ -327,7 +336,7 @@ function applyRemoteStorefrontIfNewer(
 }
 
 function shouldProbeR2OnLoad(): boolean {
-  return isStaffPath();
+  return false;
 }
 
 type StorefrontHandlers = {
@@ -411,7 +420,7 @@ async function loadStorefrontVisitorCatalog(
   }
 }
 
-/** Staff: one bootstrap round-trip (products + storefront in parallel on the Worker). */
+/** Staff: lighter bootstrap — list products + site/collections; journal/boutiques deferred. */
 async function loadStaffCatalog(
   gen: number,
   signal: AbortSignal,
@@ -419,7 +428,7 @@ async function loadStaffCatalog(
   catalogHandlers: CatalogHandlers,
   recoverCatalog: () => void,
 ): Promise<void> {
-  const bootstrap = await fetchCatalogBootstrapClient(signal);
+  const bootstrap = await fetchStaffBootstrapClient(signal);
   if (!bootstrap.ok) {
     if (gen === catalogHandlers.catalogApplyGenRef.current) recoverCatalog();
     return;
@@ -429,8 +438,8 @@ async function loadStaffCatalog(
     gen,
     bootstrap.site,
     bootstrap.collections,
-    bootstrap.journal ?? null,
-    bootstrap.boutiques ?? null,
+    null,
+    null,
     bootstrap.updatedAt,
     sfHandlers,
   );
@@ -438,6 +447,17 @@ async function loadStaffCatalog(
     applyRemoteCatalog(gen, bootstrap.products, catalogHandlers);
   } else if (gen === catalogHandlers.catalogApplyGenRef.current) {
     recoverCatalog();
+  }
+}
+
+function scheduleStaffCatalogLoad(fn: () => Promise<void>) {
+  const run = () => {
+    void fn();
+  };
+  if (typeof requestIdleCallback !== "undefined") {
+    requestIdleCallback(run, { timeout: 2500 });
+  } else {
+    setTimeout(run, 80);
   }
 }
 
@@ -516,6 +536,7 @@ export function StoreProvider({
   const catalogRefreshAbortRef = useRef<AbortController | null>(null);
   /** Last successful remote products fetch — skips duplicate GETs within CLIENT_CACHE_MS. */
   const catalogLoadedAtRef = useRef(0);
+  const staffExtrasLoadedRef = useRef(false);
 
   const refreshCatalog = useCallback(async () => {
     catalogRefreshAbortRef.current?.abort();
@@ -578,6 +599,19 @@ export function StoreProvider({
     },
     [applySite, applyCollections, applyJournal, applyBoutiques],
   );
+
+  const refreshStaffStorefrontExtras = useCallback(async () => {
+    if (staffExtrasLoadedRef.current) return;
+    try {
+      const res = await fetchStorefrontForClient();
+      if (!res.ok) return;
+      if (res.journal && res.journal.length > 0) applyJournal(res.journal);
+      if (res.boutiques && res.boutiques.length > 0) applyBoutiques(res.boutiques);
+      staffExtrasLoadedRef.current = true;
+    } catch {
+      /* ignore */
+    }
+  }, [applyJournal, applyBoutiques]);
 
   const refreshStorefront = useCallback(async () => {
     try {
@@ -710,13 +744,15 @@ export function StoreProvider({
             },
           };
 
-          if (isStaffPath()) {
-            await loadStaffCatalog(
-              gen,
-              ac.signal,
-              sfHandlers,
-              catalogHandlers,
-              recoverCatalogAfterNetworkFailure,
+          if (isStaffAppPath()) {
+            scheduleStaffCatalogLoad(() =>
+              loadStaffCatalog(
+                gen,
+                ac.signal,
+                sfHandlers,
+                catalogHandlers,
+                recoverCatalogAfterNetworkFailure,
+              ),
             );
           } else {
             await loadStorefrontVisitorCatalog(
@@ -742,7 +778,7 @@ export function StoreProvider({
   /** تحديث خفيف عند الرجوع للتطبيق — تسلسلي لتقليل 1102 على Cloudflare. */
   const remoteRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleRemoteRefresh = useCallback(() => {
-    if (isStaffPath()) return;
+    if (isStaffAppPath()) return;
     if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
     remoteRefreshTimerRef.current = setTimeout(() => {
       void (async () => {
@@ -1190,6 +1226,7 @@ export function StoreProvider({
       saveCollections,
       saveStorefront,
       refreshStorefront,
+      refreshStaffStorefrontExtras,
       resetCatalog,
       bag,
       addToBag,
@@ -1234,6 +1271,7 @@ export function StoreProvider({
       saveCollections,
       saveStorefront,
       refreshStorefront,
+      refreshStaffStorefrontExtras,
       resetCatalog,
       bag,
       addToBag,

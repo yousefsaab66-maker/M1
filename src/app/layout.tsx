@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
-import { Footer } from "@/components/layout/Footer";
-import { Header } from "@/components/layout/Header";
+import { ConditionalStorefrontChrome } from "@/components/layout/ConditionalStorefrontChrome";
 import { Providers } from "@/components/providers/Providers";
 import { MaisonJsonLd } from "@/components/seo/JsonLd";
 import { DEFAULT_OG_IMAGE, getMetadataBase } from "@/lib/site-url";
@@ -88,9 +87,7 @@ export default function RootLayout({
       <body className="site-body flex min-h-full min-h-dvh flex-col">
         <MaisonJsonLd />
         <Providers>
-          <Header />
-          <main className="site-main flex w-full min-w-0 min-h-0 flex-1 flex-col">{children}</main>
-          <Footer />
+          <ConditionalStorefrontChrome>{children}</ConditionalStorefrontChrome>
         </Providers>
       </body>
     </html>
