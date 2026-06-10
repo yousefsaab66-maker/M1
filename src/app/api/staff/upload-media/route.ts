@@ -5,6 +5,7 @@ import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 import {
   buildStaffMediaObjectPath,
   isStaffMediaKind,
+  STAFF_WORKER_VIDEO_MAX_BYTES,
   putStaffObject,
   staffImageExt,
   staffVideoExt,
@@ -78,6 +79,9 @@ export async function POST(req: Request) {
   const rlCap = isVideo ? VIDEO_LIMIT : IMAGE_LIMIT;
   const rl = rateLimit(rlKey, rlCap, MEDIA_WINDOW_MS);
   const rlHeaders = rateLimitHeaders(rl, rlCap, MEDIA_WINDOW_SEC);
+  if (isVideo && file.size > STAFF_WORKER_VIDEO_MAX_BYTES) {
+    return NextResponse.json({ ok: false, error: "video_too_large" }, { status: 413, headers: rlHeaders });
+  }
   if (!rl.ok) {
     return NextResponse.json(
       { ok: false, error: "rate_limited", retryAfter: rl.retryAfter },

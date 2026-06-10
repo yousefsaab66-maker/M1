@@ -2,6 +2,7 @@
 
 import { prepareStaffImageForUpload } from "@/lib/staff-image-file";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
+import { STAFF_WORKER_VIDEO_MAX_BYTES } from "@/lib/staff-upload-server";
 import {
   staffImageMimeFromFile,
   staffVideoMimeFromFile,
@@ -9,7 +10,10 @@ import {
 
 export type StaffUploadResult = { ok: true; url: string } | { ok: false; code: string };
 
+export { STAFF_WORKER_VIDEO_MAX_BYTES };
+
 const RETRY_STATUSES = new Set([429, 502, 503, 524]);
+const PRESIGN_FALLBACK_ERRORS = new Set(["r2_presign_not_configured"]);
 
 function delay(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
@@ -57,9 +61,24 @@ async function putFileToPresignedUrl(
 type PresignOk = { kind: "presign"; uploadUrl: string; publicUrl: string; contentType: string };
 type PresignOutcome = PresignOk | StaffUploadResult | "retry" | "fallback";
 
+function isStaffVideoUpload(file: File): boolean {
+  return staffVideoMimeFromFile(file).startsWith("video/");
+}
+
+function presignErrorShouldFallback(code: string): boolean {
+  return PRESIGN_FALLBACK_ERRORS.has(code);
+}
+
+function workerFallbackBlocked(file: File): StaffUploadResult | null {
+  if (isStaffVideoUpload(file) && file.size > STAFF_WORKER_VIDEO_MAX_BYTES) {
+    return { ok: false, code: "video_requires_direct_upload" };
+  }
+  return null;
+}
+
 function resultFromPresign(status: number, body: PresignResponse): PresignOutcome {
   if (status === 401 || body.error === "unauthorized") return { ok: false, code: "unauthorized" };
-  if (body.error === "r2_presign_not_configured") return "fallback";
+  if (body.error && presignErrorShouldFallback(body.error)) return "fallback";
   if (RETRY_STATUSES.has(status)) return "retry";
   if (body.ok && typeof body.uploadUrl === "string" && typeof body.url === "string") {
     return {
@@ -70,6 +89,7 @@ function resultFromPresign(status: number, body: PresignResponse): PresignOutcom
     };
   }
   const code = typeof body.error === "string" && body.error.length > 0 ? body.error : "unknown";
+  if (presignErrorShouldFallback(code)) return "fallback";
   return { ok: false, code };
 }
 
@@ -99,6 +119,44 @@ async function uploadViaWorkerProxy(
   return { ok: false, code };
 }
 
+async function finishDirectOrWorkerFallback(
+  file: File,
+  workerFallback: {
+    endpoint: "/api/staff/upload" | "/api/staff/upload-media";
+    fields: Record<string, string>;
+  },
+  signal?: AbortSignal,
+): Promise<StaffUploadResult> {
+  const fallback = await uploadViaWorkerFallback(file, workerFallback, signal);
+  if (fallback.ok) return fallback;
+  if (
+    fallback.code === "video_requires_direct_upload" ||
+    fallback.code === "video_too_large" ||
+    fallback.code === "unauthorized"
+  ) {
+    return fallback;
+  }
+  return { ok: false, code: "direct_upload_failed" };
+}
+
+async function uploadViaWorkerFallback(
+  file: File,
+  workerFallback: {
+    endpoint: "/api/staff/upload" | "/api/staff/upload-media";
+    fields: Record<string, string>;
+  },
+  signal?: AbortSignal,
+): Promise<StaffUploadResult> {
+  const blocked = workerFallbackBlocked(file);
+  if (blocked) return blocked;
+  try {
+    return await uploadViaWorkerProxy(file, workerFallback.fields, workerFallback.endpoint, signal);
+  } catch {
+    if (signal?.aborted) return { ok: false, code: "aborted" };
+    return { ok: false, code: "network" };
+  }
+}
+
 async function uploadStaffFileDirect(
   file: File,
   presignPayload: Record<string, string>,
@@ -120,24 +178,24 @@ async function uploadStaffFileDirect(
         await delay(500 * (attempt + 1));
         continue;
       }
-      return { ok: false, code: "network" };
+      return uploadViaWorkerFallback(file, workerFallback, opts?.signal);
     }
 
     const parsed = resultFromPresign(presign.status, presign);
     if (parsed === "fallback") {
-      try {
-        return await uploadViaWorkerProxy(file, workerFallback.fields, workerFallback.endpoint, opts?.signal);
-      } catch {
-        if (opts?.signal?.aborted) return { ok: false, code: "aborted" };
-        return { ok: false, code: "network" };
-      }
+      return uploadViaWorkerFallback(file, workerFallback, opts?.signal);
     }
     if (parsed === "retry") {
       if (attempt >= 2) return { ok: false, code: "unknown" };
       await delay(500 * (attempt + 1));
       continue;
     }
-    if ("ok" in parsed && !parsed.ok) return parsed;
+    if ("ok" in parsed && !parsed.ok) {
+      if (presignErrorShouldFallback(parsed.code)) {
+        return uploadViaWorkerFallback(file, workerFallback, opts?.signal);
+      }
+      return parsed;
+    }
     if (!("kind" in parsed) || parsed.kind !== "presign") return { ok: false, code: "unknown" };
 
     const contentType = parsed.contentType || file.type || "application/octet-stream";
@@ -151,11 +209,13 @@ async function uploadStaffFileDirect(
         await delay(500 * (attempt + 1));
         continue;
       }
-      return { ok: false, code: "network" };
+      return finishDirectOrWorkerFallback(file, workerFallback, opts?.signal);
     }
 
     if (!putOk) {
-      if (attempt >= 2) return { ok: false, code: "direct_upload_failed" };
+      if (attempt >= 2) {
+        return finishDirectOrWorkerFallback(file, workerFallback, opts?.signal);
+      }
       await delay(500 * (attempt + 1));
       continue;
     }

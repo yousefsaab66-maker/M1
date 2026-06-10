@@ -13,6 +13,9 @@ import {
 export type StaffImageScope = "site" | "collections" | "products";
 export type StaffMediaKind = "hero" | "journal" | "product" | "site";
 
+/** Videos above this size must use presigned browser → R2 PUT (Worker body limit / CF 1102). */
+export const STAFF_WORKER_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
+
 const MEDIA_KINDS = ["hero", "journal", "product", "site"] as const;
 
 export function isStaffMediaKind(s: string): s is StaffMediaKind {

@@ -448,7 +448,11 @@ async function loadStaffCatalog(
   if (bootstrap.products.length > 0) {
     applyRemoteCatalog(gen, bootstrap.products, catalogHandlers);
   } else if (gen === catalogHandlers.catalogApplyGenRef.current) {
-    recoverCatalog();
+    catalogHandlers.setSupabaseReady(true);
+    catalogHandlers.setRemoteCatalog(true);
+    catalogHandlers.setProductsState([]);
+    writeCatalogSnapshot([]);
+    catalogHandlers.onCatalogLoaded?.();
   }
 }
 

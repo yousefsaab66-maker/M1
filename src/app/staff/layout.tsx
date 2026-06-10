@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { NOINDEX_ROBOTS } from "@/lib/seo-metadata";
 import StaffClientLayout from "./StaffClientLayout";
 
-/** Staff panel is auth-gated and client-heavy — never cache HTML at the edge. */
-export const dynamic = "force-dynamic";
+/** Static HTML shell — catalog/site load client-side via `/api/staff/bootstrap` (avoids CF Worker 1102 on refresh). */
+export const dynamic = "force-static";
 
 export const metadata: Metadata = {
   title: "Staff — MUHRA JEWELRY",

@@ -261,7 +261,10 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.decode_failed": "Could not read this image — try exporting as JPG from Photos.",
     "staff.images.uploadErr.network": "Network error — check connection and try again.",
     "staff.images.uploadErr.unknown": "Cloud upload failed.",
-    "staff.images.uploadErr.video_too_large": "Video upload failed — may exceed Cloudflare edge body limit for your plan.",
+    "staff.images.uploadErr.video_too_large":
+      "Video is over 50 MB — Worker upload is blocked. Use direct R2 upload (set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY) and apply scripts/r2-cors.json.",
+    "staff.images.uploadErr.video_requires_direct_upload":
+      "This video is over 50 MB and must upload directly to R2. Set Worker secrets R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and apply bucket CORS (scripts/r2-cors.json).",
     "staff.videos.title": "Product videos",
     "staff.videos.urls": "Video URLs (one per line)",
     "staff.videos.upload": "Upload video",
@@ -274,9 +277,9 @@ export const DICTS: Record<Locale, Dict> = {
       "Video uploads require Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). Allowed: MP4, WebM, MOV.",
     "staff.images.uploadErr.invalid_kind": "Invalid media kind for this upload.",
     "staff.images.uploadErr.direct_upload_failed":
-      "R2 rejected the direct upload — confirm bucket CORS allows PUT from this site (scripts/r2-cors.json).",
+      "Direct upload to R2 failed (often CORS). Run: npx wrangler r2 bucket cors set muhra-media --file scripts/r2-cors.json — origins must include this site. Small videos (≤50 MB) will retry via Worker.",
     "staff.images.uploadErr.r2_presign_not_configured":
-      "Direct R2 upload is not configured — set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY on the Worker.",
+      "Direct R2 upload secrets missing on the Worker (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY). Small videos fall back to Worker upload; large videos require direct upload.",
     "staff.images.uploadErr.aborted": "Upload cancelled.",
     "staff.images.remove": "Remove",
     "staff.images.tooLarge": "{name} could not be uploaded.",
@@ -2088,7 +2091,10 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.decode_failed": "تعذّر قراءة الصورة — جرّب تصديرها كـ JPG من تطبيق الصور.",
     "staff.images.uploadErr.network": "خطأ في الشبكة — تحقق من الاتصال وأعد المحاولة.",
     "staff.images.uploadErr.unknown": "فشل الرفع للسحابة.",
-    "staff.images.uploadErr.video_too_large": "فشل رفع الفيديو — قد يتجاوز حد Cloudflare لخطتك.",
+    "staff.images.uploadErr.video_too_large":
+      "الفيديو أكبر من 50 ميغابايت — الرفع عبر الـ Worker ممنوع. فعّل الرفع المباشر إلى R2 (أسرار R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY) وطبّق scripts/r2-cors.json.",
+    "staff.images.uploadErr.video_requires_direct_upload":
+      "هذا الفيديو أكبر من 50 ميغابايت ويجب رفعه مباشرة إلى R2. اضبط أسرار الـ Worker (R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY) وطبّق CORS على الـ bucket (scripts/r2-cors.json).",
     "staff.videos.title": "فيديوهات المنتج",
     "staff.videos.urls": "روابط الفيديو (واحد لكل سطر)",
     "staff.videos.upload": "رفع فيديو",
@@ -2101,9 +2107,9 @@ export const DICTS: Record<Locale, Dict> = {
       "رفع الفيديو يحتاج Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). المسموح: MP4، WebM، MOV.",
     "staff.images.uploadErr.invalid_kind": "نوع الوسائط غير صالح لهذا الرفع.",
     "staff.images.uploadErr.direct_upload_failed":
-      "رفض R2 الرفع المباشر — تأكد أن CORS على الـ bucket يسمح بـ PUT من هذا الموقع (scripts/r2-cors.json).",
+      "فشل الرفع المباشر إلى R2 (غالباً CORS). نفّذ: npx wrangler r2 bucket cors set muhra-media --file scripts/r2-cors.json — يجب أن يتضمّن أصل هذا الموقع. الفيديوهات الصغيرة (≤50 ميغابايت) تُعاد المحاولة عبر الـ Worker.",
     "staff.images.uploadErr.r2_presign_not_configured":
-      "الرفع المباشر إلى R2 غير مضبوط — اضبط R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY على الـ Worker.",
+      "أسرار الرفع المباشر إلى R2 غير مضبوطة على الـ Worker (R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY). الفيديوهات الصغيرة تُرفع عبر الـ Worker؛ الكبيرة تحتاج رفعاً مباشراً.",
     "staff.images.uploadErr.aborted": "تم إلغاء الرفع.",
     "staff.images.remove": "إزالة",
     "staff.images.tooLarge": "تعذّر رفع {name}.",

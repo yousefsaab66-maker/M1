@@ -8,11 +8,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * Staff init — list products + site/collections only (no journal/boutiques bodies).
- * Sequential R2/Supabase work to stay under Cloudflare Worker CPU limits (1102).
+ * Products first; storefront R2 read is best-effort so an empty catalog still returns fast (1102).
  */
 export async function GET() {
   const productsResult = await fetchCatalogProductsForList();
-  const storefrontR2 = await readStorefrontFromR2();
 
   const products =
     productsResult.kind === "ok" ? productsResult.products : [];
@@ -22,6 +21,13 @@ export async function GET() {
       : productsResult.kind === "error"
         ? productsResult.message
         : "not_configured";
+
+  let storefrontR2: Awaited<ReturnType<typeof readStorefrontFromR2>>;
+  try {
+    storefrontR2 = await readStorefrontFromR2();
+  } catch {
+    storefrontR2 = { ok: false, error: "r2_read_failed" };
+  }
 
   if (storefrontR2.ok && storefrontR2.data) {
     return NextResponse.json(
