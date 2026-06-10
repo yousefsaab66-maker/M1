@@ -2,7 +2,13 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
-import { putStaffObject, staffImageExt, validateStaffImageMime } from "@/lib/staff-upload-server";
+import {
+  buildStaffImageObjectPath,
+  putStaffObject,
+  staffImageExt,
+  validateStaffImageMime,
+  type StaffImageScope,
+} from "@/lib/staff-upload-server";
 
 export const dynamic = "force-dynamic";
 
@@ -68,10 +74,9 @@ export async function POST(req: Request) {
   const buf = Buffer.from(await file.arrayBuffer());
   const ext = staffImageExt(mime);
   const scopeRaw = typeof formData.get("scope") === "string" ? (formData.get("scope") as string).trim() : "";
-  const scopePrefix =
-    scopeRaw === "collections" ? "site/collections" : scopeRaw === "site" ? "site" : "products";
-  const slug = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const objectPath = `${scopePrefix}/${slug}.${ext}`;
+  const scope: StaffImageScope =
+    scopeRaw === "collections" ? "collections" : scopeRaw === "site" ? "site" : "products";
+  const objectPath = buildStaffImageObjectPath(scope, ext);
 
   const put = await putStaffObject(objectPath, buf, mime);
   if (!put.ok) {

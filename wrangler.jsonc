@@ -28,8 +28,8 @@
    * R2 staff media (images + video): create buckets first — `wrangler r2 bucket create muhra-media`
    * and `wrangler r2 bucket create muhra-media-preview` (preview is for local `wrangler dev` / OpenNext preview).
    * Staff uploads use R2 only (no Supabase Storage). Set `R2_PUBLIC_BASE_URL` to the HTTPS origin that serves objects.
-   * No app-level upload size cap. Cloudflare CDN still limits HTTP request bodies (~100 MB Free/Pro, ~200 MB Business,
-   *   ~500 MB Enterprise) — larger files need direct-to-R2 presigned multipart (not wired here).
+   * No app-level upload size cap. Large files use direct browser → R2 presigned PUT (`/api/staff/upload-url`);
+   *   set Worker secrets R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and apply scripts/r2-cors.json (PUT).
    *   - R2_PUBLIC_BASE_URL — HTTPS origin for public objects (custom domain or *.r2.dev), no secrets in git.
    * Optional:
    *   - NEXT_PUBLIC_R2_PUBLIC_BASE_URL — same value for `next/image` remotePatterns at build time (Vercel/CI); Workers can rely on R2_PUBLIC_BASE_URL alone at runtime.

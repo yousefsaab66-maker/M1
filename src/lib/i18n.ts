@@ -230,7 +230,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.upload": "Upload from computer",
     "staff.images.uploadHint": "PNG / JPG / WebP / GIF — any size.",
     "staff.images.uploadHintCloud":
-      "PNG / JPG / WebP / GIF — any size; stored in Cloudflare R2 (MUHRA_MEDIA binding + R2_PUBLIC_BASE_URL on the Worker).",
+      "PNG / JPG / WebP / GIF — any size; uploaded directly to Cloudflare R2 (no Worker body limit).",
     "staff.images.uploading": "Uploading…",
     "staff.images.uploadErr.unauthorized": "Staff session expired — sign in again.",
     "staff.images.uploadErr.not_configured":
@@ -265,7 +265,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.videos.title": "Product videos",
     "staff.videos.urls": "Video URLs (one per line)",
     "staff.videos.upload": "Upload video",
-    "staff.videos.uploadHint": "MP4 / WebM / MOV — any size. Stored on Cloudflare R2.",
+    "staff.videos.uploadHint": "MP4 / WebM / MOV — any size. Uploaded directly to Cloudflare R2.",
     "staff.videos.notVideo": "{name} is not a video and was skipped.",
     "staff.videos.tooLarge": "{name} could not be uploaded.",
     "staff.images.uploadErr.video_not_supported_without_r2":
@@ -273,6 +273,11 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.r2_only":
       "Video uploads require Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). Allowed: MP4, WebM, MOV.",
     "staff.images.uploadErr.invalid_kind": "Invalid media kind for this upload.",
+    "staff.images.uploadErr.direct_upload_failed":
+      "R2 rejected the direct upload — confirm bucket CORS allows PUT from this site (scripts/r2-cors.json).",
+    "staff.images.uploadErr.r2_presign_not_configured":
+      "Direct R2 upload is not configured — set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY on the Worker.",
+    "staff.images.uploadErr.aborted": "Upload cancelled.",
     "staff.images.remove": "Remove",
     "staff.images.tooLarge": "{name} could not be uploaded.",
     "staff.images.notImage": "{name} is not an image and was skipped.",
@@ -2053,7 +2058,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.urls": "روابط الصور (واحد لكل سطر)",
     "staff.images.upload": "رفع من الجهاز",
     "staff.images.uploadHint": "PNG / JPG / WebP / GIF — أي حجم.",
-    "staff.images.uploadHintCloud": "PNG / JPG / WebP / GIF — أي حجم؛ تُخزَّن في Cloudflare R2 (ربط MUHRA_MEDIA على الـ Worker + متغير R2_PUBLIC_BASE_URL).",
+    "staff.images.uploadHintCloud": "PNG / JPG / WebP / GIF — أي حجم؛ تُرفع مباشرة إلى Cloudflare R2 (بدون حد حجم طلب الـ Worker).",
     "staff.images.uploading": "جاري الرفع…",
     "staff.images.uploadErr.unauthorized": "انتهت جلسة الموظفين — أعد تسجيل الدخول.",
     "staff.images.uploadErr.not_configured":
@@ -2087,7 +2092,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.videos.title": "فيديوهات المنتج",
     "staff.videos.urls": "روابط الفيديو (واحد لكل سطر)",
     "staff.videos.upload": "رفع فيديو",
-    "staff.videos.uploadHint": "MP4 / WebM / MOV — أي حجم. يُخزَّن على Cloudflare R2.",
+    "staff.videos.uploadHint": "MP4 / WebM / MOV — أي حجم. يُرفع مباشرة إلى Cloudflare R2.",
     "staff.videos.notVideo": "{name} ليس فيديو وتم تجاوزه.",
     "staff.videos.tooLarge": "تعذّر رفع {name}.",
     "staff.images.uploadErr.video_not_supported_without_r2":
@@ -2095,6 +2100,11 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.r2_only":
       "رفع الفيديو يحتاج Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). المسموح: MP4، WebM، MOV.",
     "staff.images.uploadErr.invalid_kind": "نوع الوسائط غير صالح لهذا الرفع.",
+    "staff.images.uploadErr.direct_upload_failed":
+      "رفض R2 الرفع المباشر — تأكد أن CORS على الـ bucket يسمح بـ PUT من هذا الموقع (scripts/r2-cors.json).",
+    "staff.images.uploadErr.r2_presign_not_configured":
+      "الرفع المباشر إلى R2 غير مضبوط — اضبط R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY على الـ Worker.",
+    "staff.images.uploadErr.aborted": "تم إلغاء الرفع.",
     "staff.images.remove": "إزالة",
     "staff.images.tooLarge": "تعذّر رفع {name}.",
     "staff.images.notImage": "{name} ليست صورة وتم تجاوزها.",

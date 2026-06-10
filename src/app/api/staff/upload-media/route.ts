@@ -2,19 +2,18 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
-import { sanitizeStorageFileName } from "@/lib/supabase/storage-constants";
 import {
+  buildStaffMediaObjectPath,
+  isStaffMediaKind,
   putStaffObject,
   staffImageExt,
   staffVideoExt,
   validateStaffImageMime,
   validateStaffVideoMime,
+  type StaffMediaKind,
 } from "@/lib/staff-upload-server";
 
 export const dynamic = "force-dynamic";
-
-const MEDIA_KINDS = ["hero", "journal", "product", "site"] as const;
-type MediaKind = (typeof MEDIA_KINDS)[number];
 
 const IMAGE_LIMIT = 45;
 const VIDEO_LIMIT = 12;
@@ -25,17 +24,6 @@ async function requireStaff(): Promise<string | null> {
   const secret = process.env.STAFF_COOKIE_SECRET;
   const jar = await cookies();
   return verifyStaffSession(jar.get(STAFF_COOKIE_NAME)?.value, secret);
-}
-
-function isMediaKind(s: string): s is MediaKind {
-  return (MEDIA_KINDS as readonly string[]).includes(s);
-}
-
-function objectPrefixForKind(kind: MediaKind): string {
-  if (kind === "hero") return "hero";
-  if (kind === "journal") return "journal";
-  if (kind === "site") return "site";
-  return "products";
 }
 
 export async function POST(req: Request) {
@@ -54,7 +42,7 @@ export async function POST(req: Request) {
   }
 
   const kindRaw = typeof formData.get("kind") === "string" ? (formData.get("kind") as string).trim() : "";
-  if (!isMediaKind(kindRaw)) {
+  if (!isStaffMediaKind(kindRaw)) {
     return NextResponse.json({ ok: false, error: "invalid_kind" }, { status: 400 });
   }
   const kind = kindRaw;
@@ -98,11 +86,12 @@ export async function POST(req: Request) {
   }
 
   const buf = Buffer.from(await file.arrayBuffer());
-  const baseName = sanitizeStorageFileName(typeof file.name === "string" ? file.name : "media");
-  const slug = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const stem = baseName.replace(/\.[^.]+$/, "");
   const ext = isVideo ? staffVideoExt(mime) : staffImageExt(mime);
-  const objectPath = `${objectPrefixForKind(kind)}/${slug}-${stem}.${ext}`;
+  const objectPath = buildStaffMediaObjectPath(
+    kind as StaffMediaKind,
+    ext,
+    typeof file.name === "string" ? file.name : "media",
+  );
 
   const put = await putStaffObject(objectPath, buf, mime);
   if (!put.ok) {
