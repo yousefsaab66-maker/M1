@@ -56,7 +56,7 @@ export function CatalogLoadingSkeleton({ variant = "full" }: { variant?: "full" 
 
   return (
     <div
-      className="site-main flex min-h-[min(100dvh,100vh)] w-full min-w-0 flex-1 flex-col"
+      className="site-main flex min-h-screen-safe w-full min-w-0 flex-1 flex-col"
       role="status"
       aria-live="polite"
       aria-label="Loading — جاري التحميل"

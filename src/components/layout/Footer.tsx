@@ -16,7 +16,7 @@ export function Footer() {
 
   return (
     <footer className="mt-32 pb-[env(safe-area-inset-bottom,0px)]" style={{ borderTop: "1px solid var(--line)" }}>
-      <section className="mx-auto max-w-[1400px] py-20 ps-[calc(1.5rem+env(safe-area-inset-left,0px))] pe-[calc(1.5rem+env(safe-area-inset-right,0px))] md:py-28 md:ps-[calc(3rem+env(safe-area-inset-left,0px))] md:pe-[calc(3rem+env(safe-area-inset-right,0px))]">
+      <section className="mx-auto max-w-[1400px] min-w-0 py-20 ps-[calc(1.5rem+env(safe-area-inset-left,0px))] pe-[calc(1.5rem+env(safe-area-inset-right,0px))] md:py-28 md:ps-[calc(3rem+env(safe-area-inset-left,0px))] md:pe-[calc(3rem+env(safe-area-inset-right,0px))]">
         <div className="grid gap-14 lg:grid-cols-[1.1fr_1fr_1fr_1fr]">
           <div>
             <Wordmark size="md" align="left" />

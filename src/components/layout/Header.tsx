@@ -63,7 +63,7 @@ export function Header() {
   return (
     <>
       <div className="bg-onyx text-ivory pt-[env(safe-area-inset-top,0px)]" style={{ background: "var(--color-onyx)", color: "var(--color-ivory)" }}>
-        <div className="overflow-hidden">
+        <div className="marquee-track overflow-hidden">
           <div className="marquee py-2 text-[10px] tracking-eyebrow uppercase opacity-90">
             {Array.from({ length: 2 }).map((_, dup) => (
               <span key={dup} className="flex gap-16">
@@ -266,9 +266,10 @@ function MobileDrawer({
   onClose: () => void;
   customNav: ReturnType<typeof navCustomCategories>;
 }) {
-  const { t, locale } = useLocale();
+  const { t, locale, dir } = useLocale();
   const { site } = useStore();
   const tc = useSiteCopy();
+  const offScreenX = dir === "rtl" ? "100%" : "-100%";
   return (
     <motion.div
       className="fixed inset-0 z-50"
@@ -286,9 +287,9 @@ function MobileDrawer({
       <motion.aside
         className="absolute inset-y-0 start-0 flex h-full w-[88%] max-w-[420px] flex-col"
         style={{ background: "var(--background)", borderInlineEnd: "1px solid var(--line)" }}
-        initial={{ x: "-100%" }}
+        initial={{ x: offScreenX }}
         animate={{ x: 0 }}
-        exit={{ x: "-100%" }}
+        exit={{ x: offScreenX }}
         transition={{ duration: 0.55, ease: [0.22, 0.61, 0.36, 1] }}
       >
         <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: "1px solid var(--line)" }}>

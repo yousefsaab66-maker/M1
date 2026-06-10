@@ -81,7 +81,7 @@ export default function ProductPage() {
   return (
     <article key={product.id}>
       <section className="page-gutter py-12 md:py-16">
-        <div className="mx-auto grid max-w-[1500px] gap-12 lg:grid-cols-[1.2fr_1fr] lg:gap-20">
+        <div className="mx-auto grid min-w-0 max-w-[1500px] gap-12 lg:grid-cols-[1.2fr_1fr] lg:gap-20">
           <ProductGallery product={product} images={gallery} />
 
           <div className="lg:sticky lg:top-28 self-start">

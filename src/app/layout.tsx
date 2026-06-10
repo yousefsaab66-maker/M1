@@ -85,7 +85,7 @@ export default function RootLayout({
       className={`${serif.variable} ${sans.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="site-body flex min-h-full min-h-dvh flex-col">
+      <body className="site-body site-shell flex flex-col">
         <MaisonJsonLd />
         <Providers>
           <ConditionalStorefrontChrome>{children}</ConditionalStorefrontChrome>

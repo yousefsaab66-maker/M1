@@ -879,7 +879,7 @@ function ProductEditor({
     <div className="fixed inset-0 z-50 flex items-stretch justify-center sm:justify-end">
       <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onCancel} aria-hidden />
       <div
-        className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden overscroll-contain pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] sm:h-auto sm:max-h-[100dvh] md:flex-row"
+        className="relative z-10 flex h-modal-viewport w-full max-w-6xl flex-col overflow-hidden overscroll-contain pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] sm:h-auto sm:max-h-[100dvh] md:flex-row"
         style={{ background: "var(--background)", borderInlineStart: "1px solid var(--line)" }}
       >
         <aside

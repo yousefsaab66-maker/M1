@@ -304,7 +304,7 @@ export function ProductImageLightbox({
 
             <div
               ref={viewportRef}
-              className="relative h-full max-h-[min(78dvh,900px)] w-full max-w-[min(96vw,1100px)] overflow-hidden"
+              className="relative h-full max-h-[min(78dvh,900px)] w-full max-w-[min(96%,1100px)] overflow-hidden"
               onWheel={onWheel}
               onTouchStart={onTouchStart}
               onTouchMove={onTouchMove}

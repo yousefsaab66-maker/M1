@@ -10,7 +10,7 @@ const WHATSAPP_RETAIL = "9647715937565";
 const WHATSAPP_WHOLESALE = "9647513261257";
 
 const FAB_CLASS =
-  "pointer-events-auto flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-white shadow-[0_4px_24px_rgba(0,0,0,0.2)] transition-[filter,transform] hover:brightness-105 active:scale-[0.98] sm:px-5";
+  "flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-white shadow-[0_4px_24px_rgba(0,0,0,0.2)] transition-[filter,transform] hover:brightness-105 active:scale-[0.98] sm:px-5";
 
 function useIsBrowser() {
   return useSyncExternalStore(
@@ -61,12 +61,7 @@ export function WhatsAppFab() {
   const wholesaleHref = `https://wa.me/${WHATSAPP_WHOLESALE}?text=${wholesaleText}`;
 
   const node = (
-    <div
-      className="fixed end-6 z-[9999] flex flex-col items-end gap-2"
-      style={{
-        bottom: "max(1.25rem, env(safe-area-inset-bottom, 0px))",
-      }}
-    >
+    <div className="wa-fab-root">
       <WhatsAppFabLink
         href={wholesaleHref}
         ariaLabel={t("common.whatsappWholesaleAria")}
