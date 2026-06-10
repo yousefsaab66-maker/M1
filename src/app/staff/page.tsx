@@ -1439,7 +1439,7 @@ function VideosField({
           className="btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Upload className="h-4 w-4" strokeWidth={1.4} />{" "}
-          {busy ? t("staff.images.uploading") : t("staff.videos.upload")}
+          {busy ? t("staff.images.uploading") : t("staff.images.upload")}
         </button>
         <span className="text-[11px] opacity-65">{t("staff.videos.uploadHint")}</span>
       </div>
