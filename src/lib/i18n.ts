@@ -63,6 +63,10 @@ export const DICTS: Record<Locale, Dict> = {
     "common.whatsapp": "WhatsApp",
     "common.whatsappAria": "Chat with us on WhatsApp",
     "common.whatsappPrefill": "Hello, I would like to inquire about MUHRA JEWELRY.",
+    "common.whatsappWholesale": "Wholesale WhatsApp only",
+    "common.whatsappWholesaleAria": "Chat with us on WhatsApp for wholesale orders",
+    "common.whatsappWholesalePrefill":
+      "Hello, I would like to inquire about wholesale orders at MUHRA JEWELRY.",
     "common.allRights": "All rights reserved.",
     "hero.headline": "The Art of Adornment",
     "hero.sub":
@@ -809,6 +813,10 @@ export const DICTS: Record<Locale, Dict> = {
     "common.whatsapp": "WhatsApp",
     "common.whatsappAria": "Écrivez-nous sur WhatsApp",
     "common.whatsappPrefill": "Bonjour, je souhaite des informations sur MUHRA JEWELRY.",
+    "common.whatsappWholesale": "WhatsApp vente en gros uniquement",
+    "common.whatsappWholesaleAria": "Écrivez-nous sur WhatsApp pour les commandes en gros",
+    "common.whatsappWholesalePrefill":
+      "Bonjour, je souhaite des informations sur les commandes en gros chez MUHRA JEWELRY.",
     "common.allRights": "Tous droits réservés.",
     "hero.headline": "L'Art de la Parure",
     "hero.sub":
@@ -1181,6 +1189,10 @@ export const DICTS: Record<Locale, Dict> = {
     "common.whatsapp": "WhatsApp",
     "common.whatsappAria": "Scrivici su WhatsApp",
     "common.whatsappPrefill": "Buongiorno, vorrei informazioni su MUHRA JEWELRY.",
+    "common.whatsappWholesale": "WhatsApp solo ingrosso",
+    "common.whatsappWholesaleAria": "Scrivici su WhatsApp per ordini all'ingrosso",
+    "common.whatsappWholesalePrefill":
+      "Buongiorno, vorrei informazioni sugli ordini all'ingrosso da MUHRA JEWELRY.",
     "common.allRights": "Tutti i diritti riservati.",
     "hero.headline": "L'Arte dell'Ornamento",
     "hero.sub":
@@ -1553,6 +1565,10 @@ export const DICTS: Record<Locale, Dict> = {
     "common.whatsapp": "WhatsApp",
     "common.whatsappAria": "Escríbenos por WhatsApp",
     "common.whatsappPrefill": "Hola, me gustaría información sobre MUHRA JEWELRY.",
+    "common.whatsappWholesale": "WhatsApp solo mayorista",
+    "common.whatsappWholesaleAria": "Escríbenos por WhatsApp para pedidos al por mayor",
+    "common.whatsappWholesalePrefill":
+      "Hola, me gustaría información sobre pedidos al por mayor en MUHRA JEWELRY.",
     "common.allRights": "Todos los derechos reservados.",
     "hero.headline": "El Arte del Ornamento",
     "hero.sub":
@@ -1925,6 +1941,10 @@ export const DICTS: Record<Locale, Dict> = {
     "common.whatsapp": "واتساب",
     "common.whatsappAria": "تواصل معنا عبر واتساب",
     "common.whatsappPrefill": "السلام عليكم، أود الاستفسار عن MUHRA JEWELRY.",
+    "common.whatsappWholesale": "واتساب بيع الجملة فقط",
+    "common.whatsappWholesaleAria": "تواصل معنا عبر واتساب لطلبات الجملة",
+    "common.whatsappWholesalePrefill":
+      "السلام عليكم، أود الاستفسار عن طلبات الجملة من MUHRA JEWELRY.",
     "common.allRights": "جميع الحقوق محفوظة.",
     "hero.headline": "فنّ الزينة",
     "hero.sub":
