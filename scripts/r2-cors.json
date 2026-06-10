@@ -1,13 +1,17 @@
-[
-  {
-    "AllowedOrigins": [
-      "https://muhrajewelry.com",
-      "https://www.muhrajewelry.com",
-      "http://localhost:3000"
-    ],
-    "AllowedMethods": ["GET", "HEAD", "PUT", "POST"],
-    "AllowedHeaders": ["*"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
-]
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://muhrajewelry.com",
+          "https://www.muhrajewelry.com",
+          "http://localhost:3000"
+        ],
+        "methods": ["GET", "HEAD", "PUT", "POST"],
+        "headers": ["*"]
+      },
+      "exposeHeaders": ["ETag"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

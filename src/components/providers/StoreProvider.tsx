@@ -375,7 +375,7 @@ type CatalogHandlers = {
   onCatalogLoaded?: () => void;
 };
 
-/** Storefront visitors: R2 CDN first — skip Worker `/api/catalog/products` when CDN has catalogProducts. */
+/** Storefront visitors: site/collections from R2 CDN; products from live `/api/catalog/products` (Supabase). */
 async function loadStorefrontVisitorCatalog(
   gen: number,
   signal: AbortSignal,
@@ -383,7 +383,14 @@ async function loadStorefrontVisitorCatalog(
   catalogHandlers: CatalogHandlers,
   recoverCatalog: () => void,
 ): Promise<void> {
-  const cdnSf = await fetchStorefrontFromPublicCdn(signal);
+  const catalogAc = new AbortController();
+  const catalogTimer = setTimeout(() => catalogAc.abort(), CATALOG_INIT_MS);
+  const [cdnSf, catalogRes] = await Promise.all([
+    fetchStorefrontFromPublicCdn(signal),
+    fetchCatalogJson(1, catalogAc.signal),
+  ]);
+  clearTimeout(catalogTimer);
+
   if (cdnSf.ok) {
     applyRemoteStorefrontIfNewer(
       gen,
@@ -395,17 +402,7 @@ async function loadStorefrontVisitorCatalog(
       sfHandlers,
     );
     if (cdnSf.source === "r2") sfHandlers.setR2Ready(true);
-    if (cdnSf.catalogProducts && cdnSf.catalogProducts.length > 0) {
-      applyRemoteCatalog(gen, cdnSf.catalogProducts, catalogHandlers);
-      markStoreNetworkInitComplete();
-      return;
-    }
   }
-
-  const catalogAc = new AbortController();
-  const catalogTimer = setTimeout(() => catalogAc.abort(), CATALOG_INIT_MS);
-  const catalogRes = await fetchCatalogJson(1, catalogAc.signal);
-  clearTimeout(catalogTimer);
 
   if (catalogRes.ok) {
     applyRemoteCatalog(gen, catalogRes.products, catalogHandlers);
@@ -645,18 +642,6 @@ export function StoreProvider({
           boutiques: res.boutiques ?? undefined,
         });
         if (res.source === "r2") setR2Ready(true);
-        if (res.catalogProducts && res.catalogProducts.length > 0 && !isStaffPath()) {
-          const gen = (catalogApplyGenRef.current += 1);
-          applyRemoteCatalog(gen, res.catalogProducts, {
-            setRemoteCatalog,
-            setSupabaseReady,
-            setProductsState,
-            catalogApplyGenRef,
-            onCatalogLoaded: () => {
-              catalogLoadedAtRef.current = Date.now();
-            },
-          });
-        }
       }
     } catch {
       /* ignore */
@@ -832,6 +817,10 @@ export function StoreProvider({
       void (async () => {
         const gen = (catalogApplyGenRef.current += 1);
         const sfHandlers = { applyStorefront, setR2Ready, catalogApplyGenRef };
+        const skipProducts =
+          catalogLoadedAtRef.current > 0 &&
+          Date.now() - catalogLoadedAtRef.current < CLIENT_CACHE_MS;
+
         const sfRes = await fetchStorefrontForClient();
         if (sfRes.ok) {
           applyRemoteStorefrontIfNewer(
@@ -844,23 +833,8 @@ export function StoreProvider({
             sfHandlers,
           );
           if (sfRes.source === "r2") setR2Ready(true);
-          if (sfRes.catalogProducts && sfRes.catalogProducts.length > 0) {
-            applyRemoteCatalog(gen, sfRes.catalogProducts, {
-              setRemoteCatalog,
-              setSupabaseReady,
-              setProductsState,
-              catalogApplyGenRef,
-              onCatalogLoaded: () => {
-                catalogLoadedAtRef.current = Date.now();
-              },
-            });
-            return;
-          }
         }
 
-        const skipProducts =
-          catalogLoadedAtRef.current > 0 &&
-          Date.now() - catalogLoadedAtRef.current < CLIENT_CACHE_MS;
         if (skipProducts) return;
 
         const catalogRes = await fetchCatalogJson(1);
