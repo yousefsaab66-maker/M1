@@ -5,6 +5,10 @@ function purgeCredentials(): { zoneId: string; token: string } | null {
   return { zoneId, token };
 }
 
+function siteBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_SITE_URL || "https://www.muhrajewelry.com").replace(/\/$/, "");
+}
+
 async function purgeCloudflareCache(body: Record<string, unknown>): Promise<boolean> {
   const creds = purgeCredentials();
   if (!creds) return false;
@@ -28,26 +32,41 @@ async function purgeCloudflareCache(body: Record<string, unknown>): Promise<bool
   }
 }
 
-/** Public catalog JSON URLs — purge after product save/delete for immediate `/products` updates. */
+/** Public catalog JSON URLs — targeted purge after staff product save/delete. */
 export function catalogEdgeCacheUrls(): string[] {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.muhrajewelry.com").replace(/\/$/, "");
+  const base = siteBaseUrl();
   return [
     `${base}/api/catalog/products`,
     `${base}/api/catalog/products?full=1`,
     `${base}/api/catalog/bootstrap`,
-    `${base}/api/catalog/storefront`,
     `${base}/api/staff/bootstrap`,
   ];
 }
 
-/** Targeted purge — lighter than purge_everything; used after product save/delete. */
+/** Storefront JSON + R2 CDN — targeted purge after staff site/collections save. */
+export function storefrontEdgeCacheUrls(): string[] {
+  const base = siteBaseUrl();
+  const urls = [
+    `${base}/api/catalog/storefront`,
+    `${base}/api/catalog/bootstrap`,
+    `${base}/api/staff/bootstrap`,
+  ];
+  const r2Base = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL?.trim()?.replace(/\/$/, "");
+  if (r2Base) urls.push(`${r2Base}/site/storefront.json`);
+  return urls;
+}
+
+/** Targeted catalog purge — used after product save/delete (never purge_everything). */
 export async function purgeCloudflareCatalogCache(): Promise<boolean> {
   return purgeCloudflareCache({ files: catalogEdgeCacheUrls() });
 }
 
-/**
- * Soft Cloudflare zone cache purge (no-op without env). Used after staff storefront save.
- */
+/** Targeted storefront purge — used after staff storefront PUT (never purge_everything). */
+export async function purgeCloudflareStorefrontCache(): Promise<boolean> {
+  return purgeCloudflareCache({ files: storefrontEdgeCacheUrls() });
+}
+
+/** @deprecated Use purgeCloudflareStorefrontCache — kept for import stability. */
 export async function purgeCloudflareCacheSoft(): Promise<boolean> {
-  return purgeCloudflareCache({ purge_everything: true });
+  return purgeCloudflareStorefrontCache();
 }

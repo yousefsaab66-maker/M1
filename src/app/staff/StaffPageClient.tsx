@@ -61,6 +61,7 @@ import {
   type ProductSizeOptions,
 } from "@/lib/product-sizes";
 import { afterStaffCatalogMutation, hintPurgeCatalogCache } from "@/lib/storefront-client";
+import { isDatabaseProductId } from "@/lib/catalog-db";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import { isAllowedStaffVideoMime, staffVideoMimeFromFile } from "@/lib/supabase/storage-constants";
 import {
@@ -363,8 +364,17 @@ async function persistProductRemote(
   p: Product,
   t: (key: string) => string,
   mergeRemoteProduct: (product: Product) => void,
+  removeRemoteProduct: (id: string) => void,
+  previous?: Product,
 ): Promise<{ ok: true; product: Product } | { ok: false; error: string }> {
   const fixed = ensureProductOrderable(p);
+  const rollback = () => {
+    if (previous) mergeRemoteProduct(previous);
+    else if (!isDatabaseProductId(fixed.id)) removeRemoteProduct(fixed.id);
+  };
+
+  mergeRemoteProduct(fixed);
+
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 120_000);
   try {
@@ -381,9 +391,11 @@ async function persistProductRemote(
       error?: string;
     };
     if (res.status === 401 || body.error === "unauthorized") {
+      rollback();
       return { ok: false, error: mapRemoteProductError("unauthorized", t) };
     }
     if (!body.ok || !body.product) {
+      rollback();
       return {
         ok: false,
         error: mapRemoteProductError(typeof body.error === "string" ? body.error : "unknown", t),
@@ -394,6 +406,7 @@ async function persistProductRemote(
     hintPurgeCatalogCache();
     return { ok: true, product: body.product };
   } catch (e) {
+    rollback();
     if (e instanceof DOMException && e.name === "AbortError") {
       return { ok: false, error: t("staff.products.errorTimeout") };
     }
@@ -446,7 +459,8 @@ function ProductsPane({
       setSaveError(t("staff.products.remoteRequired"));
       return false;
     }
-    const result = await persistProductRemote(p, t, mergeRemoteProduct);
+    const previous = products.find((x) => x.id === p.id);
+    const result = await persistProductRemote(p, t, mergeRemoteProduct, removeRemoteProduct, previous);
     if (!result.ok) {
       setSaveError(result.error);
       return false;
@@ -2195,6 +2209,7 @@ function SitePane({ onViewProducts }: { onViewProducts?: (slug: string) => void 
     setBoutiques,
     supabaseReady,
     mergeRemoteProduct,
+    removeRemoteProduct,
     refreshCatalog,
   } = useStore();
   const { t } = useLocale();
@@ -2247,7 +2262,13 @@ function SitePane({ onViewProducts }: { onViewProducts?: (slug: string) => void 
     setAssignError(null);
     setAssigningProductId(productId);
     try {
-      const result = await persistProductRemote({ ...product, category: targetCategory }, t, mergeRemoteProduct);
+      const result = await persistProductRemote(
+        { ...product, category: targetCategory },
+        t,
+        mergeRemoteProduct,
+        removeRemoteProduct,
+        product,
+      );
       if (!result.ok) setAssignError(result.error);
     } finally {
       setAssigningProductId(null);

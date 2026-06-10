@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { Boutique, Collection, JournalArticle, SiteContent } from "@/lib/catalog";
 import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
-import { purgeCloudflareCacheSoft } from "@/lib/cloudflare-purge";
+import { purgeCloudflareStorefrontCache } from "@/lib/cloudflare-purge";
 import { upsertStorefront } from "@/lib/storefront-query";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 
@@ -53,7 +53,7 @@ export async function PUT(req: Request) {
     return NextResponse.json({ ok: false, error: result.error } as const, { status });
   }
 
-  void purgeCloudflareCacheSoft();
+  void purgeCloudflareStorefrontCache();
 
   return NextResponse.json(
     { ok: true, updatedAt: result.updatedAt } as const,

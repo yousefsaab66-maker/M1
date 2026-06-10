@@ -256,11 +256,6 @@ function catalogFetchOpts(): RequestInit {
   };
 }
 
-/** Soft edge purge after staff save when server has CLOUDFLARE_* env (no-op otherwise). */
-function hintPurgeEdgeCache() {
-  void fetch("/api/staff/purge-cache", { method: "POST", credentials: "include" }).catch(() => {});
-}
-
 function delay(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
@@ -1002,7 +997,6 @@ export function StoreProvider({
         applyStorefront(sanitized.site, collections, result.updatedAt, { journal, boutiques });
         bustStorefrontClientCache();
         setR2Ready(true);
-        hintPurgeEdgeCache();
         return { ok: true };
       }
       return { ok: false, error: result.error };
@@ -1017,7 +1011,6 @@ export function StoreProvider({
         applyStorefront(site, c, result.updatedAt, { journal, boutiques });
         bustStorefrontClientCache();
         setR2Ready(true);
-        hintPurgeEdgeCache();
         return { ok: true };
       }
       return { ok: false, error: result.error };
@@ -1047,7 +1040,6 @@ export function StoreProvider({
         });
         bustStorefrontClientCache();
         setR2Ready(true);
-        hintPurgeEdgeCache();
         return { ok: true };
       }
       return { ok: false, error: result.error };

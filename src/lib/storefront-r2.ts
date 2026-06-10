@@ -208,52 +208,5 @@ export async function writeStorefrontToR2(
   }
 }
 
-/**
- * Lightweight catalog sync — patch `catalogProducts` in R2 without re-sanitizing site/collections.
- * Used after staff product save/delete (avoids full `writeStorefrontToR2` CPU on Cloudflare Workers).
- */
-export async function refreshStorefrontCatalogInR2(): Promise<WriteStorefrontR2Result> {
-  const bucket = await getMuhraMediaR2Binding();
-  if (!bucket) return { ok: false, error: "r2_not_configured" };
-
-  const catalogResult = await fetchCatalogProductsForList();
-  if (catalogResult.kind !== "ok") {
-    return { ok: false, error: catalogResult.kind === "not_configured" ? "r2_not_configured" : "catalog_fetch_failed" };
-  }
-
-  const current = await readStorefrontFromR2();
-  const updatedAt = new Date().toISOString();
-
-  let payload: StorefrontPayload;
-  if (current.ok && current.data) {
-    payload = {
-      ...current.data,
-      catalogProducts: catalogResult.products,
-      updatedAt,
-    };
-  } else {
-    payload = {
-      site: normalizeSiteContent(SEED_SITE),
-      collections: SEED_COLLECTIONS,
-      journal: SEED_JOURNAL,
-      boutiques: SEED_BOUTIQUES,
-      catalogProducts: catalogResult.products,
-      updatedAt,
-    };
-  }
-
-  try {
-    await bucket.put(STOREFRONT_R2_KEY, JSON.stringify(payload), {
-      httpMetadata: {
-        contentType: "application/json; charset=utf-8",
-        cacheControl: "public, max-age=60",
-      },
-    });
-    return { ok: true, updatedAt };
-  } catch {
-    return { ok: false, error: "r2_write_failed" };
-  }
-}
-
 /** @deprecated Legacy key — migrated into storefront on next save. */
 export { SITE_SETTINGS_R2_KEY };

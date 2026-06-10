@@ -1,12 +1,11 @@
 /**
- * Edge catalog JSON — keep Worker CPU low (CF 1102).
+ * Edge catalog JSON — short TTL so public catalog stays fresh without per-save R2 sync.
  * After staff product save/delete: client calls `/api/staff/purge-cache?scope=catalog` (targeted, async).
- * After deploy or storefront edits: `npm run cf:purge` (or `cf:purge:local`);
- * PUT `/api/staff/storefront` triggers a soft zone purge when CLOUDFLARE_* is set.
+ * After deploy: `npm run cf:purge`; storefront edits purge via PUT `/api/staff/storefront`.
  */
 export const CATALOG_JSON_CACHE_HEADERS = {
-  "Cache-Control": "public, max-age=0, s-maxage=600, stale-while-revalidate=1800",
-  "CDN-Cache-Control": "max-age=600",
+  "Cache-Control": "public, max-age=0, s-maxage=90, stale-while-revalidate=300",
+  "CDN-Cache-Control": "max-age=90",
 } as const;
 
 /** Site + collections from `/api/catalog/storefront` (same TTL as products). */
