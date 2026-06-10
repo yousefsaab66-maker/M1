@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { hashCredential } from "@/lib/hash";
+import { fetchStaffSessionGet } from "@/lib/staff-session-client";
 
 export type Role = "staff" | "admin";
 
@@ -121,9 +122,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       let staffUser: string | null = null;
       try {
-        const res = await fetch("/api/staff/session", { credentials: "include" });
-        const body = (await res.json()) as { ok?: boolean; user?: string | null };
-        if (res.ok && body.ok && body.user) staffUser = body.user;
+        const session = await fetchStaffSessionGet();
+        if (session.ok && session.user) staffUser = session.user;
       } catch {
         // ignore
       }

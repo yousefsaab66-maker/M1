@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { NOINDEX_ROBOTS } from "@/lib/seo-metadata";
 
-/** Avoid a cached static shell with an empty client main on /staff/login. */
-export const dynamic = "force-dynamic";
+/** Static HTML shell — session check client-side only (avoids CF Worker 1102 on reload). */
+export const dynamic = "force-static";
 
 export const metadata: Metadata = {
   title: "Staff Login — MUHRA JEWELRY",

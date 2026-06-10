@@ -206,11 +206,17 @@ function isStaffPath(): boolean {
   return typeof window !== "undefined" && window.location.pathname.startsWith("/staff");
 }
 
+function isStaffLoginPath(): boolean {
+  if (typeof window === "undefined") return false;
+  const p = window.location.pathname;
+  return p === "/staff/login" || p.startsWith("/staff/login/");
+}
+
 /** Main staff panel only — skip heavy init on /staff/login. */
 function isStaffAppPath(): boolean {
   if (typeof window === "undefined") return false;
   const p = window.location.pathname;
-  return p === "/staff" || (p.startsWith("/staff/") && !p.startsWith("/staff/login"));
+  return p === "/staff" || (p.startsWith("/staff/") && !isStaffLoginPath());
 }
 
 function catalogProductsUrl() {
@@ -760,7 +766,9 @@ export function StoreProvider({
             },
           };
 
-          if (isStaffAppPath()) {
+          if (isStaffLoginPath()) {
+            /* Login: local hydrate only — no catalog/bootstrap (CF 1102 on reload). */
+          } else if (isStaffAppPath()) {
             scheduleStaffCatalogLoad(() =>
               loadStaffCatalog(
                 gen,
@@ -794,7 +802,7 @@ export function StoreProvider({
   /** تحديث خفيف عند الرجوع للتطبيق — تسلسلي لتقليل 1102 على Cloudflare. */
   const remoteRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleRemoteRefresh = useCallback(() => {
-    if (isStaffAppPath()) return;
+    if (isStaffAppPath() || isStaffLoginPath()) return;
     if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
     remoteRefreshTimerRef.current = setTimeout(() => {
       void (async () => {
