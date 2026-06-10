@@ -11,13 +11,16 @@ function isDocumentRequest(request: NextRequest): boolean {
   return (request.headers.get("accept") ?? "").includes("text/html");
 }
 
+const CACHEABLE_API_PATHS = new Set([
+  "/api/catalog/products",
+  "/api/catalog/storefront",
+  "/api/health/r2",
+  "/api/staff/bootstrap",
+]);
+
 function applyApiCacheHeaders(request: NextRequest, res: NextResponse): NextResponse {
   const path = request.nextUrl.pathname;
-  const isPublicCatalog =
-    path === "/api/catalog/products" ||
-    path === "/api/catalog/storefront" ||
-    path === "/api/health/r2";
-  if (!isPublicCatalog) {
+  if (!CACHEABLE_API_PATHS.has(path)) {
     res.headers.set("Cache-Control", NO_STORE_JSON_HEADERS["Cache-Control"]);
     res.headers.set("CDN-Cache-Control", NO_STORE_JSON_HEADERS["CDN-Cache-Control"]);
   }
@@ -37,7 +40,7 @@ function applyHtmlCacheHeaders(request: NextRequest, res: NextResponse): NextRes
 /**
  * - Apex → www (single canonical host; avoids split cookies / intermittent www Worker timeouts).
  * - HTML: CDN-cacheable prerendered shells (Worker still runs on MISS; HIT avoids CF 1102).
- * - Staff API routes: no-store (catalog JSON cache is set on `/api/catalog/products` response).
+ * - Staff API routes: no-store except `/api/staff/bootstrap` (route sets s-maxage=120).
  */
 export function middleware(request: NextRequest) {
   const host = (request.headers.get("host") ?? request.nextUrl.host).split(":")[0]?.toLowerCase() ?? "";
