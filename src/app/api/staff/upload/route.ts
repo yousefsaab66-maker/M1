@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
-import { MUHRA_MAX_IMAGE_UPLOAD_BYTES } from "@/lib/supabase/storage-constants";
 import { putStaffObject, staffImageExt, validateStaffImageMime } from "@/lib/staff-upload-server";
 
 export const dynamic = "force-dynamic";
@@ -59,10 +58,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const size = file.size;
-  if (size <= 0 || size > MUHRA_MAX_IMAGE_UPLOAD_BYTES) {
+  if (file.size <= 0) {
     return NextResponse.json(
-      { ok: false, error: "too_large" },
+      { ok: false, error: "empty_file" },
       { status: 400, headers: rlHeaders },
     );
   }

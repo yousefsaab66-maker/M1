@@ -19,12 +19,7 @@ import {
   featuredCollectionSlug,
 } from "@/lib/site-display";
 import { useStore } from "@/components/providers/StoreProvider";
-import {
-  MUHRA_MAX_IMAGE_UPLOAD_BYTES,
-  MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES,
-  isAllowedStaffVideoMime,
-  staffVideoMimeFromFile,
-} from "@/lib/supabase/storage-constants";
+import { isAllowedStaffVideoMime, staffVideoMimeFromFile } from "@/lib/supabase/storage-constants";
 import { productImageAt } from "@/lib/product-media";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import {
@@ -106,8 +101,8 @@ export function StaffSingleImageField({
       resetFileInput();
       return;
     }
-    if (file.size > MUHRA_MAX_IMAGE_UPLOAD_BYTES) {
-      setError(t("staff.images.tooLarge").replace("{name}", file.name));
+    if (file.size <= 0) {
+      setError(t("staff.images.uploadErr.empty_file"));
       resetFileInput();
       return;
     }
@@ -642,8 +637,8 @@ export function StaffAllImagesEditor({
       setVideoError(t("staff.hero.notVideo"));
       return;
     }
-    if (file.size <= 0 || file.size > MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES) {
-      setVideoError(t("staff.images.uploadErr.video_too_large"));
+    if (file.size <= 0) {
+      setVideoError(t("staff.images.uploadErr.empty_file"));
       return;
     }
     if (!cloudUpload) {

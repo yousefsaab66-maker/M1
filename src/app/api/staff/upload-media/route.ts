@@ -2,11 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
-import {
-  MUHRA_MAX_IMAGE_UPLOAD_BYTES,
-  MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES,
-  sanitizeStorageFileName,
-} from "@/lib/supabase/storage-constants";
+import { sanitizeStorageFileName } from "@/lib/supabase/storage-constants";
 import {
   putStaffObject,
   staffImageExt,
@@ -86,12 +82,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400 });
   }
 
-  const maxBytes = isVideo ? MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES : MUHRA_MAX_IMAGE_UPLOAD_BYTES;
-  if (file.size <= 0 || file.size > maxBytes) {
-    return NextResponse.json(
-      { ok: false, error: isVideo ? "video_too_large" : "too_large" },
-      { status: 400 },
-    );
+  if (file.size <= 0) {
+    return NextResponse.json({ ok: false, error: "empty_file" }, { status: 400 });
   }
 
   const rlKey = isVideo ? `staff_upload_media_vid:${staff}:${ip}` : `staff_upload_media_img:${staff}:${ip}`;

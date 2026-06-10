@@ -1,12 +1,18 @@
-/** يطابق حدود الرفع في الـ Worker (صور المنتجات من لوحة الموظفين). */
-export const MUHRA_MAX_IMAGE_UPLOAD_BYTES = 25 * 1024 * 1024;
-
 /**
- * Staff hero / site video uploads via Worker (buffer in memory).
- * Keep conservative for Worker RAM; raise later with direct-to-R2 (presigned multipart) if needed.
+ * Staff media uploads (images + video) go through the Worker to R2.
+ *
+ * **No app-level file-size cap** — MIME type is validated; empty files are rejected.
+ *
+ * **Cloudflare platform limits** (CDN edge, not configurable in app code):
+ * - Free / Pro: ~100 MB max HTTP request body → 413 if exceeded
+ * - Business: ~200 MB
+ * - Enterprise: ~500 MB default (higher on request)
+ * See https://developers.cloudflare.com/workers/platform/limits/#request-and-response-limits
+ *
+ * Uploads buffer the full body in the Worker before `R2.put`, so very large files also
+ * need enough Worker memory/CPU time. For multi‑GB files, use direct-to-R2 presigned
+ * multipart uploads (not implemented here).
  */
-/** 4K product / hero clips — buffered in Worker; use direct-to-R2 multipart later if needed. */
-export const MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES = 200 * 1024 * 1024;
 
 /** Allowed MIME types for product uploads (staff API + bucket policy alignment). */
 export const MUHRA_IMAGE_UPLOAD_MIME: readonly string[] = [

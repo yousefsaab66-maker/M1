@@ -49,12 +49,7 @@ import {
   productImageAt,
 } from "@/lib/product-media";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
-import {
-  isAllowedStaffVideoMime,
-  MUHRA_MAX_IMAGE_UPLOAD_BYTES,
-  MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES,
-  staffVideoMimeFromFile,
-} from "@/lib/supabase/storage-constants";
+import { isAllowedStaffVideoMime, staffVideoMimeFromFile } from "@/lib/supabase/storage-constants";
 import {
   translateStaffUploadError,
   uploadStaffImageFile,
@@ -1208,8 +1203,8 @@ function ImagesField({
           errors.push(t("staff.images.notImage").replace("{name}", file.name));
           continue;
         }
-        if (file.size > MUHRA_MAX_IMAGE_UPLOAD_BYTES) {
-          errors.push(t("staff.images.tooLarge").replace("{name}", file.name));
+        if (file.size <= 0) {
+          errors.push(t("staff.images.uploadErr.empty_file"));
           continue;
         }
         if (useCloud) {
@@ -1370,8 +1365,8 @@ function VideosField({
           errors.push(t("staff.videos.notVideo").replace("{name}", file.name));
           continue;
         }
-        if (file.size <= 0 || file.size > MUHRA_MAX_STAFF_VIDEO_UPLOAD_BYTES) {
-          errors.push(t("staff.videos.tooLarge").replace("{name}", file.name));
+        if (file.size <= 0) {
+          errors.push(t("staff.images.uploadErr.empty_file"));
           continue;
         }
         const up = await uploadStaffMediaFile(file, "product", { onSuccess: confirmR2Ready });
