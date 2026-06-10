@@ -12,6 +12,7 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 import { ProductPrice } from "@/components/ProductPrice";
 import { findProductBySlug, productGallerySources } from "@/lib/product-media";
+import { resolveProductSizes } from "@/lib/product-sizes";
 import type { Product } from "@/lib/catalog";
 import { productCategoryLabel } from "@/lib/site-display";
 
@@ -131,8 +132,8 @@ function ProductBuyColumn({ product }: { product: Product }) {
   const { addToBag, toggleWish, inWishlist, site } = useStore();
 
   const sizesList = useMemo(
-    () => [...new Set((product.sizes ?? []).map((s) => s.trim()).filter(Boolean))],
-    [product.sizes],
+    () => resolveProductSizes(product, site),
+    [product, site],
   );
 
   const [size, setSize] = useState<string | undefined>(() =>

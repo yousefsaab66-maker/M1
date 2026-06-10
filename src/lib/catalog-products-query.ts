@@ -1,6 +1,7 @@
 import type { Product } from "@/lib/catalog";
 import { rowToProduct, type ProductRow } from "@/lib/catalog-db";
 import { ensureProductOrderable, sanitizeProductForCatalogApi } from "@/lib/product-media";
+import { resolveProductSizes, sizeOptionsFromRow } from "@/lib/product-sizes";
 import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin";
 
 export type FetchCatalogProductsResult =
@@ -14,11 +15,15 @@ export type FetchCatalogProductsOptions = {
 };
 
 const LIST_SELECT =
-  "id,slug,name,collection_slug,category,price,currency,materials,stones,images,videos,sizes,is_high_jewelry,is_new";
+  "id,slug,name,collection_slug,category,price,currency,materials,stones,images,videos,sizes,size_options,is_high_jewelry,is_new";
 
 function rowToProductList(row: ProductRow): Product {
   const images = row.images ?? [];
   const videos = row.videos && row.videos.length > 0 ? row.videos : undefined;
+  const sizeOptions = sizeOptionsFromRow(row.size_options, row.sizes, row.category);
+  const resolvedSizes = resolveProductSizes(
+    { category: row.category, sizeOptions, sizes: row.sizes ?? undefined } as Product,
+  );
   return ensureProductOrderable({
     id: row.id,
     slug: row.slug,
@@ -34,7 +39,8 @@ function rowToProductList(row: ProductRow): Product {
     description: "",
     story: "",
     related: [],
-    sizes: row.sizes && row.sizes.length > 0 ? row.sizes : undefined,
+    sizeOptions,
+    sizes: resolvedSizes.length > 0 ? resolvedSizes : undefined,
     isHighJewelry: row.is_high_jewelry,
     isNew: row.is_new,
   });
@@ -42,6 +48,12 @@ function rowToProductList(row: ProductRow): Product {
 
 const listInflight = new Map<string, Promise<FetchCatalogProductsResult>>();
 const fullInflight = new Map<string, Promise<FetchCatalogProductsResult>>();
+
+/** Drop coalesced list/full caches after staff product save or delete. */
+export function invalidateCatalogProductsCache() {
+  listInflight.clear();
+  fullInflight.clear();
+}
 
 function inflightKey(options?: FetchCatalogProductsOptions) {
   return options?.rawImages ? "raw" : "default";

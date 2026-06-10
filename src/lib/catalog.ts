@@ -1,4 +1,7 @@
 import type { SiteCopyBundle } from "@/lib/site-copy";
+import type { ProductSizeOptions } from "@/lib/product-sizes";
+
+export type { ProductSizeOptions } from "@/lib/product-sizes";
 
 export type Category =
   | "necklaces"
@@ -51,7 +54,10 @@ export interface Product {
   description: string;
   story: string;
   related: string[];
+  /** @deprecated Denormalized — prefer `sizeOptions` + {@link resolveProductSizes}. */
   sizes?: string[];
+  /** Staff toggles: necklace / bracelet / ring size lists (enabled independently). */
+  sizeOptions?: ProductSizeOptions;
   isHighJewelry?: boolean;
   isNew?: boolean;
 }

@@ -223,8 +223,8 @@ function isStaffAppPath(): boolean {
   return p === "/staff" || (p.startsWith("/staff/") && !isStaffLoginPath());
 }
 
-function catalogProductsUrl() {
-  return "/api/catalog/products";
+function catalogProductsUrl(bust = false) {
+  return bust ? `/api/catalog/products?full=1&_=${Date.now()}` : "/api/catalog/products?full=1";
 }
 
 function catalogFetchOpts(): RequestInit {
@@ -247,10 +247,11 @@ function delay(ms: number) {
 async function fetchCatalogJson(
   attempts = 1,
   signal?: AbortSignal,
+  bust = false,
 ): Promise<{ ok: true; products: Product[] } | { ok: false }> {
   for (let i = 0; i < attempts; i += 1) {
     try {
-      const r = await fetch(catalogProductsUrl(), { ...catalogFetchOpts(), signal });
+      const r = await fetch(catalogProductsUrl(bust), { ...catalogFetchOpts(), signal });
       if (r.ok) {
         const d = (await r.json()) as { products?: Product[] };
         if (Array.isArray(d.products)) {
@@ -539,7 +540,7 @@ export function StoreProvider({
     catalogRefreshAbortRef.current = ac;
     const gen = (catalogApplyGenRef.current += 1);
     try {
-      const res = await fetchCatalogJson(1, ac.signal);
+      const res = await fetchCatalogJson(1, ac.signal, true);
       if (gen !== catalogApplyGenRef.current) return;
       if (!res.ok) return;
       writeCatalogSnapshot(res.products);

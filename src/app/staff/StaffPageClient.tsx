@@ -48,6 +48,15 @@ import {
   productHasEmbeddedImages,
   productImageAt,
 } from "@/lib/product-media";
+import {
+  formatSizeOptionsSummary,
+  normalizeSizeOptions,
+  productSizeKindForCategory,
+  resolveProductSizes,
+  type ProductSizeKind,
+  type ProductSizeOptions,
+} from "@/lib/product-sizes";
+import { bustStorefrontClientCache } from "@/lib/storefront-client";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import { isAllowedStaffVideoMime, staffVideoMimeFromFile } from "@/lib/supabase/storage-constants";
 import {
@@ -340,6 +349,7 @@ function emptyProduct(): Product {
 function mapRemoteProductError(error: string, t: (key: string) => string): string {
   if (error === "not_configured") return t("staff.products.errorNotConfigured");
   if (error === "unauthorized") return t("staff.products.errorUnauthorized");
+  if (error === "not_found" || error === "invalid_id") return t("staff.products.errorDelete");
   if (error === "payload_image_too_large" || error === "payload_images_too_large")
     return t("staff.products.errorPayloadImages");
   return error;
@@ -380,6 +390,7 @@ async function persistProductRemote(
       };
     }
     mergeRemoteProduct(body.product);
+    bustStorefrontClientCache();
     hintPurgeEdgeCacheAfterProductChange();
     return { ok: true, product: body.product };
   } catch (e) {
@@ -477,9 +488,10 @@ function ProductsPane({
       }
       if (!res.ok || !body.ok) {
         if (removed) mergeRemoteProduct(removed);
-        setSaveError(t("staff.products.errorDelete"));
+        setSaveError(mapRemoteProductError(typeof body.error === "string" ? body.error : "unknown", t));
         return;
       }
+      bustStorefrontClientCache();
       hintPurgeEdgeCacheAfterProductChange();
     } catch {
       if (removed) mergeRemoteProduct(removed);
@@ -680,7 +692,8 @@ function ProductsPane({
                 <td className="opacity-80">{p.collection}</td>
                 <td className="opacity-80">{productCategoryLabel(p.category, site, t, locale)}</td>
                 <td className="max-w-[140px] text-sm opacity-90">
-                  {p.sizes?.length ? p.sizes.join(", ") : "—"}
+                  {formatSizeOptionsSummary(p.sizeOptions) ||
+                    (p.sizes?.length ? p.sizes.join(", ") : "—")}
                 </td>
                 <td>{formatPrice(p.price, p.currency, "en")}</td>
                 <td>
@@ -968,7 +981,12 @@ function ProductEditor({
             <textarea className="staff-input" rows={5} value={draft.story} onChange={(e) => update("story", e.target.value)} />
           </Field>
           <div className="border-t pt-5" style={{ borderColor: "var(--line)" }}>
-            <SizesEditor sizes={draft.sizes} onChange={(next) => update("sizes", next)} />
+            <CategorySizesEditor
+              sizeOptions={draft.sizeOptions}
+              category={draft.category}
+              site={site}
+              onChange={(next) => update("sizeOptions", next)}
+            />
           </div>
           <Field label={t("staff.form.related")}>
             <input
@@ -1014,7 +1032,8 @@ function ProductStaffPreview({
   const gallery = productGallerySources(draft);
   const safeIdx = Math.min(imgIdx, Math.max(0, gallery.length - 1));
   const mainSrc = gallery[safeIdx] ?? productImageAt(draft, 0);
-  const sizeVals = Array.isArray(draft.sizes) ? draft.sizes.filter(Boolean) : [];
+  const previewSizes = resolveProductSizes(draft, site);
+  const sizeKind = productSizeKindForCategory(draft.category, site);
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -1082,13 +1101,17 @@ function ProductStaffPreview({
         )}
         <div className="border-t pt-3" style={{ borderColor: "var(--line)" }}>
           <p className="staff-label !mb-2">{t("common.size")}</p>
-          {!Array.isArray(draft.sizes) && <p className="text-sm leading-relaxed opacity-75">{t("staff.preview.noSizes")}</p>}
-          {Array.isArray(draft.sizes) && sizeVals.length === 0 && (
-            <p className="text-sm leading-relaxed text-amber-800 dark:text-amber-400/95">{t("staff.preview.sizesEmpty")}</p>
+          {!sizeKind && (
+            <p className="text-sm leading-relaxed opacity-75">{t("staff.preview.noSizes")}</p>
           )}
-          {sizeVals.length > 0 && (
+          {sizeKind && previewSizes.length === 0 && (
+            <p className="text-sm leading-relaxed text-amber-800 dark:text-amber-400/95">
+              {t("staff.preview.sizesEmpty")}
+            </p>
+          )}
+          {previewSizes.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {sizeVals.map((s) => (
+              {previewSizes.map((s) => (
                 <span
                   key={s}
                   className="border px-2.5 py-1 text-xs sm:text-sm"
@@ -1113,33 +1136,89 @@ function ProductStaffPreview({
   );
 }
 
-function SizesEditor({
-  sizes,
+function CategorySizesEditor({
+  sizeOptions,
+  category,
+  site,
   onChange,
 }: {
-  sizes: string[] | undefined;
-  onChange: (next: string[] | undefined) => void;
+  sizeOptions: ProductSizeOptions | undefined;
+  category: string;
+  site: SiteContent;
+  onChange: (next: ProductSizeOptions | undefined) => void;
+}) {
+  const { t } = useLocale();
+  const normalized = normalizeSizeOptions(sizeOptions) ?? {};
+  const activeKind = productSizeKindForCategory(category, site);
+
+  const updateKind = (kind: ProductSizeKind, list: string[] | undefined) => {
+    const next = { ...normalized };
+    if (list && list.length > 0) next[kind] = list;
+    else delete next[kind];
+    onChange(normalizeSizeOptions(next));
+  };
+
+  return (
+    <div className="space-y-5">
+      <p className="staff-label !mb-0">{t("common.size")}</p>
+      <p className="text-xs opacity-75">{t("staff.sizes.hint")}</p>
+      {(["necklace", "bracelet", "ring"] as const).map((kind) => (
+        <SizeGroupEditor
+          key={kind}
+          kind={kind}
+          enabled={Boolean(normalized[kind])}
+          list={normalized[kind] ?? []}
+          highlighted={activeKind === kind}
+          onEnabledChange={(on) => updateKind(kind, on ? [] : undefined)}
+          onListChange={(list) => updateKind(kind, list.length > 0 ? list : normalized[kind] ? [] : undefined)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SizeGroupEditor({
+  kind,
+  enabled,
+  list,
+  highlighted,
+  onEnabledChange,
+  onListChange,
+}: {
+  kind: ProductSizeKind;
+  enabled: boolean;
+  list: string[];
+  highlighted: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+  onListChange: (list: string[]) => void;
 }) {
   const { t } = useLocale();
   const [input, setInput] = useState("");
-  const enabled = Array.isArray(sizes);
-  const list = enabled ? sizes.filter(Boolean) : [];
+
+  const addSize = () => {
+    const v = input.trim();
+    if (v && !list.includes(v)) onListChange([...list, v]);
+    setInput("");
+  };
 
   return (
-    <div className="space-y-4">
+    <div
+      className="space-y-3 rounded border p-4"
+      style={{
+        borderColor: highlighted ? "var(--color-gold)" : "var(--line)",
+        background: highlighted ? "color-mix(in srgb, var(--color-gold) 6%, transparent)" : undefined,
+      }}
+    >
       <label className="flex cursor-pointer items-start gap-3 text-sm">
         <input
           type="checkbox"
           className="mt-1"
           checked={enabled}
-          onChange={(e) => {
-            if (e.target.checked) onChange([]);
-            else onChange(undefined);
-          }}
+          onChange={(e) => onEnabledChange(e.target.checked)}
         />
         <span>
-          <span className="staff-label !mb-0 block">{t("staff.sizes.enable")}</span>
-          <span className="mt-1 block text-xs opacity-75">{t("staff.sizes.hint")}</span>
+          <span className="staff-label !mb-0 block">{t(`staff.sizes.${kind}.enable`)}</span>
+          <span className="mt-1 block text-xs opacity-75">{t(`staff.sizes.${kind}.hint`)}</span>
         </span>
       </label>
       {enabled && (
@@ -1153,20 +1232,14 @@ function SizesEditor({
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  const v = input.trim();
-                  if (v && !list.includes(v)) onChange([...list, v]);
-                  setInput("");
+                  addSize();
                 }
               }}
             />
             <button
               type="button"
               className="btn-ghost whitespace-nowrap px-4 text-[11px] tracking-eyebrow uppercase"
-              onClick={() => {
-                const v = input.trim();
-                if (v && !list.includes(v)) onChange([...list, v]);
-                setInput("");
-              }}
+              onClick={addSize}
             >
               {t("staff.sizes.add")}
             </button>
@@ -1184,7 +1257,7 @@ function SizesEditor({
                     type="button"
                     aria-label={`${t("staff.sizes.remove")}: ${s}`}
                     className="opacity-70 hover:opacity-100"
-                    onClick={() => onChange(list.filter((x) => x !== s))}
+                    onClick={() => onListChange(list.filter((x) => x !== s))}
                   >
                     <X className="h-3.5 w-3.5" strokeWidth={1.4} />
                   </button>
@@ -1195,7 +1268,7 @@ function SizesEditor({
           <button
             type="button"
             className="text-[11px] uppercase tracking-eyebrow opacity-70 hover:opacity-100"
-            onClick={() => onChange([])}
+            onClick={() => onListChange([])}
           >
             {t("staff.sizes.clearAll")}
           </button>

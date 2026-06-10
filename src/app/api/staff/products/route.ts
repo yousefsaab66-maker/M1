@@ -65,7 +65,12 @@ export async function DELETE(req: Request) {
     ...(result.ok ? { "X-Muhra-Cache-Hint": "purge-catalog-after-deploy" } : {}),
   };
   if (!result.ok) {
-    const status = result.error === "not_configured" ? 503 : result.error === "invalid_id" ? 400 : 500;
+    const status =
+      result.error === "not_configured"
+        ? 503
+        : result.error === "invalid_id" || result.error === "not_found"
+          ? 400
+          : 500;
     return NextResponse.json({ ok: false, error: result.error } as const, { status, headers });
   }
   return NextResponse.json({ ok: true } as const, { headers });

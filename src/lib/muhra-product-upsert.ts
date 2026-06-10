@@ -1,5 +1,6 @@
 import type { Product } from "@/lib/catalog";
 import { productToInsert, rowToProduct, isDatabaseProductId, type ProductRow } from "@/lib/catalog-db";
+import { syncCatalogAfterProductChange } from "@/lib/muhra-catalog-sync";
 import { ensureProductOrderable, validateProductPayloadForServerSave } from "@/lib/product-media";
 import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -26,10 +27,12 @@ export async function upsertProductToSupabase(
       .select("*")
       .single();
     if (error || !data) return { ok: false, error: error?.message ?? "update_failed" };
+    await syncCatalogAfterProductChange();
     return { ok: true, product: rowToProduct(data as ProductRow) };
   }
 
   const { data, error } = await sb.from("products").insert(row).select("*").single();
   if (error || !data) return { ok: false, error: error?.message ?? "insert_failed" };
+  await syncCatalogAfterProductChange();
   return { ok: true, product: rowToProduct(data as ProductRow) };
 }

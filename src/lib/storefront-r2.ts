@@ -176,7 +176,7 @@ export async function writeStorefrontToR2(
   const updatedAt = new Date().toISOString();
   const catalogResult = await fetchCatalogProductsForList();
   const catalogProducts =
-    catalogResult.kind === "ok" && catalogResult.products.length > 0
+    catalogResult.kind === "ok"
       ? catalogResult.products
       : current.ok && current.data?.catalogProducts
         ? current.data.catalogProducts
@@ -187,9 +187,13 @@ export async function writeStorefrontToR2(
     collections: colSan.collections,
     journal: journalSan.journal,
     boutiques: boutiquesSan.boutiques,
-    ...(catalogProducts && catalogProducts.length > 0 ? { catalogProducts } : {}),
     updatedAt,
   };
+  if (catalogResult.kind === "ok") {
+    payload.catalogProducts = catalogProducts ?? [];
+  } else if (catalogProducts && catalogProducts.length > 0) {
+    payload.catalogProducts = catalogProducts;
+  }
 
   try {
     await bucket.put(STOREFRONT_R2_KEY, JSON.stringify(payload), {

@@ -1,5 +1,12 @@
 import type { Product, Material, Stone, Currency } from "@/lib/catalog";
 import { ensureProductOrderable } from "@/lib/product-media";
+import {
+  flattenSizeOptions,
+  normalizeSizeOptions,
+  resolveProductSizes,
+  sizeOptionsFromRow,
+  type ProductSizeOptions,
+} from "@/lib/product-sizes";
 
 export type ProductRow = {
   id: string;
@@ -17,12 +24,17 @@ export type ProductRow = {
   story: string | null;
   related_slugs: string[] | null;
   sizes: string[] | null;
+  size_options: ProductSizeOptions | null;
   is_high_jewelry: boolean;
   is_new: boolean;
 };
 
 export function rowToProduct(row: ProductRow): Product {
   const videos = row.videos && row.videos.length > 0 ? row.videos : undefined;
+  const sizeOptions = sizeOptionsFromRow(row.size_options, row.sizes, row.category);
+  const resolvedSizes = resolveProductSizes(
+    { category: row.category, sizeOptions, sizes: row.sizes ?? undefined } as Product,
+  );
   return ensureProductOrderable({
     id: row.id,
     slug: row.slug,
@@ -38,13 +50,20 @@ export function rowToProduct(row: ProductRow): Product {
     description: row.description ?? "",
     story: row.story ?? "",
     related: row.related_slugs ?? [],
-    sizes: row.sizes && row.sizes.length > 0 ? row.sizes : undefined,
+    sizeOptions,
+    sizes: resolvedSizes.length > 0 ? resolvedSizes : undefined,
     isHighJewelry: row.is_high_jewelry,
     isNew: row.is_new,
   });
 }
 
 export function productToInsert(p: Product) {
+  const sizeOptions = normalizeSizeOptions(p.sizeOptions);
+  const flatSizes = flattenSizeOptions(sizeOptions);
+  const legacySizes =
+    flatSizes.length > 0
+      ? flatSizes
+      : [...new Set((p.sizes ?? []).map((s) => s.trim()).filter(Boolean))];
   return {
     slug: p.slug.trim(),
     name: p.name.trim(),
@@ -59,7 +78,8 @@ export function productToInsert(p: Product) {
     description: p.description ?? "",
     story: p.story ?? "",
     related_slugs: p.related ?? [],
-    sizes: p.sizes ?? null,
+    size_options: sizeOptions ?? null,
+    sizes: legacySizes.length > 0 ? legacySizes : null,
     is_high_jewelry: !!p.isHighJewelry,
     is_new: !!p.isNew,
   };

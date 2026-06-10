@@ -1,6 +1,11 @@
 import type { Product } from "./catalog";
 import { slugify } from "./format";
 import { normalizeStaffMediaUrl } from "./staff-media-url";
+import {
+  flattenSizeOptions,
+  normalizeSizeOptions,
+  resolveProductSizes,
+} from "./product-sizes";
 
 /** Decode URL slug and compare case-insensitively (PDP + cards). */
 export function normalizeSlugParam(slug: string): string {
@@ -97,9 +102,18 @@ export function ensureProductOrderable(p: Product): Product {
   const images = imgs.length > 0 ? imgs : [MUHRA_PLACEHOLDER_IMAGE];
   const vids = (p.videos ?? []).map((u) => u.trim()).filter(Boolean);
   const videos = vids.length > 0 ? vids : undefined;
-  const sizeList = [...new Set((p.sizes ?? []).map((s) => s.trim()).filter(Boolean))];
-  const sizes = sizeList.length > 0 ? sizeList : undefined;
-  return { ...p, slug, images, videos, sizes };
+  const sizeOptions = normalizeSizeOptions(p.sizeOptions);
+  const resolved = resolveProductSizes({ ...p, sizeOptions });
+  const sizes = resolved.length > 0 ? resolved : undefined;
+  const flat = flattenSizeOptions(sizeOptions);
+  return {
+    ...p,
+    slug,
+    images,
+    videos,
+    sizeOptions,
+    sizes: sizes ?? (flat.length > 0 ? flat : undefined),
+  };
 }
 
 /**
