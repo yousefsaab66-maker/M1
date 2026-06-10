@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { useLocale } from "@/components/providers/LocaleProvider";
 
 /** العراق 078… → صيغة واتساب الدولية بدون + */
-const WHATSAPP_WA_ME = "9647800839820";
+const WHATSAPP_WA_ME = "9647715937565";
 
 function useIsBrowser() {
   return useSyncExternalStore(
