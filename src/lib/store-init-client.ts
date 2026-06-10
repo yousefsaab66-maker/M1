@@ -2,8 +2,14 @@
 export const STORE_INIT_SKIP_MS = 5 * 60 * 1000;
 /** Staff panel — shorter skip window; still fresh on first open, avoids bootstrap spam on reload (CF 1102). */
 export const STAFF_INIT_SKIP_MS = 2 * 60 * 1000;
+/** Debounce background revalidate so reload #2–3 do not each hit the Worker (CF 1102). */
+export const BACKGROUND_REVALIDATE_DEBOUNCE_MS = 2_500;
 
 const KEY_STORE_INIT_AT = "muhra-store-init-at-v1";
+const KEY_INIT_PENDING_AT = "muhra-store-init-pending-at-v1";
+const KEY_BG_REVALIDATE_AT = "muhra-bg-revalidate-at-v1";
+/** If reload happens while first init is still in flight, skip duplicate full bootstrap. */
+const PENDING_INIT_GRACE_MS = 30_000;
 
 let moduleInitAt = 0;
 let catalogInitInFlight: Promise<void> | null = null;
@@ -24,8 +30,34 @@ export function markStoreNetworkInitComplete() {
   if (typeof window === "undefined") return;
   try {
     sessionStorage.setItem(KEY_STORE_INIT_AT, String(now));
+    sessionStorage.removeItem(KEY_INIT_PENDING_AT);
   } catch {
     /* ignore */
+  }
+}
+
+/** Mark init started before network returns — rapid reload during first fetch skips duplicate bootstrap. */
+export function markStoreNetworkInitPending() {
+  if (typeof window === "undefined") return;
+  try {
+    if (!sessionStorage.getItem(KEY_INIT_PENDING_AT)) {
+      sessionStorage.setItem(KEY_INIT_PENDING_AT, String(Date.now()));
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function shouldSkipDueToPendingInit(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const pending = Number(sessionStorage.getItem(KEY_INIT_PENDING_AT)) || 0;
+    if (pending === 0) return false;
+    const completed = readStoreNetworkInitAt();
+    if (completed >= pending) return false;
+    return Date.now() - pending < PENDING_INIT_GRACE_MS;
+  } catch {
+    return false;
   }
 }
 
@@ -37,6 +69,42 @@ export function shouldSkipStoreNetworkInit(): boolean {
 export function shouldSkipStaffNetworkInit(): boolean {
   const at = readStoreNetworkInitAt();
   return at > 0 && Date.now() - at < STAFF_INIT_SKIP_MS;
+}
+
+/**
+ * Throttled reloads: revalidate catalog at most once per init window (not every reload).
+ * Keeps ghost-product fix from e51dc90 without 3× Worker CPU on rapid refresh.
+ */
+export function shouldRunBackgroundRevalidate(staffPath: boolean): boolean {
+  const initAt = readStoreNetworkInitAt();
+  if (initAt === 0) return false;
+  const skipWindow = staffPath ? STAFF_INIT_SKIP_MS : STORE_INIT_SKIP_MS;
+  if (Date.now() - initAt >= skipWindow) return false;
+  try {
+    const bgAt = Number(sessionStorage.getItem(KEY_BG_REVALIDATE_AT)) || 0;
+    return bgAt < initAt;
+  } catch {
+    return false;
+  }
+}
+
+export function markBackgroundRevalidateComplete() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(KEY_BG_REVALIDATE_AT, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** After staff save/delete bust — allow one fresh background revalidate again. */
+export function resetBackgroundRevalidateMarker() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(KEY_BG_REVALIDATE_AT);
+  } catch {
+    /* ignore */
+  }
 }
 
 /** One in-flight init per tab — concurrent mounts share the same promise. */

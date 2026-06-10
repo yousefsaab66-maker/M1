@@ -23,7 +23,7 @@ export type FetchStorefrontClientResult =
     }
   | { ok: false };
 
-import { STORE_INIT_SKIP_MS } from "@/lib/store-init-client";
+import { resetBackgroundRevalidateMarker, STORE_INIT_SKIP_MS } from "@/lib/store-init-client";
 
 /** In-memory client cache for storefront/bootstrap fetches (visibility refresh respects this). */
 export const CLIENT_CACHE_MS = STORE_INIT_SKIP_MS;
@@ -188,6 +188,8 @@ export type StaffBootstrapClientResult =
   | { ok: false };
 
 let staffBootstrapCache: CachedEntry<StaffBootstrapClientResult> | null = null;
+let staffBootstrapInFlight: Promise<StaffBootstrapClientResult> | null = null;
+let catalogBootstrapInFlight: Promise<CatalogBootstrapClientResult> | null = null;
 
 export async function fetchCatalogBootstrapClient(
   signal?: AbortSignal,
@@ -196,42 +198,52 @@ export async function fetchCatalogBootstrapClient(
   if (!opts?.bust) {
     const hit = readCache(bootstrapCache);
     if (hit) return hit;
+    if (catalogBootstrapInFlight) return catalogBootstrapInFlight;
   }
 
-  try {
-    const res = await fetch("/api/catalog/bootstrap", {
-      cache: "default",
-      credentials: "same-origin",
-      signal,
-    });
-    if (!res.ok) return { ok: false };
-    const d = (await res.json()) as {
-      products?: unknown;
-      site?: SiteContent | null;
-      collections?: Collection[] | null;
-      journal?: JournalArticle[] | null;
-      boutiques?: Boutique[] | null;
-      storefrontUpdatedAt?: string | null;
-      storefrontSource?: "r2" | "none";
-      r2Ready?: boolean;
-    };
-    const products = Array.isArray(d.products) ? d.products : [];
-    const result: CatalogBootstrapClientResult = {
-      ok: true,
-      products: products as import("@/lib/catalog").Product[],
-      site: d.site && typeof d.site === "object" ? normalizeSiteContent(d.site) : null,
-      collections: Array.isArray(d.collections) ? d.collections : null,
-      journal: Array.isArray(d.journal) ? d.journal : null,
-      boutiques: Array.isArray(d.boutiques) ? d.boutiques : null,
-      updatedAt: typeof d.storefrontUpdatedAt === "string" ? d.storefrontUpdatedAt : null,
-      source: d.storefrontSource === "r2" ? "r2" : "none",
-      r2Ready: d.r2Ready === true,
-    };
-    bootstrapCache = writeCache(bootstrapCache, result, res.headers.get("etag"));
-    return result;
-  } catch {
-    return { ok: false };
-  }
+  const run = async (): Promise<CatalogBootstrapClientResult> => {
+    try {
+      const res = await fetch("/api/catalog/bootstrap", {
+        cache: "default",
+        credentials: "same-origin",
+        signal,
+      });
+      if (!res.ok) return { ok: false };
+      const d = (await res.json()) as {
+        products?: unknown;
+        site?: SiteContent | null;
+        collections?: Collection[] | null;
+        journal?: JournalArticle[] | null;
+        boutiques?: Boutique[] | null;
+        storefrontUpdatedAt?: string | null;
+        storefrontSource?: "r2" | "none";
+        r2Ready?: boolean;
+      };
+      const products = Array.isArray(d.products) ? d.products : [];
+      const result: CatalogBootstrapClientResult = {
+        ok: true,
+        products: products as import("@/lib/catalog").Product[],
+        site: d.site && typeof d.site === "object" ? normalizeSiteContent(d.site) : null,
+        collections: Array.isArray(d.collections) ? d.collections : null,
+        journal: Array.isArray(d.journal) ? d.journal : null,
+        boutiques: Array.isArray(d.boutiques) ? d.boutiques : null,
+        updatedAt: typeof d.storefrontUpdatedAt === "string" ? d.storefrontUpdatedAt : null,
+        source: d.storefrontSource === "r2" ? "r2" : "none",
+        r2Ready: d.r2Ready === true,
+      };
+      bootstrapCache = writeCache(bootstrapCache, result, res.headers.get("etag"));
+      return result;
+    } catch {
+      return { ok: false };
+    }
+  };
+
+  if (opts?.bust) return run();
+
+  catalogBootstrapInFlight = run().finally(() => {
+    catalogBootstrapInFlight = null;
+  });
+  return catalogBootstrapInFlight;
 }
 
 /** Force next client fetch to bypass the in-memory cache (e.g. after staff save). */
@@ -240,6 +252,7 @@ export function bustStorefrontClientCache() {
   apiStorefrontCache = null;
   bootstrapCache = null;
   staffBootstrapCache = null;
+  resetBackgroundRevalidateMarker();
 }
 
 /** Staff panel init — list products + site/collections only (defer journal/boutiques). */
@@ -250,41 +263,51 @@ export async function fetchStaffBootstrapClient(
   if (!opts?.bust) {
     const hit = readCache(staffBootstrapCache);
     if (hit) return hit;
+    if (staffBootstrapInFlight) return staffBootstrapInFlight;
   }
 
-  try {
-    const url = opts?.bust
-      ? `/api/staff/bootstrap?_=${Date.now()}`
-      : "/api/staff/bootstrap";
-    const res = await fetch(url, {
-      cache: opts?.bust ? "no-store" : "default",
-      credentials: "same-origin",
-      signal,
-    });
-    if (!res.ok) return { ok: false };
-    const d = (await res.json()) as {
-      products?: unknown;
-      site?: SiteContent | null;
-      collections?: Collection[] | null;
-      storefrontUpdatedAt?: string | null;
-      storefrontSource?: "r2" | "none";
-      r2Ready?: boolean;
-      presignConfigured?: boolean;
-    };
-    const products = Array.isArray(d.products) ? d.products : [];
-    const result: StaffBootstrapClientResult = {
-      ok: true,
-      products: products as import("@/lib/catalog").Product[],
-      site: d.site && typeof d.site === "object" ? normalizeSiteContent(d.site) : null,
-      collections: Array.isArray(d.collections) ? d.collections : null,
-      updatedAt: typeof d.storefrontUpdatedAt === "string" ? d.storefrontUpdatedAt : null,
-      source: d.storefrontSource === "r2" ? "r2" : "none",
-      r2Ready: d.r2Ready === true,
-      presignConfigured: d.presignConfigured === true,
-    };
-    staffBootstrapCache = writeCache(staffBootstrapCache, result, res.headers.get("etag"));
-    return result;
-  } catch {
-    return { ok: false };
-  }
+  const run = async (): Promise<StaffBootstrapClientResult> => {
+    try {
+      const url = opts?.bust
+        ? `/api/staff/bootstrap?_=${Date.now()}`
+        : "/api/staff/bootstrap";
+      const res = await fetch(url, {
+        cache: opts?.bust ? "no-store" : "default",
+        credentials: "same-origin",
+        signal,
+      });
+      if (!res.ok) return { ok: false };
+      const d = (await res.json()) as {
+        products?: unknown;
+        site?: SiteContent | null;
+        collections?: Collection[] | null;
+        storefrontUpdatedAt?: string | null;
+        storefrontSource?: "r2" | "none";
+        r2Ready?: boolean;
+        presignConfigured?: boolean;
+      };
+      const products = Array.isArray(d.products) ? d.products : [];
+      const result: StaffBootstrapClientResult = {
+        ok: true,
+        products: products as import("@/lib/catalog").Product[],
+        site: d.site && typeof d.site === "object" ? normalizeSiteContent(d.site) : null,
+        collections: Array.isArray(d.collections) ? d.collections : null,
+        updatedAt: typeof d.storefrontUpdatedAt === "string" ? d.storefrontUpdatedAt : null,
+        source: d.storefrontSource === "r2" ? "r2" : "none",
+        r2Ready: d.r2Ready === true,
+        presignConfigured: d.presignConfigured === true,
+      };
+      staffBootstrapCache = writeCache(staffBootstrapCache, result, res.headers.get("etag"));
+      return result;
+    } catch {
+      return { ok: false };
+    }
+  };
+
+  if (opts?.bust) return run();
+
+  staffBootstrapInFlight = run().finally(() => {
+    staffBootstrapInFlight = null;
+  });
+  return staffBootstrapInFlight;
 }
