@@ -5,18 +5,52 @@ export const STAFF_INIT_SKIP_MS = 2 * 60 * 1000;
 /** Debounce background revalidate so reload #2–3 do not each hit the Worker (CF 1102). */
 export const BACKGROUND_REVALIDATE_DEBOUNCE_MS = 2_500;
 
+const KEY_CATALOG_LOCAL_EDIT = "muhra-catalog-local-edit-v1";
+const KEY_CATALOG_MUTATION_AT = "muhra-catalog-mutation-at-v1";
+/** Bust CDN catalog/bootstrap fetches after staff save/delete (covers edge TTL + SWR). */
+export const CATALOG_MUTATION_BUST_MS = 10 * 60 * 1000;
+
 let catalogLocalEditCounter = 0;
 let backgroundRevalidateTimer: ReturnType<typeof setTimeout> | null = null;
+
+function hydrateCatalogLocalEditFromStorage(): number {
+  if (typeof window === "undefined") return catalogLocalEditCounter;
+  try {
+    const stored = Number(sessionStorage.getItem(KEY_CATALOG_LOCAL_EDIT)) || 0;
+    catalogLocalEditCounter = Math.max(catalogLocalEditCounter, stored);
+  } catch {
+    /* ignore */
+  }
+  return catalogLocalEditCounter;
+}
 
 /** Staff save/delete — cancel pending bg revalidate and block stale CDN from overwriting local UI. */
 export function bumpCatalogLocalEdit(): number {
   catalogLocalEditCounter += 1;
   cancelScheduledBackgroundRevalidate();
+  if (typeof window !== "undefined") {
+    try {
+      sessionStorage.setItem(KEY_CATALOG_LOCAL_EDIT, String(catalogLocalEditCounter));
+    } catch {
+      /* ignore */
+    }
+  }
   return catalogLocalEditCounter;
 }
 
 export function readCatalogLocalEdit(): number {
-  return catalogLocalEditCounter;
+  return hydrateCatalogLocalEditFromStorage();
+}
+
+/** Force cache-busting catalog GETs while edge may still serve pre-delete JSON. */
+export function shouldBustCatalogFetchAfterMutation(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const at = Number(sessionStorage.getItem(KEY_CATALOG_MUTATION_AT)) || 0;
+    return at > 0 && Date.now() - at < CATALOG_MUTATION_BUST_MS;
+  } catch {
+    return false;
+  }
 }
 
 export function scheduleBackgroundRevalidateTimer(fn: () => void): void {
@@ -129,6 +163,12 @@ export function markBackgroundRevalidateComplete() {
 /** After staff save/delete — skip stale bg revalidate until next init window. */
 export function markStaffCatalogMutationComplete() {
   markBackgroundRevalidateComplete();
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(KEY_CATALOG_MUTATION_AT, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
 }
 
 /** One in-flight init per tab — concurrent mounts share the same promise. */

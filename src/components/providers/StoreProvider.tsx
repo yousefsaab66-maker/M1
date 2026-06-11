@@ -50,6 +50,7 @@ import {
   markStoreNetworkInitPending,
   readCatalogLocalEdit,
   readStoreNetworkInitAt,
+  shouldBustCatalogFetchAfterMutation,
   runStoreInitSingleFlight,
   scheduleBackgroundRevalidateTimer,
   shouldRunBackgroundRevalidate,
@@ -214,7 +215,7 @@ function readCatalogSnapshot(): Product[] | null {
     const raw = sessionStorage.getItem(KEY_CATALOG_SNAPSHOT);
     if (!raw) return null;
     const p = JSON.parse(raw) as Product[];
-    return Array.isArray(p) && p.length > 0 ? p : null;
+    return Array.isArray(p) ? p : null;
   } catch {
     return null;
   }
@@ -393,9 +394,10 @@ async function loadStorefrontVisitorCatalog(
 ): Promise<void> {
   const catalogAc = new AbortController();
   const catalogTimer = setTimeout(() => catalogAc.abort(), CATALOG_INIT_MS);
+  const bustCatalog = shouldBustCatalogFetchAfterMutation();
   const [cdnSf, catalogRes] = await Promise.all([
     fetchStorefrontFromPublicCdn(signal),
-    fetchCatalogJson(1, catalogAc.signal),
+    fetchCatalogJson(1, catalogAc.signal, bustCatalog),
   ]);
   clearTimeout(catalogTimer);
 
@@ -419,7 +421,12 @@ async function loadStorefrontVisitorCatalog(
   }
 
   /* Live API failed (CF 1102) — CDN catalog is stale-safe fallback, not primary path. */
-  if (cdnSf.ok && cdnSf.catalogProducts && cdnSf.catalogProducts.length > 0) {
+  if (
+    cdnSf.ok &&
+    cdnSf.catalogProducts &&
+    cdnSf.catalogProducts.length > 0 &&
+    !shouldBustCatalogFetchAfterMutation()
+  ) {
     applyRemoteCatalog(gen, cdnSf.catalogProducts, catalogHandlers);
     markStoreNetworkInitComplete();
     return;
@@ -438,7 +445,11 @@ async function loadStorefrontVisitorCatalog(
         sfHandlers,
       );
       if (apiSf.source === "r2") sfHandlers.setR2Ready(true);
-      if (apiSf.catalogProducts && apiSf.catalogProducts.length > 0) {
+      if (
+        apiSf.catalogProducts &&
+        apiSf.catalogProducts.length > 0 &&
+        !shouldBustCatalogFetchAfterMutation()
+      ) {
         applyRemoteCatalog(gen, apiSf.catalogProducts, catalogHandlers);
         markStoreNetworkInitComplete();
         return;
@@ -460,7 +471,9 @@ async function loadStaffCatalog(
   recoverCatalog: () => void,
   setR2PresignConfigured: (v: boolean) => void,
 ): Promise<void> {
-  const bootstrap = await fetchStaffBootstrapClient(signal);
+  const bootstrap = await fetchStaffBootstrapClient(signal, {
+    bust: shouldBustCatalogFetchAfterMutation(),
+  });
   if (!bootstrap.ok) {
     if (gen === catalogHandlers.catalogApplyGenRef.current) recoverCatalog();
     return;
@@ -605,7 +618,7 @@ export function StoreProvider({
   const [products, setProductsState] = useState<Product[]>(() => {
     if (bootstrapFromServer) return initialRemoteProducts!;
     const snap = readCatalogSnapshot();
-    if (snap && snap.length > 0) return snap;
+    if (snap !== null) return snap;
     return readJSON<Product[]>(KEY_PRODUCTS, EMPTY_PRODUCTS);
   });
   const [collections, setCollectionsState] = useState<Collection[]>(EMPTY_COLLECTIONS);
@@ -799,7 +812,7 @@ export function StoreProvider({
     /** إن فشل الـ API: لا نرجع للـ SEED إذا عندنا لقطة من آخر تحميل ناجح (يحدث مع 1102 بعد مسح muhra-products-v1). */
     const recoverCatalogAfterNetworkFailure = () => {
       const snap = readCatalogSnapshot();
-      if (snap && snap.length > 0) {
+      if (snap !== null) {
         setRemoteCatalog(true);
         setSupabaseReady(true);
         setProductsState(snap);
@@ -829,7 +842,7 @@ export function StoreProvider({
           setRemoteCatalog(true);
           setSupabaseReady(true);
           catalogLoadedAtRef.current = crossTab.at;
-        } else if (snapBootstrap && snapBootstrap.length > 0) {
+        } else if (snapBootstrap !== null) {
           setProductsState(snapBootstrap);
           setRemoteCatalog(true);
           setSupabaseReady(true);
@@ -958,7 +971,7 @@ export function StoreProvider({
 
         if (skipProducts) return;
 
-        const catalogRes = await fetchCatalogJson(1);
+        const catalogRes = await fetchCatalogJson(1, undefined, shouldBustCatalogFetchAfterMutation());
         if (gen !== catalogApplyGenRef.current || !catalogRes.ok) return;
         applyRemoteCatalog(gen, catalogRes.products, {
           setRemoteCatalog,

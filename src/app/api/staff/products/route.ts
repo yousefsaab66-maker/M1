@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { Product } from "@/lib/catalog";
 import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
+import { syncCatalogAfterProductChange } from "@/lib/muhra-catalog-sync";
 import { deleteProductFromSupabase } from "@/lib/muhra-product-delete";
 import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
   }
 
   const result = await upsertProductToSupabase(payload);
+  if (result.ok) syncCatalogAfterProductChange();
   return NextResponse.json(result, { headers: NO_STORE_JSON_HEADERS });
 }
 
@@ -68,5 +70,6 @@ export async function DELETE(req: Request) {
       headers: NO_STORE_JSON_HEADERS,
     });
   }
+  syncCatalogAfterProductChange();
   return NextResponse.json({ ok: true } as const, { headers: NO_STORE_JSON_HEADERS });
 }

@@ -27,11 +27,10 @@ function getChannel(): BroadcastChannel | null {
   return channel;
 }
 
-/** Drop session/local product caches in this tab. */
-export function clearCatalogClientCaches(): void {
+/** Drop legacy local product list only — keep session snapshot (post-delete F5 relies on it). */
+export function clearStaleLocalProductListCache(): void {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.removeItem(KEY_CATALOG_SNAPSHOT);
     localStorage.removeItem(KEY_PRODUCTS);
   } catch {
     /* ignore */
