@@ -567,3 +567,57 @@ body {
 [dir="rtl"] .site-body {
   overflow-x: clip;
 }
+
+/* Staff panel — iPad / iOS Safari touch responsiveness */
+body.staff-modal-open {
+  touch-action: none;
+}
+
+.staff-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  touch-action: manipulation;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+.staff-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: default;
+}
+
+.staff-modal-panel {
+  position: relative;
+  z-index: 1;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.staff-touch-target {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+@supports (-webkit-touch-callout: none) {
+  .h-modal-viewport {
+    height: -webkit-fill-available;
+    max-height: -webkit-fill-available;
+  }
+}
+
+@media (pointer: coarse) {
+  .staff-tab,
+  .staff-table .btn-ghost,
+  .staff-table button,
+  .staff-card .btn-primary,
+  .staff-card .btn-ghost {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}

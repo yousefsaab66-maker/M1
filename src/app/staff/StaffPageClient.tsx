@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArchiveRestore,
   ChevronDown,
@@ -81,6 +81,11 @@ import {
 } from "@/components/staff/StaffSiteEditor";
 import type { Order } from "@/lib/commerce-types";
 import { normalizeSiteContent, getUsdIqdRate, hasConfiguredUsdIqdRate, catalogFilterSlugs, productCategoryLabel } from "@/lib/site-display";
+import { isCoarsePointerDevice, yieldToMain } from "@/lib/touch-device";
+import { useBodyScrollLock } from "@/components/staff/useBodyScrollLock";
+
+const STAFF_PRODUCTS_PAGE_SIZE_DEFAULT = 60;
+const STAFF_PRODUCTS_PAGE_SIZE_TOUCH = 30;
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -179,7 +184,7 @@ export default function StaffPageClient() {
                     type="button"
                     onClick={() => setTab(tabDef.id)}
                     aria-pressed={tab === tabDef.id}
-                    className="staff-tab"
+                    className="staff-tab staff-touch-target"
                     data-active={tab === tabDef.id}
                   >
                     <tabDef.icon className="h-4 w-4" strokeWidth={1.4} />
@@ -456,6 +461,11 @@ function ProductsPane({
   const [orderHint, setOrderHint] = useState<Product | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [imageQuickEdit, setImageQuickEdit] = useState<Product | null>(null);
+  const [productsPage, setProductsPage] = useState(1);
+  const pageSize = useMemo(
+    () => (isCoarsePointerDevice() ? STAFF_PRODUCTS_PAGE_SIZE_TOUCH : STAFF_PRODUCTS_PAGE_SIZE_DEFAULT),
+    [],
+  );
   const embeddedCount = useMemo(
     () => products.filter(productHasEmbeddedImages).length,
     [products],
@@ -465,6 +475,15 @@ function ProductsPane({
     () => (categoryFilter ? products.filter((p) => p.category === categoryFilter) : products),
     [products, categoryFilter],
   );
+  const pagedProducts = useMemo(
+    () => visibleProducts.slice(0, productsPage * pageSize),
+    [visibleProducts, productsPage, pageSize],
+  );
+  const hasMoreProducts = pagedProducts.length < visibleProducts.length;
+
+  useEffect(() => {
+    setProductsPage(1);
+  }, [categoryFilter]);
 
   const persistProduct = async (p: Product): Promise<boolean> => {
     setSaveError(null);
@@ -698,99 +717,45 @@ function ProductsPane({
             </tr>
           </thead>
           <tbody>
-            {visibleProducts.map((p) => (
-              <tr key={p.id}>
-                <td>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={productImageAt(p, 0)}
-                    alt=""
-                    className="h-12 w-12 shrink-0 border object-cover"
-                    style={{ borderColor: "var(--line)" }}
-                  />
-                </td>
-                <td className="font-display text-base">
-                  {p.name}
-                  {productHasEmbeddedImages(p) && (
-                    <span
-                      className="ms-2 inline-block text-[10px] uppercase tracking-eyebrow text-amber-800 dark:text-amber-200/90"
-                      title={t("staff.products.embeddedRowHint")}
-                    >
-                      {t("staff.products.embeddedBadge")}
-                    </span>
-                  )}
-                </td>
-                <td className="opacity-80">{p.collection}</td>
-                <td className="opacity-80">{productCategoryLabel(p.category, site, t, locale)}</td>
-                <td className="max-w-[140px] text-sm opacity-90">
-                  {formatSizeOptionsSummary(p.sizeOptions) ||
-                    (p.sizes?.length ? p.sizes.join(", ") : "—")}
-                </td>
-                <td>{formatPrice(p.price, p.currency, "en")}</td>
-                <td>
-                  <div className="flex justify-end gap-2">
-                    <Link
-                      href={`/products/${p.slug}` as never}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex h-9 w-9 items-center justify-center opacity-70 hover:opacity-100"
-                      aria-label={t("staff.product.viewPage")}
-                      title={t("staff.product.viewPage")}
-                    >
-                      <ExternalLink className="h-4 w-4" strokeWidth={1.4} />
-                    </Link>
-                    <button
-                      type="button"
-                      className="flex h-9 w-9 items-center justify-center opacity-70 hover:opacity-100"
-                      aria-label={t("staff.product.quickOrder")}
-                      title={t("staff.product.quickOrder")}
-                      onClick={() => {
-                        addToBag({ productId: p.id, qty: 1 });
-                        router.push("/checkout" as never);
-                      }}
-                    >
-                      <ShoppingBag className="h-4 w-4" strokeWidth={1.4} />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!supabaseReady}
-                      aria-label={t("staff.product.editImages")}
-                      title={t("staff.product.editImages")}
-                      onClick={() => setImageQuickEdit(p)}
-                      className="opacity-70 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                      <Images className="h-4 w-4" strokeWidth={1.4} />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!supabaseReady}
-                      aria-label={t("staff.aria.edit")}
-                      title={!supabaseReady ? t("staff.products.remoteRequired") : undefined}
-                      onClick={() => {
-                        setEditing(p);
-                        setCreating(false);
-                      }}
-                      className="opacity-70 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                      <Pencil className="h-4 w-4" strokeWidth={1.4} />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!supabaseReady}
-                      aria-label={t("staff.aria.delete")}
-                      title={!supabaseReady ? t("staff.products.remoteRequired") : undefined}
-                      onClick={() => void onDelete(p.id)}
-                      className="opacity-70 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                      <Trash2 className="h-4 w-4" strokeWidth={1.4} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
+            {pagedProducts.map((p) => (
+              <StaffProductRow
+                key={p.id}
+                product={p}
+                site={site}
+                supabaseReady={supabaseReady}
+                onQuickOrder={() => {
+                  addToBag({ productId: p.id, qty: 1 });
+                  router.push("/checkout" as never);
+                }}
+                onEditImages={() => setImageQuickEdit(p)}
+                onEdit={() => {
+                  setEditing(p);
+                  setCreating(false);
+                }}
+                onDelete={() => void onDelete(p.id)}
+              />
             ))}
           </tbody>
         </table>
       </div>
+
+      {hasMoreProducts && (
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            className="btn-ghost staff-touch-target"
+            onClick={() => setProductsPage((n) => n + 1)}
+          >
+            {t("staff.products.loadMore").replace("{n}", String(visibleProducts.length - pagedProducts.length))}
+          </button>
+        </div>
+      )}
+
+      {(editing || imageQuickEdit) && (
+        <p className="sr-only" aria-live="polite">
+          {editing ? t("staff.form.editTitle") : t("staff.product.imagesModalEyebrow")}
+        </p>
+      )}
 
       {imageQuickEdit && (
         <ProductImagesQuickModal
@@ -819,6 +784,111 @@ function ProductsPane({
   );
 }
 
+const StaffProductRow = memo(function StaffProductRow({
+  product: p,
+  site,
+  supabaseReady,
+  onQuickOrder,
+  onEditImages,
+  onEdit,
+  onDelete,
+}: {
+  product: Product;
+  site: SiteContent;
+  supabaseReady: boolean;
+  onQuickOrder: () => void;
+  onEditImages: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { t, locale } = useLocale();
+  return (
+    <tr>
+      <td>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={productImageAt(p, 0)}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-12 w-12 shrink-0 border object-cover"
+          style={{ borderColor: "var(--line)" }}
+        />
+      </td>
+      <td className="font-display text-base">
+        {p.name}
+        {productHasEmbeddedImages(p) && (
+          <span
+            className="ms-2 inline-block text-[10px] uppercase tracking-eyebrow text-amber-800 dark:text-amber-200/90"
+            title={t("staff.products.embeddedRowHint")}
+          >
+            {t("staff.products.embeddedBadge")}
+          </span>
+        )}
+      </td>
+      <td className="opacity-80">{p.collection}</td>
+      <td className="opacity-80">{productCategoryLabel(p.category, site, t, locale)}</td>
+      <td className="max-w-[140px] text-sm opacity-90">
+        {formatSizeOptionsSummary(p.sizeOptions) || (p.sizes?.length ? p.sizes.join(", ") : "—")}
+      </td>
+      <td>{formatPrice(p.price, p.currency, "en")}</td>
+      <td>
+        <div className="flex justify-end gap-2">
+          <Link
+            href={`/products/${p.slug}` as never}
+            target="_blank"
+            rel="noreferrer"
+            className="staff-touch-target flex h-9 w-9 items-center justify-center opacity-70 hover:opacity-100"
+            aria-label={t("staff.product.viewPage")}
+            title={t("staff.product.viewPage")}
+          >
+            <ExternalLink className="h-4 w-4" strokeWidth={1.4} />
+          </Link>
+          <button
+            type="button"
+            className="staff-touch-target flex h-9 w-9 items-center justify-center opacity-70 hover:opacity-100"
+            aria-label={t("staff.product.quickOrder")}
+            title={t("staff.product.quickOrder")}
+            onClick={onQuickOrder}
+          >
+            <ShoppingBag className="h-4 w-4" strokeWidth={1.4} />
+          </button>
+          <button
+            type="button"
+            disabled={!supabaseReady}
+            aria-label={t("staff.product.editImages")}
+            title={t("staff.product.editImages")}
+            onClick={onEditImages}
+            className="staff-touch-target opacity-70 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            <Images className="h-4 w-4" strokeWidth={1.4} />
+          </button>
+          <button
+            type="button"
+            disabled={!supabaseReady}
+            aria-label={t("staff.aria.edit")}
+            title={!supabaseReady ? t("staff.products.remoteRequired") : undefined}
+            onClick={onEdit}
+            className="staff-touch-target opacity-70 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            <Pencil className="h-4 w-4" strokeWidth={1.4} />
+          </button>
+          <button
+            type="button"
+            disabled={!supabaseReady}
+            aria-label={t("staff.aria.delete")}
+            title={!supabaseReady ? t("staff.products.remoteRequired") : undefined}
+            onClick={onDelete}
+            className="staff-touch-target opacity-70 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            <Trash2 className="h-4 w-4" strokeWidth={1.4} />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+});
+
 function ProductImagesQuickModal({
   product,
   cloudUpload,
@@ -833,14 +903,24 @@ function ProductImagesQuickModal({
   const { t } = useLocale();
   const [draft, setDraft] = useState<Product>(() => ({ ...product }));
   const [busy, setBusy] = useState(false);
+  useBodyScrollLock(true);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:px-4">
-      <div className="absolute inset-0 bg-black/55" onClick={() => !busy && onClose()} aria-hidden />
+    <div className="staff-modal-root z-[60] flex items-end justify-center sm:items-center sm:px-4">
+      <div
+        className="staff-modal-backdrop bg-black/55"
+        onClick={() => !busy && onClose()}
+        onTouchEnd={(e) => {
+          if (busy) return;
+          if (e.target === e.currentTarget) onClose();
+        }}
+        aria-hidden
+      />
       <div
         role="dialog"
+        aria-modal="true"
         aria-labelledby="staff-images-quick-title"
-        className="relative z-10 flex max-h-[min(92dvh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-none border shadow-2xl sm:rounded-sm"
+        className="staff-modal-panel flex max-h-[min(92dvh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-none border shadow-2xl sm:rounded-sm"
         style={{ background: "var(--background)", borderColor: "var(--line)" }}
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b p-4 sm:p-5" style={{ borderColor: "var(--line)" }}>
@@ -850,7 +930,7 @@ function ProductImagesQuickModal({
               {draft.name || product.name}
             </h3>
           </div>
-          <button type="button" disabled={busy} onClick={onClose} className="flex h-11 w-11 flex-shrink-0 items-center justify-center" aria-label={t("staff.aria.close")}>
+          <button type="button" disabled={busy} onClick={onClose} className="staff-touch-target flex h-11 w-11 flex-shrink-0 items-center justify-center" aria-label={t("staff.aria.close")}>
             <X className="h-5 w-5" strokeWidth={1.4} />
           </button>
         </header>
@@ -862,13 +942,13 @@ function ProductImagesQuickModal({
           />
         </div>
         <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t p-4 sm:p-5" style={{ borderColor: "var(--line)" }}>
-          <button type="button" disabled={busy} onClick={onClose} className="btn-ghost">
+          <button type="button" disabled={busy} onClick={onClose} className="btn-ghost staff-touch-target">
             {t("common.close")}
           </button>
           <button
             type="button"
             disabled={busy}
-            className="btn-primary"
+            className="btn-primary staff-touch-target"
             onClick={() => void (async () => {
               setBusy(true);
               try {
@@ -908,11 +988,23 @@ function ProductEditor({
   const categoryOptions = useMemo(() => catalogFilterSlugs(site), [site]);
   const update = <K extends keyof Product>(k: K, v: Product[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
+  useBodyScrollLock(true);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-center sm:justify-end">
-      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onCancel} aria-hidden />
+    <div className="staff-modal-root z-50 flex items-stretch justify-center sm:justify-end">
       <div
-        className="relative z-10 flex h-modal-viewport w-full max-w-6xl flex-col overflow-hidden overscroll-contain pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] sm:h-auto sm:max-h-[100dvh] md:flex-row"
+        className="staff-modal-backdrop"
+        style={{ background: "rgba(0,0,0,0.55)" }}
+        onClick={onCancel}
+        onTouchEnd={(e) => {
+          if (e.target === e.currentTarget) onCancel();
+        }}
+        aria-hidden
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="staff-modal-panel flex h-modal-viewport w-full max-w-6xl flex-col overflow-hidden overscroll-contain pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] sm:h-auto sm:max-h-[100dvh] md:flex-row"
         style={{ background: "var(--background)", borderInlineStart: "1px solid var(--line)" }}
       >
         <aside
@@ -924,7 +1016,7 @@ function ProductEditor({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
           <div className="flex shrink-0 items-center justify-between gap-3 p-4 sm:p-6" style={{ borderBottom: "1px solid var(--line)" }}>
             <h3 className="min-w-0 flex-1 break-words font-display text-xl sm:text-2xl">{isCreating ? t("staff.form.newTitle") : t("staff.form.editTitle")}</h3>
-            <button type="button" onClick={onCancel} className="flex h-11 w-11 flex-shrink-0 items-center justify-center" aria-label={t("staff.aria.close")}>
+            <button type="button" onClick={onCancel} className="staff-touch-target flex h-11 w-11 flex-shrink-0 items-center justify-center" aria-label={t("staff.aria.close")}>
               <X className="h-5 w-5" strokeWidth={1.4} />
             </button>
           </div>
@@ -1037,8 +1129,8 @@ function ProductEditor({
             </label>
           </div>
           <div className="flex items-center justify-end gap-3 pt-4">
-            <button type="button" disabled={saving} onClick={onCancel} className="btn-ghost">{t("staff.form.cancel")}</button>
-            <button type="submit" disabled={saving} className="btn-primary min-w-[8rem]">
+            <button type="button" disabled={saving} onClick={onCancel} className="btn-ghost staff-touch-target">{t("staff.form.cancel")}</button>
+            <button type="submit" disabled={saving} className="btn-primary staff-touch-target min-w-[8rem]">
               {saving ? t("staff.form.saving") : t("staff.form.save")}
             </button>
           </div>
@@ -1384,6 +1476,7 @@ function ImagesField({
           if (up.ok) accepted.push(up.url);
           else if (up.code === "unauthorized") errors.push(translateStaffUploadError("unauthorized", t));
           else errors.push(`${file.name}: ${translateStaffUploadError(up.code, t)}`);
+          await yieldToMain();
         } else {
           try {
             const dataUrl = await readFileAsDataUrl(file);
@@ -1391,6 +1484,7 @@ function ImagesField({
           } catch {
             errors.push(file.name);
           }
+          await yieldToMain();
         }
       }
       if (accepted.length > 0) onChange([...images, ...accepted]);
@@ -1545,6 +1639,7 @@ function VideosField({
         if (up.ok) accepted.push(up.url);
         else if (up.code === "unauthorized") errors.push(translateStaffUploadError("unauthorized", t));
         else errors.push(`${file.name}: ${translateStaffUploadError(up.code, t)}`);
+        await yieldToMain();
       }
       if (accepted.length > 0) onChange([...videos, ...accepted]);
       if (errors.length > 0) setError(errors.join(" "));

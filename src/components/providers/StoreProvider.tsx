@@ -825,9 +825,11 @@ export function StoreProvider({
       setCollectionsState(readJSON<Collection[]>(KEY_COLLECTIONS, EMPTY_COLLECTIONS));
       setJournalState(readJSON<JournalArticle[]>(KEY_JOURNAL, EMPTY_JOURNAL));
       setBoutiquesState(readJSON<Boutique[]>(KEY_BOUTIQUES, EMPTY_BOUTIQUES));
-      setBag(readJSON<BagItem[]>(KEY_BAG, []));
-      setWishlist(readJSON<string[]>(KEY_WISH, []));
-      setUser(readJSON<UserProfile | null>(KEY_USER, null));
+      if (!isStaffAppPath()) {
+        setBag(readJSON<BagItem[]>(KEY_BAG, []));
+        setWishlist(readJSON<string[]>(KEY_WISH, []));
+        setUser(readJSON<UserProfile | null>(KEY_USER, null));
+      }
       setHydrated(true);
       setStoreReady(true);
     };
@@ -1018,10 +1020,20 @@ export function StoreProvider({
 
   useEffect(() => {
     const unsub = subscribeCatalogCrossTab(applyCrossTabCatalog);
-    const persisted = readCrossTabCatalog();
-    if (persisted && persisted.at > lastAppliedCrossTabAtRef.current) {
-      applyCrossTabCatalog(persisted);
+    const applyPersisted = () => {
+      const persisted = readCrossTabCatalog();
+      if (persisted && persisted.at > lastAppliedCrossTabAtRef.current) {
+        applyCrossTabCatalog(persisted);
+      }
+    };
+    if (isStaffAppPath() && typeof requestIdleCallback !== "undefined") {
+      const idleId = requestIdleCallback(applyPersisted, { timeout: 2500 });
+      return () => {
+        cancelIdleCallback(idleId);
+        unsub();
+      };
     }
+    applyPersisted();
     return unsub;
   }, [applyCrossTabCatalog]);
 
