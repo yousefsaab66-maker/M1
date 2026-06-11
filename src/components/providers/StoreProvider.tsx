@@ -42,6 +42,7 @@ import {
 import { isIraqCountry, toIqd, type GovernorateCode } from "@/lib/iraq";
 import { getShippingFeeIqd, getUsdIqdRate, normalizeSiteContent } from "@/lib/site-display";
 import { sanitizeSiteContentForServer } from "@/lib/site-content-storage";
+import { isDatabaseProductId, stripOptimisticProductDuplicates } from "@/lib/catalog-db";
 import { isR2PublicConfiguredClient } from "@/lib/r2-config";
 import {
   bumpCatalogLocalEdit,
@@ -618,7 +619,7 @@ export function StoreProvider({
   const [products, setProductsState] = useState<Product[]>(() => {
     if (bootstrapFromServer) return initialRemoteProducts!;
     const snap = readCatalogSnapshot();
-    if (snap !== null) return snap;
+    if (snap !== null) return stripOptimisticProductDuplicates(snap);
     return readJSON<Product[]>(KEY_PRODUCTS, EMPTY_PRODUCTS);
   });
   const [collections, setCollectionsState] = useState<Collection[]>(EMPTY_COLLECTIONS);
@@ -648,11 +649,12 @@ export function StoreProvider({
     bumpCatalogLocalEdit();
     catalogApplyGenRef.current += 1;
     bustStorefrontClientCache();
-    writeCatalogSnapshot(payload.products);
+    const products = stripOptimisticProductDuplicates(payload.products);
+    writeCatalogSnapshot(products);
     clearStaleLocalProductCache();
     setRemoteCatalog(true);
     setSupabaseReady(true);
-    setProductsState(payload.products);
+    setProductsState(products);
     catalogLoadedAtRef.current = Date.now();
   }, []);
 
@@ -661,15 +663,18 @@ export function StoreProvider({
     const ac = new AbortController();
     catalogRefreshAbortRef.current = ac;
     const gen = (catalogApplyGenRef.current += 1);
+    const localEditAtStart = readCatalogLocalEdit();
     try {
       const res = await fetchCatalogJson(1, ac.signal, true);
       if (gen !== catalogApplyGenRef.current) return;
+      if (localEditAtStart !== readCatalogLocalEdit()) return;
       if (!res.ok) return;
-      writeCatalogSnapshot(res.products);
+      const products = stripOptimisticProductDuplicates(res.products);
+      writeCatalogSnapshot(products);
       clearStaleLocalProductCache();
       setRemoteCatalog(true);
       setSupabaseReady(true);
-      setProductsState(res.products);
+      setProductsState(products);
       catalogLoadedAtRef.current = Date.now();
     } finally {
       if (catalogRefreshAbortRef.current === ac) catalogRefreshAbortRef.current = null;
@@ -752,8 +757,19 @@ export function StoreProvider({
     bumpCatalogLocalEdit();
     catalogApplyGenRef.current += 1;
     setProductsState((prev) => {
-      const i = prev.findIndex((x) => x.id === p.id);
-      const next = i >= 0 ? prev.map((x, j) => (j === i ? p : x)) : [...prev, p];
+      const byId = prev.findIndex((x) => x.id === p.id);
+      let next: Product[];
+      if (byId >= 0) {
+        next = prev.map((x, j) => (j === byId ? p : x));
+      } else if (isDatabaseProductId(p.id) && p.slug) {
+        const tmpIdx = prev.findIndex(
+          (x) => !isDatabaseProductId(x.id) && x.slug === p.slug,
+        );
+        next = tmpIdx >= 0 ? prev.map((x, j) => (j === tmpIdx ? p : x)) : [...prev, p];
+      } else {
+        next = [...prev, p];
+      }
+      next = stripOptimisticProductDuplicates(next);
       writeCatalogSnapshot(next);
       lastAppliedCrossTabAtRef.current = broadcastCatalogProducts(next);
       return next;
@@ -766,7 +782,20 @@ export function StoreProvider({
     bumpCatalogLocalEdit();
     catalogApplyGenRef.current += 1;
     setProductsState((prev) => {
-      const next = prev.filter((x) => x.id !== id);
+      const target = prev.find((x) => x.id === id);
+      const slug = target?.slug?.trim();
+      const next = prev.filter((x) => {
+        if (x.id === id) return false;
+        if (
+          slug &&
+          isDatabaseProductId(id) &&
+          !isDatabaseProductId(x.id) &&
+          x.slug === slug
+        ) {
+          return false;
+        }
+        return true;
+      });
       writeCatalogSnapshot(next);
       lastAppliedCrossTabAtRef.current = broadcastCatalogProducts(next);
       return next;
@@ -837,13 +866,14 @@ export function StoreProvider({
         const snapBootstrap = readCatalogSnapshot();
         if (crossTab && crossTab.at > initAt) {
           lastAppliedCrossTabAtRef.current = crossTab.at;
-          setProductsState(crossTab.products);
-          writeCatalogSnapshot(crossTab.products);
+          const crossTabProducts = stripOptimisticProductDuplicates(crossTab.products);
+          setProductsState(crossTabProducts);
+          writeCatalogSnapshot(crossTabProducts);
           setRemoteCatalog(true);
           setSupabaseReady(true);
           catalogLoadedAtRef.current = crossTab.at;
         } else if (snapBootstrap !== null) {
-          setProductsState(snapBootstrap);
+          setProductsState(stripOptimisticProductDuplicates(snapBootstrap));
           setRemoteCatalog(true);
           setSupabaseReady(true);
           catalogLoadedAtRef.current = Date.now();

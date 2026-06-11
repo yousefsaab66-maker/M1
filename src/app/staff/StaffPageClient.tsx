@@ -351,6 +351,12 @@ function emptyProduct(): Product {
   };
 }
 
+const persistProductInFlight = new Set<string>();
+
+function persistProductFlightKey(p: Product): string {
+  return isDatabaseProductId(p.id) ? p.id : `new:${p.slug.trim() || p.id}`;
+}
+
 function mapRemoteProductError(error: string, t: (key: string) => string): string {
   if (error === "not_configured") return t("staff.products.errorNotConfigured");
   if (error === "unauthorized") return t("staff.products.errorUnauthorized");
@@ -368,6 +374,12 @@ async function persistProductRemote(
   previous?: Product,
 ): Promise<{ ok: true; product: Product } | { ok: false; error: string }> {
   const fixed = ensureProductOrderable(p);
+  const flightKey = persistProductFlightKey(fixed);
+  if (persistProductInFlight.has(flightKey)) {
+    return { ok: false, error: "__in_flight__" };
+  }
+  persistProductInFlight.add(flightKey);
+
   const rollback = () => {
     if (previous) mergeRemoteProduct(previous);
     else if (!isDatabaseProductId(fixed.id)) removeRemoteProduct(fixed.id);
@@ -413,6 +425,7 @@ async function persistProductRemote(
     return { ok: false, error: t("staff.products.errorRequest") };
   } finally {
     clearTimeout(timer);
+    persistProductInFlight.delete(flightKey);
   }
 }
 
@@ -462,7 +475,7 @@ function ProductsPane({
     const previous = products.find((x) => x.id === p.id);
     const result = await persistProductRemote(p, t, mergeRemoteProduct, removeRemoteProduct, previous);
     if (!result.ok) {
-      setSaveError(result.error);
+      if (result.error !== "__in_flight__") setSaveError(result.error);
       return false;
     }
     setOrderHint(result.product);
@@ -488,6 +501,10 @@ function ProductsPane({
     if (editing?.id === id) {
       setEditing(null);
       setCreating(false);
+    }
+    if (!isDatabaseProductId(id)) {
+      afterStaffCatalogMutation();
+      return;
     }
     try {
       const res = await fetch(`/api/staff/products?id=${encodeURIComponent(id)}`, {

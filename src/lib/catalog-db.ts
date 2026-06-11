@@ -90,3 +90,14 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 export function isDatabaseProductId(id: string): boolean {
   return UUID_RE.test(id);
 }
+
+/** Drop tmp-* rows when a Supabase row exists for the same slug (post-save duplicate fix). */
+export function stripOptimisticProductDuplicates(products: Product[]): Product[] {
+  const dbSlugs = new Set(
+    products.filter((p) => isDatabaseProductId(p.id) && p.slug).map((p) => p.slug),
+  );
+  if (dbSlugs.size === 0) return products;
+  return products.filter(
+    (p) => isDatabaseProductId(p.id) || !p.slug || !dbSlugs.has(p.slug),
+  );
+}
