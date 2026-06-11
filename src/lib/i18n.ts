@@ -52,6 +52,7 @@ export const DICTS: Record<Locale, Dict> = {
     "common.newsletter": "Letters from the Maison",
     "common.newsletter.copy":
       "An occasional dispatch — new chapters, archive openings, atelier visits.",
+    "common.newsletter.comingSoon": "Newsletter — coming soon.",
     "common.signup": "Sign up",
     "common.email": "Email",
     "common.name": "Name",
@@ -803,6 +804,7 @@ export const DICTS: Record<Locale, Dict> = {
     "common.newsletter": "Lettres de la Maison",
     "common.newsletter.copy":
       "Une correspondance discrète — nouveaux chapitres, ouvertures d'archives, visites d'ateliers.",
+    "common.newsletter.comingSoon": "Newsletter — bientôt disponible.",
     "common.signup": "S'inscrire",
     "common.email": "Adresse e-mail",
     "common.name": "Nom",
@@ -1179,6 +1181,7 @@ export const DICTS: Record<Locale, Dict> = {
     "common.newsletter": "Lettere dalla Maison",
     "common.newsletter.copy":
       "Una corrispondenza discreta — nuovi capitoli, aperture d'archivio, visite in atelier.",
+    "common.newsletter.comingSoon": "Newsletter — in arrivo.",
     "common.signup": "Iscriviti",
     "common.email": "Email",
     "common.name": "Nome",
@@ -1555,6 +1558,7 @@ export const DICTS: Record<Locale, Dict> = {
     "common.newsletter": "Cartas de la Maison",
     "common.newsletter.copy":
       "Una correspondencia discreta — nuevos capítulos, aperturas de archivo, visitas al atelier.",
+    "common.newsletter.comingSoon": "Boletín — próximamente.",
     "common.signup": "Suscribirse",
     "common.email": "Correo",
     "common.name": "Nombre",
@@ -1931,6 +1935,7 @@ export const DICTS: Record<Locale, Dict> = {
     "common.newsletter": "رسائل من الدار",
     "common.newsletter.copy":
       "مراسلات هادئة — فصول جديدة، فتح الأرشيف، زيارات الورشة.",
+    "common.newsletter.comingSoon": "النشرة البريدية — قريباً.",
     "common.signup": "اشترك",
     "common.email": "البريد الإلكتروني",
     "common.name": "الاسم",

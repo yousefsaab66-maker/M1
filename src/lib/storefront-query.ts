@@ -20,6 +20,7 @@ export type FetchStorefrontResult =
       journal: JournalArticle[] | null;
       boutiques: Boutique[] | null;
       catalogProducts: Product[] | null;
+      catalogUpdatedAt: string | null;
       updatedAt: string | null;
       source: "r2" | "none";
     }
@@ -44,6 +45,7 @@ export async function fetchStorefront(): Promise<FetchStorefrontResult> {
       journal: r2.data.journal,
       boutiques: r2.data.boutiques,
       catalogProducts: r2.data.catalogProducts ?? null,
+      catalogUpdatedAt: r2.data.catalogUpdatedAt ?? null,
       updatedAt: r2.data.updatedAt,
       source: "r2",
     };
@@ -58,6 +60,7 @@ export async function fetchStorefront(): Promise<FetchStorefrontResult> {
     journal: null,
     boutiques: null,
     catalogProducts: null,
+    catalogUpdatedAt: null,
     updatedAt: null,
     source: "none",
   };

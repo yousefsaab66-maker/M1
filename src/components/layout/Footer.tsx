@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
 import { Wordmark } from "@/components/Wordmark";
@@ -11,9 +10,6 @@ export function Footer() {
   const { t, locale, setLocale } = useLocale();
   const { site } = useStore();
   const tc = useSiteCopy();
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
   return (
     <footer className="mt-32 pb-[env(safe-area-inset-bottom,0px)]" style={{ borderTop: "1px solid var(--line)" }}>
       <section className="mx-auto max-w-[1400px] min-w-0 py-20 ps-[calc(1.5rem+env(safe-area-inset-left,0px))] pe-[calc(1.5rem+env(safe-area-inset-right,0px))] md:py-28 md:ps-[calc(3rem+env(safe-area-inset-left,0px))] md:pe-[calc(3rem+env(safe-area-inset-right,0px))]">
@@ -24,25 +20,24 @@ export function Footer() {
               {tc("common.newsletter.copy")}
             </p>
             <form
-              className="mt-7 flex max-w-sm items-center gap-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (email) setSubmitted(true);
-              }}
+              className="mt-7 flex max-w-sm flex-col gap-2 sm:flex-row sm:items-center sm:gap-3"
+              onSubmit={(e) => e.preventDefault()}
+              aria-disabled="true"
             >
               <input
                 type="email"
-                required
                 placeholder={t("common.email")}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="input-luxe flex-1"
-                disabled={submitted}
+                className="input-luxe flex-1 opacity-60"
+                disabled
                 aria-label={t("common.email")}
+                aria-describedby="newsletter-coming-soon"
               />
-              <button type="submit" className="btn-ghost" disabled={submitted}>
-                {submitted ? "✓" : t("common.signup")}
+              <button type="submit" className="btn-ghost opacity-60" disabled>
+                {t("common.signup")}
               </button>
+              <p id="newsletter-coming-soon" className="text-xs opacity-60 sm:col-span-2">
+                {t("common.newsletter.comingSoon")}
+              </p>
             </form>
           </div>
 

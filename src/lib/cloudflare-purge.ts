@@ -32,15 +32,23 @@ async function purgeCloudflareCache(body: Record<string, unknown>): Promise<bool
   }
 }
 
+function r2StorefrontJsonUrl(): string | null {
+  const r2Base = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL?.trim()?.replace(/\/$/, "");
+  return r2Base ? `${r2Base}/site/storefront.json` : null;
+}
+
 /** Public catalog JSON URLs — targeted purge after staff product save/delete. */
 export function catalogEdgeCacheUrls(): string[] {
   const base = siteBaseUrl();
-  return [
+  const urls = [
     `${base}/api/catalog/products`,
     `${base}/api/catalog/products?full=1`,
     `${base}/api/catalog/bootstrap`,
     `${base}/api/staff/bootstrap`,
   ];
+  const r2Json = r2StorefrontJsonUrl();
+  if (r2Json) urls.push(r2Json);
+  return urls;
 }
 
 /** Storefront JSON + R2 CDN — targeted purge after staff site/collections save. */
@@ -51,8 +59,8 @@ export function storefrontEdgeCacheUrls(): string[] {
     `${base}/api/catalog/bootstrap`,
     `${base}/api/staff/bootstrap`,
   ];
-  const r2Base = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL?.trim()?.replace(/\/$/, "");
-  if (r2Base) urls.push(`${r2Base}/site/storefront.json`);
+  const r2Json = r2StorefrontJsonUrl();
+  if (r2Json) urls.push(r2Json);
   return urls;
 }
 

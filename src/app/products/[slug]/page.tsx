@@ -15,6 +15,7 @@ import { findProductBySlug, productGallerySources } from "@/lib/product-media";
 import {
   getProductSizeGroups,
   isSizeSelectionsComplete,
+  formatSizeDisplayValue,
   sizeKindLabelKey,
   type ProductSizeKind,
   type ProductSizeSelections,
@@ -230,7 +231,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
                       className="size-chip"
                       data-active={active}
                     >
-                      {s}
+                      {formatSizeDisplayValue(group.kind, s)}
                     </button>
                   );
                 })}

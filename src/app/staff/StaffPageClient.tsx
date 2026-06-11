@@ -346,7 +346,7 @@ function emptyProduct(): Product {
     collection: "muhra-heritage",
     category: "necklaces",
     price: 0,
-    currency: "EUR",
+    currency: "IQD",
     materials: ["gold"],
     stones: ["none"],
     images: [],

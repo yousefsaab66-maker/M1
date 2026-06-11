@@ -17,6 +17,7 @@ export async function GET() {
       journal: result.journal,
       boutiques: result.boutiques,
       catalogProducts: result.catalogProducts,
+      catalogUpdatedAt: result.catalogUpdatedAt,
       updatedAt: result.updatedAt,
       source: result.source,
     },

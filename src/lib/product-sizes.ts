@@ -179,7 +179,23 @@ export function flattenSizeOptions(opts: ProductSizeOptions | undefined): string
   return [...new Set(merged)];
 }
 
-/** Migrate legacy single `sizes` array into the matching group when saving old rows. */
+function parseSizeNumbers(sizes: string[]): number[] {
+  return sizes
+    .map((s) => parseFloat(s.trim()))
+    .filter((n) => !Number.isNaN(n));
+}
+
+/** Heuristic — avoid migrating bracelet/necklace cm values into ring groups. */
+function sizesPlausibleForKind(sizes: string[], kind: ProductSizeKind): boolean {
+  const nums = parseSizeNumbers(sizes);
+  if (nums.length === 0) return false;
+  if (kind === "ring") return nums.every((n) => n >= 40 && n <= 70);
+  if (kind === "necklace") return nums.every((n) => n >= 35 && n <= 90);
+  if (kind === "bracelet") return nums.every((n) => n >= 12 && n <= 25);
+  return true;
+}
+
+/** Migrate legacy single `sizes` array into the matching group when values fit that kind. */
 export function legacySizesToOptions(
   sizes: string[] | undefined,
   category: string,
@@ -188,8 +204,18 @@ export function legacySizesToOptions(
   const list = dedupeSizes(sizes);
   if (!list) return undefined;
   const kind = productSizeKindForCategory(category, site);
-  if (!kind) return undefined;
+  if (!kind || !sizesPlausibleForKind(list, kind)) return undefined;
   return { [kind]: list };
+}
+
+/** Display suffix for storefront size chips (mixed legacy units). */
+export function formatSizeDisplayValue(kind: ProductSizeKind, size: string): string {
+  const trimmed = size.trim();
+  if (!trimmed) return trimmed;
+  if (kind === "necklace" || kind === "bracelet") {
+    if (/^\d+(\.\d+)?$/.test(trimmed) && !trimmed.endsWith("cm")) return `${trimmed} cm`;
+  }
+  return trimmed;
 }
 
 export function formatSizeOptionsSummary(opts: ProductSizeOptions | undefined): string {

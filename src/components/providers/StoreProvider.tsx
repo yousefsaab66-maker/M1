@@ -75,6 +75,7 @@ import {
   fetchStorefrontFromApi,
   fetchStorefrontFromPublicCdn,
   remoteStorefrontIsNewer,
+  r2CatalogFallbackIsFresh,
 } from "@/lib/storefront-client";
 
 export type {
@@ -318,9 +319,21 @@ async function fetchStorefrontJson(signal?: AbortSignal) {
     journal: res.journal,
     boutiques: res.boutiques,
     catalogProducts: res.catalogProducts,
+    catalogUpdatedAt: res.catalogUpdatedAt,
     updatedAt: res.updatedAt,
     source: res.source,
   };
+}
+
+function shouldUseR2CatalogFallback(
+  catalogProducts: Product[] | null | undefined,
+  catalogUpdatedAt: string | null | undefined,
+): catalogProducts is Product[] {
+  return (
+    Boolean(catalogProducts?.length) &&
+    !shouldBustCatalogFetchAfterMutation() &&
+    r2CatalogFallbackIsFresh(catalogUpdatedAt)
+  );
 }
 
 function readLocalSiteRemoteAt(): string | null {
@@ -421,13 +434,8 @@ async function loadStorefrontVisitorCatalog(
     return;
   }
 
-  /* Live API failed (CF 1102) — CDN catalog is stale-safe fallback, not primary path. */
-  if (
-    cdnSf.ok &&
-    cdnSf.catalogProducts &&
-    cdnSf.catalogProducts.length > 0 &&
-    !shouldBustCatalogFetchAfterMutation()
-  ) {
+  /* Live API failed (CF 1102) — CDN catalog is short-TTL emergency fallback only. */
+  if (cdnSf.ok && shouldUseR2CatalogFallback(cdnSf.catalogProducts, cdnSf.catalogUpdatedAt)) {
     applyRemoteCatalog(gen, cdnSf.catalogProducts, catalogHandlers);
     markStoreNetworkInitComplete();
     return;
@@ -446,11 +454,7 @@ async function loadStorefrontVisitorCatalog(
         sfHandlers,
       );
       if (apiSf.source === "r2") sfHandlers.setR2Ready(true);
-      if (
-        apiSf.catalogProducts &&
-        apiSf.catalogProducts.length > 0 &&
-        !shouldBustCatalogFetchAfterMutation()
-      ) {
+      if (shouldUseR2CatalogFallback(apiSf.catalogProducts, apiSf.catalogUpdatedAt)) {
         applyRemoteCatalog(gen, apiSf.catalogProducts, catalogHandlers);
         markStoreNetworkInitComplete();
         return;

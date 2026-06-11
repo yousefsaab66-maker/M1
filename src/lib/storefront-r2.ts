@@ -26,8 +26,10 @@ export type StorefrontPayload = {
   collections: Collection[];
   journal: JournalArticle[];
   boutiques: Boutique[];
-  /** Light catalog for store visitors (no Worker products API on first paint). */
+  /** Light catalog for store visitors — emergency CDN fallback only (Supabase is source of truth). */
   catalogProducts?: StorefrontCatalogProduct[];
+  /** When `catalogProducts` was last patched from Supabase (independent of site `updatedAt`). */
+  catalogUpdatedAt?: string;
   updatedAt: string;
 };
 
@@ -103,6 +105,8 @@ export async function readStorefrontFromR2(): Promise<ReadStorefrontR2Result> {
             boutiques: Array.isArray(parsed.boutiques) ? parsed.boutiques : SEED_BOUTIQUES,
             catalogProducts:
               catalogProducts && catalogProducts.length > 0 ? catalogProducts : undefined,
+            catalogUpdatedAt:
+              typeof parsed.catalogUpdatedAt === "string" ? parsed.catalogUpdatedAt : undefined,
             updatedAt:
               typeof parsed.updatedAt === "string"
                 ? parsed.updatedAt
@@ -174,13 +178,9 @@ export async function writeStorefrontToR2(
   if (!boutiquesSan.ok) return { ok: false, error: "embedded_media" };
 
   const updatedAt = new Date().toISOString();
-  const catalogResult = await fetchCatalogProductsForList();
-  const catalogProducts =
-    catalogResult.kind === "ok"
-      ? catalogResult.products
-      : current.ok && current.data?.catalogProducts
-        ? current.data.catalogProducts
-        : undefined;
+  const existingCatalog = current.ok && current.data ? current.data.catalogProducts : undefined;
+  const existingCatalogAt =
+    current.ok && current.data?.catalogUpdatedAt ? current.data.catalogUpdatedAt : undefined;
 
   const payload: StorefrontPayload = {
     site: siteSan.site,
@@ -189,10 +189,9 @@ export async function writeStorefrontToR2(
     boutiques: boutiquesSan.boutiques,
     updatedAt,
   };
-  if (catalogResult.kind === "ok") {
-    payload.catalogProducts = catalogProducts ?? [];
-  } else if (catalogProducts && catalogProducts.length > 0) {
-    payload.catalogProducts = catalogProducts;
+  if (existingCatalog && existingCatalog.length > 0) {
+    payload.catalogProducts = existingCatalog;
+    if (existingCatalogAt) payload.catalogUpdatedAt = existingCatalogAt;
   }
 
   try {
@@ -203,6 +202,45 @@ export async function writeStorefrontToR2(
       },
     });
     return { ok: true, updatedAt };
+  } catch {
+    return { ok: false, error: "r2_write_failed" };
+  }
+}
+
+/**
+ * Patch only `catalogProducts` in storefront.json from Supabase — fire-and-forget after product save/delete.
+ * Does not rewrite site/collections (avoids CF 1102 on staff mutations).
+ */
+export async function refreshStorefrontCatalogInR2(): Promise<
+  { ok: true; catalogUpdatedAt: string } | { ok: false; error: string }
+> {
+  const bucket = await getMuhraMediaR2Binding();
+  if (!bucket) return { ok: false, error: "r2_not_configured" };
+
+  const catalogResult = await fetchCatalogProductsForList();
+  if (catalogResult.kind !== "ok") {
+    return { ok: false, error: catalogResult.kind === "not_configured" ? "not_configured" : "catalog_fetch_failed" };
+  }
+
+  const current = await readStorefrontFromR2();
+  if (!current.ok) return { ok: false, error: current.error };
+  if (!current.data) return { ok: false, error: "no_storefront" };
+
+  const catalogUpdatedAt = new Date().toISOString();
+  const payload: StorefrontPayload = {
+    ...current.data,
+    catalogProducts: catalogResult.products,
+    catalogUpdatedAt,
+  };
+
+  try {
+    await bucket.put(STOREFRONT_R2_KEY, JSON.stringify(payload), {
+      httpMetadata: {
+        contentType: "application/json; charset=utf-8",
+        cacheControl: "public, max-age=60",
+      },
+    });
+    return { ok: true, catalogUpdatedAt };
   } catch {
     return { ok: false, error: "r2_write_failed" };
   }

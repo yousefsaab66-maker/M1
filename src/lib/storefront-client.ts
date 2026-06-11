@@ -7,6 +7,7 @@ export type StorefrontClientPayload = {
   journal?: JournalArticle[];
   boutiques?: Boutique[];
   catalogProducts?: Product[];
+  catalogUpdatedAt?: string;
   updatedAt?: string;
 };
 
@@ -18,10 +19,21 @@ export type FetchStorefrontClientResult =
       journal: JournalArticle[] | null;
       boutiques: Boutique[] | null;
       catalogProducts: Product[] | null;
+      catalogUpdatedAt: string | null;
       updatedAt: string | null;
       source: "r2" | "api";
     }
   | { ok: false };
+
+/** Max age for R2 `catalogProducts` emergency fallback when live API fails (CF 1102). */
+export const R2_CATALOG_FALLBACK_TTL_MS = 5 * 60 * 1000;
+
+export function r2CatalogFallbackIsFresh(catalogUpdatedAt: string | null | undefined): boolean {
+  if (!catalogUpdatedAt) return false;
+  const at = new Date(catalogUpdatedAt).getTime();
+  if (Number.isNaN(at)) return false;
+  return Date.now() - at < R2_CATALOG_FALLBACK_TTL_MS;
+}
 
 import { markStaffCatalogMutationComplete, STORE_INIT_SKIP_MS } from "@/lib/store-init-client";
 
@@ -88,6 +100,8 @@ export async function fetchStorefrontFromPublicCdn(
       journal: Array.isArray(parsed.journal) ? parsed.journal : null,
       boutiques: Array.isArray(parsed.boutiques) ? parsed.boutiques : null,
       catalogProducts: catalogProducts && catalogProducts.length > 0 ? catalogProducts : null,
+      catalogUpdatedAt:
+        typeof parsed.catalogUpdatedAt === "string" ? parsed.catalogUpdatedAt : null,
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
       source: "r2",
     };
@@ -120,6 +134,7 @@ export async function fetchStorefrontFromApi(
       journal?: JournalArticle[] | null;
       boutiques?: Boutique[] | null;
       catalogProducts?: Product[] | null;
+      catalogUpdatedAt?: string | null;
       updatedAt?: string | null;
       source?: "r2" | "none";
     };
@@ -134,6 +149,7 @@ export async function fetchStorefrontFromApi(
       journal: Array.isArray(d.journal) ? d.journal : null,
       boutiques: Array.isArray(d.boutiques) ? d.boutiques : null,
       catalogProducts: catalogProducts && catalogProducts.length > 0 ? catalogProducts : null,
+      catalogUpdatedAt: typeof d.catalogUpdatedAt === "string" ? d.catalogUpdatedAt : null,
       updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : null,
       source: d.source === "r2" ? "r2" : "api",
     };
