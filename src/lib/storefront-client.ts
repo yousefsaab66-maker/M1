@@ -281,10 +281,17 @@ export function afterStaffCatalogMutation() {
 
 /** Targeted CDN catalog purge after staff save/delete (server save path stays Supabase-only). */
 export function hintPurgeCatalogCache() {
-  void fetch("/api/staff/purge-cache?scope=catalog", {
-    method: "POST",
-    credentials: "include",
-  }).catch(() => {});
+  const run = () => {
+    void fetch("/api/staff/purge-cache?scope=catalog", {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {});
+  };
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(run, { timeout: 5000 });
+  } else {
+    setTimeout(run, 250);
+  }
 }
 
 /** Staff panel init — list products + site/collections only (defer journal/boutiques). */

@@ -98,8 +98,6 @@ const KEY_BAG = "muhra-bag-v1";
 const KEY_WISH = "muhra-wishlist-v1";
 const KEY_ORDERS = "muhra-orders-v1";
 const KEY_USER = "muhra-user-v1";
-/** Once per staff session — patch R2 catalogProducts without blocking bootstrap. */
-const KEY_STAFF_R2_CATALOG_SYNC = "muhra-staff-r2-catalog-sync-v1";
 
 export interface UserProfile {
   name: string;
@@ -469,18 +467,6 @@ async function loadStorefrontVisitorCatalog(
   }
 }
 
-/** Fire-and-forget R2 catalog patch on first staff panel load (removes ghost CDN products). */
-function scheduleStaffR2CatalogSyncOnce(): void {
-  if (typeof sessionStorage === "undefined") return;
-  try {
-    if (sessionStorage.getItem(KEY_STAFF_R2_CATALOG_SYNC)) return;
-    sessionStorage.setItem(KEY_STAFF_R2_CATALOG_SYNC, String(Date.now()));
-  } catch {
-    return;
-  }
-  void fetch("/api/staff/sync-catalog-r2", { method: "POST", credentials: "include" }).catch(() => {});
-}
-
 /** Staff: lighter bootstrap — list products + site/collections; journal/boutiques deferred. */
 async function loadStaffCatalog(
   gen: number,
@@ -509,7 +495,6 @@ async function loadStaffCatalog(
     sfHandlers,
   );
   applyRemoteCatalog(gen, bootstrap.products, catalogHandlers);
-  scheduleStaffR2CatalogSyncOnce();
 }
 
 /**
@@ -523,6 +508,8 @@ function scheduleBackgroundCatalogRevalidate(
   setR2PresignConfigured: (v: boolean) => void,
 ) {
   const staffPath = isStaffAppPath();
+  /* Staff panel: Supabase bootstrap + optimistic UI; skip extra Worker round-trip (CF 1102). */
+  if (staffPath) return;
   if (!shouldRunBackgroundRevalidate(staffPath)) return;
 
   scheduleBackgroundRevalidateTimer(() => {
