@@ -254,9 +254,12 @@ export function bustStorefrontClientCache() {
   staffBootstrapCache = null;
 }
 
+import { clearCatalogClientCaches } from "@/lib/catalog-sync-client";
+
 /** After staff product save/delete — bust client caches and block stale background revalidate. */
 export function afterStaffCatalogMutation() {
   bustStorefrontClientCache();
+  clearCatalogClientCaches();
   markStaffCatalogMutationComplete();
 }
 

@@ -49,6 +49,7 @@ import {
   markStoreNetworkInitComplete,
   markStoreNetworkInitPending,
   readCatalogLocalEdit,
+  readStoreNetworkInitAt,
   runStoreInitSingleFlight,
   scheduleBackgroundRevalidateTimer,
   shouldRunBackgroundRevalidate,
@@ -56,6 +57,14 @@ import {
   shouldSkipStaffNetworkInit,
   shouldSkipStoreNetworkInit,
 } from "@/lib/store-init-client";
+import {
+  broadcastCatalogProducts,
+  KEY_CATALOG_SNAPSHOT,
+  KEY_PRODUCTS,
+  readCrossTabCatalog,
+  subscribeCatalogCrossTab,
+  type CatalogCrossTabPayload,
+} from "@/lib/catalog-sync-client";
 import {
   bustStorefrontClientCache,
   CLIENT_CACHE_MS,
@@ -77,9 +86,6 @@ export type {
 } from "@/lib/commerce-types";
 export type { GovernorateCode };
 
-const KEY_PRODUCTS = "muhra-products-v1";
-/** آخر كتالوج ناجح من الـ API — يمنع الرجوع للـ SEED عند فشل Cloudflare/1102 بعد مسح localStorage */
-const KEY_CATALOG_SNAPSHOT = "muhra-remote-catalog-snapshot-v1";
 const KEY_COLLECTIONS = "muhra-collections-v1";
 const KEY_JOURNAL = "muhra-journal-v1";
 const KEY_BOUTIQUES = "muhra-boutiques-v3";
@@ -619,8 +625,23 @@ export function StoreProvider({
   const catalogRefreshAbortRef = useRef<AbortController | null>(null);
   /** Last successful remote products fetch — skips duplicate GETs within CLIENT_CACHE_MS. */
   const catalogLoadedAtRef = useRef(0);
+  const lastAppliedCrossTabAtRef = useRef(0);
   const staffExtrasLoadedRef = useRef(false);
   const pageLoadedAtRef = useRef(0);
+
+  const applyCrossTabCatalog = useCallback((payload: CatalogCrossTabPayload) => {
+    if (payload.at <= lastAppliedCrossTabAtRef.current) return;
+    lastAppliedCrossTabAtRef.current = payload.at;
+    bumpCatalogLocalEdit();
+    catalogApplyGenRef.current += 1;
+    bustStorefrontClientCache();
+    writeCatalogSnapshot(payload.products);
+    clearStaleLocalProductCache();
+    setRemoteCatalog(true);
+    setSupabaseReady(true);
+    setProductsState(payload.products);
+    catalogLoadedAtRef.current = Date.now();
+  }, []);
 
   const refreshCatalog = useCallback(async () => {
     catalogRefreshAbortRef.current?.abort();
@@ -721,6 +742,7 @@ export function StoreProvider({
       const i = prev.findIndex((x) => x.id === p.id);
       const next = i >= 0 ? prev.map((x, j) => (j === i ? p : x)) : [...prev, p];
       writeCatalogSnapshot(next);
+      lastAppliedCrossTabAtRef.current = broadcastCatalogProducts(next);
       return next;
     });
     setRemoteCatalog(true);
@@ -733,6 +755,7 @@ export function StoreProvider({
     setProductsState((prev) => {
       const next = prev.filter((x) => x.id !== id);
       writeCatalogSnapshot(next);
+      lastAppliedCrossTabAtRef.current = broadcastCatalogProducts(next);
       return next;
     });
     setRemoteCatalog(true);
@@ -796,8 +819,17 @@ export function StoreProvider({
         catalogLoadedAtRef.current = Date.now();
         setOrders(readJSON<Order[]>(KEY_ORDERS, []));
       } else {
+        const initAt = readStoreNetworkInitAt();
+        const crossTab = readCrossTabCatalog();
         const snapBootstrap = readCatalogSnapshot();
-        if (snapBootstrap && snapBootstrap.length > 0) {
+        if (crossTab && crossTab.at > initAt) {
+          lastAppliedCrossTabAtRef.current = crossTab.at;
+          setProductsState(crossTab.products);
+          writeCatalogSnapshot(crossTab.products);
+          setRemoteCatalog(true);
+          setSupabaseReady(true);
+          catalogLoadedAtRef.current = crossTab.at;
+        } else if (snapBootstrap && snapBootstrap.length > 0) {
           setProductsState(snapBootstrap);
           setRemoteCatalog(true);
           setSupabaseReady(true);
@@ -942,8 +974,24 @@ export function StoreProvider({
   }, [applyStorefront, minimalInit]);
 
   useEffect(() => {
+    const unsub = subscribeCatalogCrossTab(applyCrossTabCatalog);
+    const persisted = readCrossTabCatalog();
+    if (persisted && persisted.at > lastAppliedCrossTabAtRef.current) {
+      applyCrossTabCatalog(persisted);
+    }
+    return unsub;
+  }, [applyCrossTabCatalog]);
+
+  useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState === "visible") scheduleRemoteRefresh();
+      if (document.visibilityState === "visible") {
+        const crossTab = readCrossTabCatalog();
+        if (crossTab && crossTab.at > lastAppliedCrossTabAtRef.current) {
+          applyCrossTabCatalog(crossTab);
+          return;
+        }
+        scheduleRemoteRefresh();
+      }
     };
     const onOnline = () => scheduleRemoteRefresh();
     document.addEventListener("visibilitychange", onVis);
@@ -954,7 +1002,7 @@ export function StoreProvider({
       catalogRefreshAbortRef.current?.abort();
       if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
     };
-  }, [scheduleRemoteRefresh]);
+  }, [scheduleRemoteRefresh, applyCrossTabCatalog]);
 
   const setProducts = useCallback(
     (p: Product[]) => {
