@@ -208,12 +208,23 @@ export function legacySizesToOptions(
   return { [kind]: list };
 }
 
+const SIZE_HAS_UNIT = /\d\s*(cm|mm|in|"|''|inch|inches)\b/i;
+
 /** Display suffix for storefront size chips (mixed legacy units). */
 export function formatSizeDisplayValue(kind: ProductSizeKind, size: string): string {
   const trimmed = size.trim();
   if (!trimmed) return trimmed;
+  if (SIZE_HAS_UNIT.test(trimmed)) return trimmed;
   if (kind === "necklace" || kind === "bracelet") {
-    if (/^\d+(\.\d+)?$/.test(trimmed) && !trimmed.endsWith("cm")) return `${trimmed} cm`;
+    if (/^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed} cm`;
+    if (/^\d+(\.\d+)?\s*cm$/i.test(trimmed)) return trimmed.replace(/\s*cm$/i, " cm");
+  }
+  if (kind === "ring") {
+    if (/^\d+(\.\d+)?$/.test(trimmed)) {
+      const n = parseFloat(trimmed);
+      if (n >= 4 && n <= 13) return `US ${trimmed}`;
+      if (n >= 40 && n <= 70) return trimmed;
+    }
   }
   return trimmed;
 }

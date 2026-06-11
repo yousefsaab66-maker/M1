@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { NO_STORE_JSON_HEADERS, STAFF_BOOTSTRAP_JSON_CACHE_HEADERS } from "@/lib/api-cache-headers";
+import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
 import { fetchCatalogProductsForList } from "@/lib/catalog-products-query";
 import { isR2PresignConfigured } from "@/lib/r2-presign";
 import { getR2StaffContext } from "@/lib/r2-staff-context";
@@ -73,7 +73,7 @@ export async function GET() {
         r2Ready,
         presignConfigured,
       },
-      { headers: STAFF_BOOTSTRAP_JSON_CACHE_HEADERS },
+      { headers: NO_STORE_JSON_HEADERS },
     );
   }
 
@@ -88,6 +88,6 @@ export async function GET() {
       r2Ready,
       presignConfigured,
     },
-    { headers: STAFF_BOOTSTRAP_JSON_CACHE_HEADERS },
+    { headers: NO_STORE_JSON_HEADERS },
   );
 }

@@ -37,7 +37,8 @@ export const metadata: Metadata = {
     description:
       "MUHRA JEWELRY: a Maison of high jewelry, watches and bridal — composed since 1919.",
     type: "website",
-    locale: "en_US",
+    locale: "ar_IQ",
+    alternateLocale: ["en_US", "fr_FR", "it_IT", "es_ES"],
     siteName: "MUHRA JEWELRY",
     url: "/",
     images: [

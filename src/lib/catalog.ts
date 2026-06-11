@@ -699,7 +699,7 @@ export const BOUTIQUES: Boutique[] = [
 export const SITE_CONTENT: SiteContent = {
   brandName: "MUHRA JEWELRY",
   tagline: "The Art of Adornment",
-  supportEmail: "concierge@muhra.example",
+  supportEmail: "",
   heroHeadline: "The Art of Adornment",
   heroSubhead:
     "An archive of high jewelry, watches and bridal — composed by the Maison since 1919.",

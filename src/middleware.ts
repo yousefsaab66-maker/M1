@@ -15,7 +15,6 @@ const CACHEABLE_API_PATHS = new Set([
   "/api/catalog/products",
   "/api/catalog/storefront",
   "/api/health/r2",
-  "/api/staff/bootstrap",
 ]);
 
 function applyApiCacheHeaders(request: NextRequest, res: NextResponse): NextResponse {
@@ -40,7 +39,7 @@ function applyHtmlCacheHeaders(request: NextRequest, res: NextResponse): NextRes
 /**
  * - Apex → www (single canonical host; avoids split cookies / intermittent www Worker timeouts).
  * - HTML: CDN-cacheable prerendered shells (Worker still runs on MISS; HIT avoids CF 1102).
- * - Staff API routes: no-store except `/api/staff/bootstrap` (route sets s-maxage=120).
+ * - Staff API routes: private no-store (bootstrap included).
  */
 export function middleware(request: NextRequest) {
   const host = (request.headers.get("host") ?? request.nextUrl.host).split(":")[0]?.toLowerCase() ?? "";

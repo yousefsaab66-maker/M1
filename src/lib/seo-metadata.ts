@@ -37,7 +37,8 @@ export function buildPageMetadata({
       url: absoluteUrl(canonical),
       siteName: SITE_NAME,
       type: "website",
-      locale: "en_US",
+      locale: "ar_IQ",
+      alternateLocale: ["en_US", "fr_FR", "it_IT", "es_ES"],
       images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
     },
     twitter: {

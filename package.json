@@ -16,6 +16,7 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf:purge": "node scripts/purge-cloudflare-cache.mjs",
     "cf:purge:local": "node --env-file=.env.local scripts/purge-cloudflare-cache.mjs",
+    "sync-catalog-r2": "node --env-file=.env.local scripts/sync-catalog-r2.mjs",
     "deploy:cf": "npm run deploy && npm run cf:purge",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"

@@ -191,12 +191,27 @@ export function getShippingFeeIqd(site?: SiteContent | null): number {
   return SHIPPING_FEE_IQD;
 }
 
+const PLACEHOLDER_SUPPORT_EMAILS = new Set([
+  "concierge@muhra.example",
+  "concierge@muhra.jewelry",
+]);
+
+/** Hide seed/placeholder concierge addresses from public UI. */
+export function publicSupportEmail(site: SiteContent | null | undefined): string {
+  const raw = site?.supportEmail?.trim() ?? "";
+  if (!raw) return "";
+  if (PLACEHOLDER_SUPPORT_EMAILS.has(raw.toLowerCase())) return "";
+  return raw;
+}
+
 /** Ensures nested keys exist when loading older localStorage snapshots. */
 export function normalizeSiteContent(site: SiteContent): SiteContent {
   const usdIqdRate = getUsdIqdRate(site);
   const shippingFeeIqd = getShippingFeeIqd(site);
+  const supportEmail = publicSupportEmail(site);
   return {
     ...site,
+    supportEmail,
     heroPoster: site.heroPoster ?? "",
     categories: site.categories ?? {},
     customCategories: site.customCategories ?? [],
