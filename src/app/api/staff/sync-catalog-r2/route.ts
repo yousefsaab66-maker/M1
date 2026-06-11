@@ -1,24 +1,17 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
 import { purgeCloudflareCatalogCache } from "@/lib/cloudflare-purge";
 import { refreshStorefrontCatalogInR2 } from "@/lib/storefront-r2";
-import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
+import { isStaffAuthorized } from "@/lib/staff-sync-auth";
 
 export const dynamic = "force-dynamic";
-
-async function requireStaff(): Promise<boolean> {
-  const secret = process.env.STAFF_COOKIE_SECRET;
-  const jar = await cookies();
-  return Boolean(verifyStaffSession(jar.get(STAFF_COOKIE_NAME)?.value, secret));
-}
 
 /**
  * One-shot R2 catalog patch from Supabase — removes ghost CDN products (e.g. deleted "يسيس").
  * Purges catalog + storefront.json CDN URLs async (never purge_everything).
  */
-export async function POST() {
-  if (!(await requireStaff())) {
+export async function POST(request: Request) {
+  if (!(await isStaffAuthorized(request))) {
     return NextResponse.json({ ok: false, error: "unauthorized" } as const, {
       status: 401,
       headers: NO_STORE_JSON_HEADERS,
