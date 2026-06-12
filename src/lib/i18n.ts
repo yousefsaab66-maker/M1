@@ -546,6 +546,8 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.deleteConfirm": "Delete this product?",
     "staff.products.errorRequest": "Request failed",
     "staff.products.errorDelete": "Delete failed",
+    "staff.products.errorNotFound":
+      "Product not found in the live catalog — list refreshed. It may have been removed on another device.",
     "staff.products.remoteRequired":
       "Saving products and cloud uploads need Supabase on the server: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (same URL as NEXT_PUBLIC_SUPABASE_URL is fine). On Cloudflare, add them in Workers → Variables and redeploy — NEXT_PUBLIC_* alone can stay empty at build time.",
     "staff.products.supabaseShort":
@@ -2440,6 +2442,8 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.deleteConfirm": "حذف هذا المنتج؟",
     "staff.products.errorRequest": "فشل الطلب",
     "staff.products.errorDelete": "فشل الحذف",
+    "staff.products.errorNotFound":
+      "المنتج غير موجود في الكتالوج الحي — تم تحديث القائمة. ربما حُذف من جهاز آخر.",
     "staff.products.remoteRequired":
       "حفظ المنتجات والرفع يحتاج Supabase على السيرفر: ضع `SUPABASE_URL` و`SUPABASE_SERVICE_ROLE_KEY` (نفس الرابط يكفي). في كلاودفلير أضفها في Variables ثم أعد النشر — `NEXT_PUBLIC_*` لوحده قد يُبنى فارغاً وقت الـ build.",
     "staff.products.supabaseShort":

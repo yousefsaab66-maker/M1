@@ -1,6 +1,6 @@
 /** Skip duplicate catalog/bootstrap Worker calls on rapid reload (sessionStorage survives reload). */
 export const STORE_INIT_SKIP_MS = 5 * 60 * 1000;
-/** Staff panel — shorter skip window; still fresh on first open, avoids bootstrap spam on reload (CF 1102). */
+/** Legacy constant — staff no longer skips init by time (only in-flight duplicate guard). */
 export const STAFF_INIT_SKIP_MS = 2 * 60 * 1000;
 /** Debounce background revalidate so reload #2–3 do not each hit the Worker (CF 1102). */
 export const BACKGROUND_REVALIDATE_DEBOUNCE_MS = 2_500;
@@ -129,9 +129,9 @@ export function shouldSkipStoreNetworkInit(): boolean {
   return at > 0 && Date.now() - at < STORE_INIT_SKIP_MS;
 }
 
+/** Staff panel always bootstraps on open — only skip duplicate in-flight init (CF 1102 on rapid reload). */
 export function shouldSkipStaffNetworkInit(): boolean {
-  const at = readStoreNetworkInitAt();
-  return at > 0 && Date.now() - at < STAFF_INIT_SKIP_MS;
+  return shouldSkipDueToPendingInit();
 }
 
 /**

@@ -10,7 +10,27 @@ const CHANNEL_NAME = "muhra-catalog-sync-v1";
 export type CatalogCrossTabPayload = {
   at: number;
   products: Product[];
+  /** Explicit deletes — receivers must not treat a shorter product list as authoritative. */
+  deletedIds?: string[];
 };
+
+export type BroadcastCatalogOpts = {
+  deletedIds?: string[];
+};
+
+/** Union-merge incoming with current; never drop DB products missing from a stale partial broadcast. */
+export function mergeCrossTabCatalogProducts(
+  current: Product[],
+  incoming: Product[],
+  deletedIds?: string[],
+): Product[] {
+  const byId = new Map(current.map((p) => [p.id, p]));
+  for (const p of incoming) byId.set(p.id, p);
+  if (deletedIds?.length) {
+    for (const id of deletedIds) byId.delete(id);
+  }
+  return [...byId.values()];
+}
 
 let channel: BroadcastChannel | null = null;
 
@@ -51,9 +71,13 @@ export function readCrossTabCatalog(): CatalogCrossTabPayload | null {
 }
 
 /** Notify other tabs (and persist for tabs opened later) after staff save/delete. */
-export function broadcastCatalogProducts(products: Product[]): number {
+export function broadcastCatalogProducts(products: Product[], opts?: BroadcastCatalogOpts): number {
   if (typeof window === "undefined") return 0;
-  const payload: CatalogCrossTabPayload = { at: Date.now(), products };
+  const payload: CatalogCrossTabPayload = {
+    at: Date.now(),
+    products,
+    ...(opts?.deletedIds?.length ? { deletedIds: opts.deletedIds } : {}),
+  };
   try {
     localStorage.setItem(KEY_CATALOG_CROSS_TAB, JSON.stringify(payload));
   } catch {

@@ -56,13 +56,13 @@ import {
   scheduleBackgroundRevalidateTimer,
   shouldRunBackgroundRevalidate,
   shouldSkipDueToPendingInit,
-  shouldSkipStaffNetworkInit,
   shouldSkipStoreNetworkInit,
 } from "@/lib/store-init-client";
 import {
   broadcastCatalogProducts,
   KEY_CATALOG_SNAPSHOT,
   KEY_PRODUCTS,
+  mergeCrossTabCatalogProducts,
   readCrossTabCatalog,
   subscribeCatalogCrossTab,
   type CatalogCrossTabPayload,
@@ -349,8 +349,10 @@ function applyRemoteCatalog(
   gen: number,
   products: Product[],
   handlers: CatalogHandlers,
+  localEditAtStart?: number,
 ) {
   if (gen !== handlers.catalogApplyGenRef.current) return;
+  if (localEditAtStart !== undefined && localEditAtStart !== readCatalogLocalEdit()) return;
   writeCatalogSnapshot(products);
   clearStaleLocalProductCache();
   handlers.setRemoteCatalog(true);
@@ -475,12 +477,18 @@ async function loadStaffCatalog(
   catalogHandlers: CatalogHandlers,
   recoverCatalog: () => void,
   setR2PresignConfigured: (v: boolean) => void,
+  localEditAtStart: number,
 ): Promise<void> {
-  const bootstrap = await fetchStaffBootstrapClient(signal, {
-    bust: shouldBustCatalogFetchAfterMutation(),
-  });
+  bustStorefrontClientCache();
+  const bootstrap = await fetchStaffBootstrapClient(signal, { bust: true });
   if (!bootstrap.ok) {
     if (gen === catalogHandlers.catalogApplyGenRef.current) recoverCatalog();
+    return;
+  }
+  if (
+    localEditAtStart !== readCatalogLocalEdit() ||
+    gen !== catalogHandlers.catalogApplyGenRef.current
+  ) {
     return;
   }
   if (bootstrap.r2Ready) sfHandlers.setR2Ready(true);
@@ -494,13 +502,13 @@ async function loadStaffCatalog(
     bootstrap.updatedAt,
     sfHandlers,
   );
-  applyRemoteCatalog(gen, bootstrap.products, catalogHandlers);
+  applyRemoteCatalog(gen, bootstrap.products, catalogHandlers, localEditAtStart);
 }
 
 /**
- * When init is throttled (5min public / 2min staff), show sessionStorage snapshot immediately
+ * When storefront init is throttled (5min), show sessionStorage snapshot immediately
  * but revalidate catalog at most once per window — fixes ghost products without CF 1102 on reload #2–3.
- * Debounced + CDN-cached GET; avoids the full parallel bootstrap that triggers CF 1102.
+ * Staff panel always fetches fresh Supabase bootstrap on each visit (not time-throttled).
  */
 function scheduleBackgroundCatalogRevalidate(
   sfHandlers: StorefrontHandlers,
@@ -542,7 +550,7 @@ function scheduleBackgroundCatalogRevalidate(
             bootstrap.updatedAt,
             sfHandlers,
           );
-          applyRemoteCatalog(gen, bootstrap.products, catalogHandlers);
+          applyRemoteCatalog(gen, bootstrap.products, catalogHandlers, localEditAtStart);
         } else {
           const catalogRes = await fetchCatalogJson(1, ac.signal, true);
           if (
@@ -552,7 +560,7 @@ function scheduleBackgroundCatalogRevalidate(
           ) {
             return;
           }
-          applyRemoteCatalog(gen, catalogRes.products, catalogHandlers);
+          applyRemoteCatalog(gen, catalogRes.products, catalogHandlers, localEditAtStart);
         }
         catalogHandlers.onCatalogLoaded?.();
         markBackgroundRevalidateComplete();
@@ -655,12 +663,16 @@ export function StoreProvider({
     bumpCatalogLocalEdit();
     catalogApplyGenRef.current += 1;
     bustStorefrontClientCache();
-    const products = stripOptimisticProductDuplicates(payload.products);
-    writeCatalogSnapshot(products);
-    clearStaleLocalProductCache();
+    setProductsState((prev) => {
+      const products = stripOptimisticProductDuplicates(
+        mergeCrossTabCatalogProducts(prev, payload.products, payload.deletedIds),
+      );
+      writeCatalogSnapshot(products);
+      clearStaleLocalProductCache();
+      return products;
+    });
     setRemoteCatalog(true);
     setSupabaseReady(true);
-    setProductsState(products);
     catalogLoadedAtRef.current = Date.now();
   }, []);
 
@@ -803,7 +815,7 @@ export function StoreProvider({
         return true;
       });
       writeCatalogSnapshot(next);
-      lastAppliedCrossTabAtRef.current = broadcastCatalogProducts(next);
+      lastAppliedCrossTabAtRef.current = broadcastCatalogProducts(next, { deletedIds: [id] });
       return next;
     });
     setRemoteCatalog(true);
@@ -900,13 +912,11 @@ export function StoreProvider({
         minimalInit ||
         isStaffLoginPath() ||
         shouldSkipDueToPendingInit() ||
-        (staffPath ? shouldSkipStaffNetworkInit() : shouldSkipStoreNetworkInit());
+        (!staffPath && shouldSkipStoreNetworkInit());
 
       if (skipNetwork) {
         if (!minimalInit && !isStaffLoginPath()) {
-          const throttled =
-            shouldSkipDueToPendingInit() ||
-            (staffPath ? shouldSkipStaffNetworkInit() : shouldSkipStoreNetworkInit());
+          const throttled = shouldSkipDueToPendingInit() || (!staffPath && shouldSkipStoreNetworkInit());
           if (throttled) {
             setSupabaseReady(true);
             setRemoteCatalog(true);
@@ -932,6 +942,7 @@ export function StoreProvider({
       markStoreNetworkInitPending();
       void runStoreInitSingleFlight(async () => {
         const gen = (catalogApplyGenRef.current += 1);
+        const localEditAtStart = readCatalogLocalEdit();
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), STORE_INIT_NETWORK_MS);
         try {
@@ -955,6 +966,7 @@ export function StoreProvider({
               catalogHandlers,
               recoverCatalogAfterNetworkFailure,
               setR2PresignConfigured,
+              localEditAtStart,
             );
             markStoreNetworkInitComplete();
           } else {
@@ -988,6 +1000,7 @@ export function StoreProvider({
     remoteRefreshTimerRef.current = setTimeout(() => {
       void (async () => {
         const gen = (catalogApplyGenRef.current += 1);
+        const localEditAtStart = readCatalogLocalEdit();
         const sfHandlers = { applyStorefront, setR2Ready, catalogApplyGenRef };
         const skipProducts =
           catalogLoadedAtRef.current > 0 &&
@@ -1010,7 +1023,13 @@ export function StoreProvider({
         if (skipProducts) return;
 
         const catalogRes = await fetchCatalogJson(1, undefined, shouldBustCatalogFetchAfterMutation());
-        if (gen !== catalogApplyGenRef.current || !catalogRes.ok) return;
+        if (
+          gen !== catalogApplyGenRef.current ||
+          localEditAtStart !== readCatalogLocalEdit() ||
+          !catalogRes.ok
+        ) {
+          return;
+        }
         applyRemoteCatalog(gen, catalogRes.products, {
           setRemoteCatalog,
           setSupabaseReady,
@@ -1019,7 +1038,7 @@ export function StoreProvider({
           onCatalogLoaded: () => {
             catalogLoadedAtRef.current = Date.now();
           },
-        });
+        }, localEditAtStart);
       })();
     }, 5000);
   }, [applyStorefront, minimalInit]);
