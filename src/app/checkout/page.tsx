@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Globe, Truck } from "lucide-react";
 import { SectionTitle } from "@/components/Section";
 import { SafeImage } from "@/components/SafeImage";
+import { productImageForDisplay } from "@/lib/product-media";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore, type BagItem, type OrderCustomer } from "@/components/providers/StoreProvider";
 import type { Product } from "@/lib/catalog";
@@ -431,9 +432,10 @@ export default function CheckoutPage() {
                   >
                     {p.images[0] && (
                       <SafeImage
-                        src={p.images[0]}
+                        src={productImageForDisplay(p.images[0], "thumb")}
                         alt={p.name}
                         fill
+                        loading="lazy"
                         sizes="64px"
                         className="object-cover"
                       />

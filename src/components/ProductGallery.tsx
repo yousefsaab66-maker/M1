@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Maximize2 } from "lucide-react";
 import { SafeImage } from "@/components/SafeImage";
 import { ProductImageLightbox } from "@/components/ProductImageLightbox";
 import { useLocale } from "@/components/providers/LocaleProvider";
-import { productImageAt, productVideoSources } from "@/lib/product-media";
+import {
+  productImageAt,
+  productImageForDisplay,
+  productVideoSources,
+} from "@/lib/product-media";
 import type { Product } from "@/lib/catalog";
 
 interface ProductGalleryProps {
@@ -17,7 +21,26 @@ export function ProductGallery({ product, images }: ProductGalleryProps) {
   const { t } = useLocale();
   const [active, setActive] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [hiResReady, setHiResReady] = useState(false);
   const videos = productVideoSources(product);
+
+  const mainRaw = productImageAt(product, active);
+  const mainPreview = productImageForDisplay(mainRaw, "card");
+  const mainHiRes = productImageForDisplay(mainRaw, "pdp");
+
+  useEffect(() => {
+    setHiResReady(false);
+    if (mainPreview === mainHiRes) {
+      setHiResReady(true);
+      return;
+    }
+    const img = new window.Image();
+    img.src = mainHiRes;
+    img.onload = () => setHiResReady(true);
+    return () => {
+      img.onload = null;
+    };
+  }, [mainHiRes, mainPreview]);
 
   const openLightbox = (index: number) => {
     setActive(index);
@@ -35,8 +58,8 @@ export function ProductGallery({ product, images }: ProductGalleryProps) {
           aria-label={t("product.lightboxOpen")}
         >
           <SafeImage
-            key={productImageAt(product, active)}
-            src={productImageAt(product, active)}
+            key={mainRaw}
+            src={hiResReady ? mainHiRes : mainPreview}
             alt={product.name}
             fill
             priority
@@ -75,7 +98,14 @@ export function ProductGallery({ product, images }: ProductGalleryProps) {
                   background: "var(--surface-2)",
                 }}
               >
-                <SafeImage src={src} alt="" fill sizes="120px" className="object-cover" />
+                <SafeImage
+                  src={productImageForDisplay(src, "thumb")}
+                  alt=""
+                  fill
+                  loading="lazy"
+                  sizes="120px"
+                  className="object-cover"
+                />
               </button>
             ))}
           </div>

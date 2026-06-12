@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Minus, Plus, X } from "lucide-react";
 import { SectionTitle } from "@/components/Section";
 import { SafeImage } from "@/components/SafeImage";
+import { productImageForDisplay } from "@/lib/product-media";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore, type BagItem } from "@/components/providers/StoreProvider";
 import { ProductPrice } from "@/components/ProductPrice";
@@ -61,9 +62,10 @@ export default function BagPage() {
                   >
                     {p.images[0] && (
                       <SafeImage
-                        src={p.images[0]}
+                        src={productImageForDisplay(p.images[0], "thumb")}
                         alt={p.name}
                         fill
+                        loading="lazy"
                         sizes="120px"
                         className="object-cover"
                       />

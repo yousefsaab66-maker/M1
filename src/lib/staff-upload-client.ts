@@ -256,9 +256,17 @@ export async function uploadStaffMediaFile(
 ): Promise<StaffUploadResult> {
   const videoMime = staffVideoMimeFromFile(file);
   const isVideo = videoMime.startsWith("video/");
-  const mime = isVideo ? videoMime : staffImageMimeFromFile(file);
+  let uploadFile = file;
+  if (!isVideo) {
+    try {
+      uploadFile = await prepareStaffImageForUpload(file);
+    } catch {
+      return { ok: false, code: "decode_failed" };
+    }
+  }
+  const mime = isVideo ? videoMime : staffImageMimeFromFile(uploadFile);
   return uploadViaPresignedPut(
-    file,
+    uploadFile,
     { mime, kind, fileName: file.name },
     { endpoint: "/api/staff/upload-media", fields: { kind } },
     opts,

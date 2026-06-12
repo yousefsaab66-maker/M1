@@ -7,7 +7,7 @@ import { SafeImage } from "@/components/SafeImage";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { ProductPrice } from "@/components/ProductPrice";
-import { productHasVideos, productImageAt } from "@/lib/product-media";
+import { productHasVideos, productImageAtForDisplay } from "@/lib/product-media";
 
 interface ProductCardProps {
   product: Product;
@@ -31,9 +31,10 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
         }}
       >
         <SafeImage
-          src={productImageAt(product, 0)}
+          src={productImageAtForDisplay(product, 0, "card")}
           alt={product.name}
           fill
+          loading="lazy"
           sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
           className="object-cover"
         />

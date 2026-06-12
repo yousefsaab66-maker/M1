@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from "lucide-react";
 import { SafeImage } from "@/components/SafeImage";
 import { useLocale } from "@/components/providers/LocaleProvider";
+import { productImageForDisplay } from "@/lib/product-media";
 
 function useIsBrowser() {
   return useSyncExternalStore(
@@ -227,7 +228,8 @@ export function ProductImageLightbox({
 
   if (!isBrowser) return null;
 
-  const src = images[index] ?? images[0];
+  const rawSrc = images[index] ?? images[0];
+  const src = productImageForDisplay(rawSrc, "zoom");
   const hasMultiple = images.length > 1;
   const motionDuration = reducedMotion ? 0 : 0.35;
 
@@ -373,7 +375,14 @@ export function ProductImageLightbox({
                     opacity: i === index ? 1 : 0.55,
                   }}
                 >
-                  <SafeImage src={thumb} alt="" fill sizes="64px" className="object-cover" />
+                  <SafeImage
+                    src={productImageForDisplay(thumb, "thumb")}
+                    alt=""
+                    fill
+                    loading="lazy"
+                    sizes="64px"
+                    className="object-cover"
+                  />
                 </button>
               ))}
             </div>

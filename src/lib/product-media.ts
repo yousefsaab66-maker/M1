@@ -1,5 +1,9 @@
 import type { Product } from "./catalog";
 import { slugify } from "./format";
+import {
+  cfResizedMediaUrl,
+  type ProductImageDisplaySize,
+} from "./media-image-url";
 import { normalizeStaffMediaUrl } from "./staff-media-url";
 import {
   flattenSizeOptions,
@@ -61,6 +65,25 @@ export function productImageAt(product: Product, index: number): string {
   const i = Math.max(0, Math.min(index, list.length - 1));
   const raw = list[i] ?? MUHRA_PLACEHOLDER_IMAGE;
   return raw.startsWith("data:") ? raw : normalizeCatalogImageUrl(raw);
+}
+
+/** Storefront display URL — CDN resize for R2 media; data: URLs unchanged. */
+export function productImageForDisplay(
+  src: string,
+  size: ProductImageDisplaySize = "card",
+): string {
+  const raw = src.trim();
+  if (!raw || raw.startsWith("data:")) return raw;
+  const normalized = normalizeCatalogImageUrl(raw);
+  return cfResizedMediaUrl(normalized, size);
+}
+
+export function productImageAtForDisplay(
+  product: Product,
+  index: number,
+  size: ProductImageDisplaySize = "card",
+): string {
+  return productImageForDisplay(productImageAt(product, index), size);
 }
 
 /** Gallery keys: real images or a single placeholder slot. */
