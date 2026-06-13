@@ -5,7 +5,10 @@ import { ConditionalStorefrontChrome } from "@/components/layout/ConditionalStor
 import { Providers } from "@/components/providers/Providers";
 import { MaisonJsonLd } from "@/components/seo/JsonLd";
 import { DEFAULT_OG_IMAGE, getMetadataBase } from "@/lib/site-url";
-export { staticPageDynamic as dynamic } from "@/lib/static-page";
+export {
+  staticPageDynamic as dynamic,
+  staticPageRevalidate as revalidate,
+} from "@/lib/static-page";
 
 const serif = Cormorant_Garamond({
   variable: "--font-serif",
@@ -72,7 +75,8 @@ export const viewport: Viewport = {
 /**
  * Catalog is loaded in the browser via `/api/catalog/products` (StoreProvider), not here.
  * Do not set `force-dynamic` on the root layout — it forces every page through a heavy Worker
- * render and triggers Error 1102 on Cloudflare. Cache busting is handled by `middleware.ts`.
+ * render and triggers Error 1102 on Cloudflare. HTML edge TTL: `staticPageRevalidate` (3600s);
+ * middleware `HTML_PAGE_CACHE_HEADERS` applies on Worker MISS; purge after deploy: `npm run cf:purge`.
  */
 export default function RootLayout({
   children,

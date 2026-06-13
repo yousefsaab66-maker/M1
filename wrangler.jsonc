@@ -12,8 +12,8 @@
 		"directory": ".open-next/assets",
 		"binding": "ASSETS",
 		// `true` runs the Worker before every static asset and often causes Error 1102.
-		// Prerendered HTML is served from assets when false — post-build patch + `public/_headers` set s-maxage=3600;
-		// middleware HTML_PAGE_CACHE_HEADERS applies when the Worker runs. Purge after deploy: `npm run cf:purge`.
+		// Prerendered HTML: `staticPageRevalidate=3600` + post-build patch set s-maxage=3600 (not 31536000).
+		// `public/_headers` covers asset hits + `_next/static`. Purge after deploy: `npm run cf:purge`.
 		"run_worker_first": false
 	},
 	"services": [

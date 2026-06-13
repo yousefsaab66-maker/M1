@@ -368,13 +368,19 @@ function persistProductFlightKey(p: Product): string {
 }
 
 function mapRemoteProductError(error: string, t: (key: string) => string): string {
+  if (error === "__in_flight__") return t("staff.products.errorInFlight");
   if (error === "not_configured") return t("staff.products.errorNotConfigured");
   if (error === "unauthorized") return t("staff.products.errorUnauthorized");
   if (error === "not_found" || error === "invalid_id") return t("staff.products.errorDelete");
+  if (error === "missing_id") return t("staff.products.errorMissingId");
+  if (error === "invalid_json") return t("staff.products.errorInvalidJson");
   if (error === "payload_image_too_large" || error === "payload_images_too_large")
     return t("staff.products.errorPayloadImages");
   if (error === "worker_busy") return t("staff.products.errorWorkerBusy");
-  return error;
+  if (error === "update_failed" || error === "insert_failed") return t("staff.products.errorServer");
+  if (/1102|exceeded.*cpu|worker.*timeout/i.test(error)) return t("staff.products.errorWorkerBusy");
+  if (error === "unknown") return t("staff.products.errorServer");
+  return t("staff.products.errorServer");
 }
 
 async function persistProductRemote(

@@ -13,12 +13,17 @@ const HTML_CACHE_FROM = "public, max-age=0, s-maxage=31536000, must-revalidate";
 const HTML_CACHE_TO =
   "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400";
 
+const HTML_SMAXAGE_ONE_YEAR = "s-maxage=${CACHE_ONE_YEAR}";
+const HTML_SMAXAGE_ONE_HOUR = "s-maxage=3600";
+
 const REPLACEMENTS = [
   [HTML_CACHE_FROM, HTML_CACHE_TO],
   [
     "public,max-age=0,s-maxage=31536000,must-revalidate",
     "public,max-age=0,s-maxage=3600,stale-while-revalidate=86400",
   ],
+  [HTML_SMAXAGE_ONE_YEAR, HTML_SMAXAGE_ONE_HOUR],
+  ["let finalRevalidate = CACHE_ONE_YEAR", "let finalRevalidate = 3600"],
 ];
 
 function walkFiles(dir, match, out = []) {

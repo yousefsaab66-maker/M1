@@ -558,6 +558,10 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.errorPayloadImages":
       "Images are too large as embedded data for cloud save. Upload each image with «Upload from computer» (R2) so URLs are https://, or remove pasted base64 from the image URLs field.",
     "staff.products.errorTimeout": "Save timed out. Upload images via R2 (not base64), then try again.",
+    "staff.products.errorInFlight": "Save already in progress — please wait.",
+    "staff.products.errorInvalidJson": "Invalid save request — refresh the page and try again.",
+    "staff.products.errorMissingId": "Missing product id — refresh the page and try again.",
+    "staff.products.errorServer": "Save failed on the server — try again in a few seconds.",
     "staff.products.errorWorkerBusy":
       "Server is busy (Cloudflare timeout) — wait a few seconds and try again.",
     "staff.products.embeddedBannerTitle": "{n} product(s) with embedded images",
@@ -2456,6 +2460,10 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.products.errorPayloadImages":
       "صور كبيرة كنص مضمّن (base64) تمنع الحفظ على السحابة. ارفع كل صورة بزر «رفع من الجهاز» حتى تصير الروابط https، أو احذف النصوص الطويلة من حقل روابط الصور.",
     "staff.products.errorTimeout": "انتهت مهلة الحفظ. ارفع الصور عبر R2 (وليس base64) ثم أعد المحاولة.",
+    "staff.products.errorInFlight": "الحفظ جارٍ بالفعل — انتظر قليلاً.",
+    "staff.products.errorInvalidJson": "طلب الحفظ غير صالح — حدّث الصفحة وأعد المحاولة.",
+    "staff.products.errorMissingId": "معرّف المنتج مفقود — حدّث الصفحة وأعد المحاولة.",
+    "staff.products.errorServer": "فشل الحفظ على السيرفر — أعد المحاولة بعد ثوانٍ.",
     "staff.products.errorWorkerBusy":
       "السيرفر مشغول مؤقتاً (انتهاء وقت Cloudflare) — انتظر ثوانٍ ثم أعد المحاولة.",
     "staff.products.embeddedBannerTitle": "{n} منتج(ات) فيها صور مضمّنة",
