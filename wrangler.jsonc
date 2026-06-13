@@ -11,8 +11,9 @@
 	"assets": {
 		"directory": ".open-next/assets",
 		"binding": "ASSETS",
-		// `true` runs the Worker before every static asset (/_next/static, fonts, …) and often causes Error 1102.
-		// HTML cache headers come from `src/middleware.ts`; purge with `npm run cf:purge` after deploy if needed.
+		// `true` runs the Worker before every static asset and often causes Error 1102.
+		// Prerendered HTML is served from assets when false — `public/_headers` sets s-maxage=3600;
+		// middleware HTML_PAGE_CACHE_HEADERS applies when the Worker runs. Purge after deploy: `npm run cf:purge`.
 		"run_worker_first": false
 	},
 	"services": [

@@ -18,6 +18,10 @@
  *   npm run sync-catalog-r2
  */
 
+import { execSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
@@ -311,6 +315,61 @@ async function writeStorefrontCatalog(client, bucket, storefront, products) {
   return catalogUpdatedAt;
 }
 
+function wranglerBucket() {
+  return process.env.R2_BUCKET_NAME?.trim() || "muhra-media";
+}
+
+function runWrangler(args) {
+  const localWrangler =
+    process.platform === "win32"
+      ? join(process.cwd(), "node_modules", ".bin", "wrangler.cmd")
+      : join(process.cwd(), "node_modules", ".bin", "wrangler");
+  const quoted = args.map((a) => (/\s/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a));
+  const cmd = existsSync(localWrangler)
+    ? [localWrangler, ...quoted].join(" ")
+    : `npx wrangler ${quoted.join(" ")}`;
+  execSync(cmd, { stdio: "pipe", shell: true });
+}
+
+function readStorefrontViaWrangler(bucket) {
+  const dir = mkdtempSync(join(tmpdir(), "muhra-sync-"));
+  const file = join(dir, "storefront.json");
+  try {
+    runWrangler(["r2", "object", "get", `${bucket}/${STOREFRONT_R2_KEY}`, "--remote", "--file", file]);
+    const parsed = JSON.parse(readFileSync(file, "utf8"));
+    if (parsed?.site && Array.isArray(parsed.collections)) return parsed;
+    return null;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function writeStorefrontViaWrangler(bucket, storefront, products) {
+  const catalogUpdatedAt = new Date().toISOString();
+  const payload = { ...storefront, catalogProducts: products, catalogUpdatedAt };
+  const dir = mkdtempSync(join(tmpdir(), "muhra-sync-"));
+  const file = join(dir, "storefront.json");
+  try {
+    writeFileSync(file, JSON.stringify(payload));
+    runWrangler([
+      "r2",
+      "object",
+      "put",
+      `${bucket}/${STOREFRONT_R2_KEY}`,
+      "--remote",
+      "--file",
+      file,
+      "--content-type",
+      "application/json; charset=utf-8",
+      "--cache-control",
+      "public, max-age=60",
+    ]);
+    return catalogUpdatedAt;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 async function syncDirect() {
   const r2Cfg = getR2Config();
   if (!r2Cfg) throw new Error("missing_r2_config");
@@ -321,6 +380,15 @@ async function syncDirect() {
 
   const catalogUpdatedAt = await writeStorefrontCatalog(client, r2Cfg.bucket, storefront, products);
   return { catalogUpdatedAt, productCount: products.length, mode: "direct" };
+}
+
+async function syncWrangler() {
+  const bucket = wranglerBucket();
+  const products = await fetchCatalogProducts();
+  const storefront = readStorefrontViaWrangler(bucket);
+  if (!storefront) throw new Error("no_storefront");
+  const catalogUpdatedAt = writeStorefrontViaWrangler(bucket, storefront, products);
+  return { catalogUpdatedAt, productCount: products.length, mode: "wrangler" };
 }
 
 async function syncRemote() {
@@ -383,6 +451,12 @@ function hasDirectConfig() {
   return Boolean(supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() && getR2Config());
 }
 
+function hasWranglerConfig() {
+  const supabaseUrl =
+    process.env.SUPABASE_URL?.trim() || process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  return Boolean(supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim());
+}
+
 function hasRemoteConfig() {
   const secret = process.env.STAFF_SYNC_SECRET?.trim();
   return Boolean(secret && secret.length >= 16);
@@ -392,6 +466,8 @@ try {
   let result;
   if (hasDirectConfig()) {
     result = await syncDirect();
+  } else if (hasWranglerConfig()) {
+    result = await syncWrangler();
   } else if (hasRemoteConfig()) {
     result = await syncRemote();
   } else {
@@ -399,6 +475,7 @@ try {
       "Configure direct sync (recommended):\n" +
         "  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY\n" +
         "  R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY\n" +
+        "Or wrangler CLI (logged-in `wrangler whoami` + Supabase vars above)\n" +
         "Or remote sync:\n" +
         "  STAFF_SYNC_SECRET (min 16 chars) on Worker + .env.local\n" +
         "Load via: node --env-file=.env.local scripts/sync-catalog-r2.mjs",
