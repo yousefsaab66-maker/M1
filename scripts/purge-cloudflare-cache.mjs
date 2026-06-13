@@ -29,6 +29,9 @@ const siteBase = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.muhrajewelry.
 const r2Base = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL?.trim()?.replace(/\/$/, "");
 
 const files = [
+  `${siteBase}/`,
+  `${siteBase}/products`,
+  `${siteBase}/staff`,
   `${siteBase}/api/catalog/products`,
   `${siteBase}/api/catalog/products?full=1`,
   `${siteBase}/api/catalog/bootstrap`,

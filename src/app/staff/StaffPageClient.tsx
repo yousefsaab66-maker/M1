@@ -357,6 +357,11 @@ function emptyProduct(): Product {
 }
 
 const persistProductInFlight = new Set<string>();
+const deleteProductInFlight = new Set<string>();
+
+function isWorkerBusyHttpStatus(status: number): boolean {
+  return status === 502 || status === 503 || status === 524;
+}
 
 function persistProductFlightKey(p: Product): string {
   return isDatabaseProductId(p.id) ? p.id : `new:${p.slug.trim() || p.id}`;
@@ -368,6 +373,7 @@ function mapRemoteProductError(error: string, t: (key: string) => string): strin
   if (error === "not_found" || error === "invalid_id") return t("staff.products.errorDelete");
   if (error === "payload_image_too_large" || error === "payload_images_too_large")
     return t("staff.products.errorPayloadImages");
+  if (error === "worker_busy") return t("staff.products.errorWorkerBusy");
   return error;
 }
 
@@ -410,6 +416,10 @@ async function persistProductRemote(
     if (res.status === 401 || body.error === "unauthorized") {
       rollback();
       return { ok: false, error: mapRemoteProductError("unauthorized", t) };
+    }
+    if (isWorkerBusyHttpStatus(res.status)) {
+      rollback();
+      return { ok: false, error: mapRemoteProductError("worker_busy", t) };
     }
     if (!body.ok || !body.product) {
       rollback();
@@ -514,9 +524,12 @@ function ProductsPane({
       return;
     }
     if (typeof window !== "undefined" && !window.confirm(t("staff.products.deleteConfirm"))) return;
+    if (deleteProductInFlight.has(id)) return;
+    deleteProductInFlight.add(id);
     setSaveError(null);
     const local = products.find((p) => p.id === id);
     if (!local && isDatabaseProductId(id)) {
+      deleteProductInFlight.delete(id);
       setSaveError(t("staff.products.errorNotFound"));
       return;
     }
@@ -528,6 +541,7 @@ function ProductsPane({
     }
     if (!isDatabaseProductId(id)) {
       afterStaffCatalogMutation();
+      deleteProductInFlight.delete(id);
       return;
     }
     try {
@@ -539,6 +553,11 @@ function ProductsPane({
       if (res.status === 401 || body.error === "unauthorized") {
         if (removed) mergeRemoteProduct(removed);
         setSaveError(mapRemoteProductError("unauthorized", t));
+        return;
+      }
+      if (isWorkerBusyHttpStatus(res.status)) {
+        if (removed) mergeRemoteProduct(removed);
+        setSaveError(mapRemoteProductError("worker_busy", t));
         return;
       }
       if (body.error === "not_found") {
@@ -556,6 +575,8 @@ function ProductsPane({
     } catch {
       if (removed) mergeRemoteProduct(removed);
       setSaveError(t("staff.products.errorDelete"));
+    } finally {
+      deleteProductInFlight.delete(id);
     }
   };
 
