@@ -1,7 +1,11 @@
 /** Skip duplicate catalog/bootstrap Worker calls on rapid reload (sessionStorage survives reload). */
 export const STORE_INIT_SKIP_MS = 5 * 60 * 1000;
-/** Legacy constant — staff no longer skips init by time (only in-flight duplicate guard). */
+/** Staff bootstrap client + skip window — fresh after mutation bust, else 60s (CF 1102). */
+export const STAFF_BOOTSTRAP_CACHE_MS = 60 * 1000;
+/** Legacy constant — background revalidate window on staff path. */
 export const STAFF_INIT_SKIP_MS = 2 * 60 * 1000;
+/** Debounce targeted CDN purge after staff save/delete (batch rapid edits). */
+export const PURGE_DEBOUNCE_MS = 30 * 1000;
 /** Debounce background revalidate so reload #2–3 do not each hit the Worker (CF 1102). */
 export const BACKGROUND_REVALIDATE_DEBOUNCE_MS = 2_500;
 
@@ -69,6 +73,7 @@ export function cancelScheduledBackgroundRevalidate(): void {
 }
 
 const KEY_STORE_INIT_AT = "muhra-store-init-at-v1";
+const KEY_STAFF_INIT_AT = "muhra-staff-init-at-v1";
 const KEY_INIT_PENDING_AT = "muhra-store-init-pending-at-v1";
 const KEY_BG_REVALIDATE_AT = "muhra-bg-revalidate-at-v1";
 /** If reload happens while first init is still in flight, skip duplicate full bootstrap. */
@@ -129,9 +134,35 @@ export function shouldSkipStoreNetworkInit(): boolean {
   return at > 0 && Date.now() - at < STORE_INIT_SKIP_MS;
 }
 
-/** Staff panel always bootstraps on open — only skip duplicate in-flight init (CF 1102 on rapid reload). */
+let moduleStaffInitAt = 0;
+
+export function readStaffNetworkInitAt(): number {
+  if (typeof window === "undefined") return moduleStaffInitAt;
+  try {
+    const stored = Number(sessionStorage.getItem(KEY_STAFF_INIT_AT)) || 0;
+    return Math.max(moduleStaffInitAt, stored);
+  } catch {
+    return moduleStaffInitAt;
+  }
+}
+
+export function markStaffNetworkInitComplete() {
+  const now = Date.now();
+  moduleStaffInitAt = now;
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(KEY_STAFF_INIT_AT, String(now));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Staff panel: skip duplicate in-flight init + reuse 60s bootstrap unless post-mutation bust. */
 export function shouldSkipStaffNetworkInit(): boolean {
-  return shouldSkipDueToPendingInit();
+  if (shouldSkipDueToPendingInit()) return true;
+  if (shouldBustCatalogFetchAfterMutation()) return false;
+  const at = readStaffNetworkInitAt();
+  return at > 0 && Date.now() - at < STAFF_BOOTSTRAP_CACHE_MS;
 }
 
 /**

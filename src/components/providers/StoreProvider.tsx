@@ -52,10 +52,12 @@ import {
   readCatalogLocalEdit,
   readStoreNetworkInitAt,
   shouldBustCatalogFetchAfterMutation,
+  markStaffNetworkInitComplete,
   runStoreInitSingleFlight,
   scheduleBackgroundRevalidateTimer,
   shouldRunBackgroundRevalidate,
   shouldSkipDueToPendingInit,
+  shouldSkipStaffNetworkInit,
   shouldSkipStoreNetworkInit,
 } from "@/lib/store-init-client";
 import {
@@ -479,8 +481,9 @@ async function loadStaffCatalog(
   setR2PresignConfigured: (v: boolean) => void,
   localEditAtStart: number,
 ): Promise<void> {
-  bustStorefrontClientCache();
-  const bootstrap = await fetchStaffBootstrapClient(signal, { bust: true });
+  const bust = shouldBustCatalogFetchAfterMutation();
+  if (bust) bustStorefrontClientCache();
+  const bootstrap = await fetchStaffBootstrapClient(signal, { bust });
   if (!bootstrap.ok) {
     if (gen === catalogHandlers.catalogApplyGenRef.current) recoverCatalog();
     return;
@@ -503,12 +506,13 @@ async function loadStaffCatalog(
     sfHandlers,
   );
   applyRemoteCatalog(gen, bootstrap.products, catalogHandlers, localEditAtStart);
+  markStaffNetworkInitComplete();
 }
 
 /**
  * When storefront init is throttled (5min), show sessionStorage snapshot immediately
  * but revalidate catalog at most once per window — fixes ghost products without CF 1102 on reload #2–3.
- * Staff panel always fetches fresh Supabase bootstrap on each visit (not time-throttled).
+ * Staff panel reuses 60s bootstrap unless post-mutation bust (cross-device sync preserved).
  */
 function scheduleBackgroundCatalogRevalidate(
   sfHandlers: StorefrontHandlers,
@@ -911,12 +915,13 @@ export function StoreProvider({
       const skipNetwork =
         minimalInit ||
         isStaffLoginPath() ||
-        shouldSkipDueToPendingInit() ||
-        (!staffPath && shouldSkipStoreNetworkInit());
+        (staffPath ? shouldSkipStaffNetworkInit() : shouldSkipDueToPendingInit() || shouldSkipStoreNetworkInit());
 
       if (skipNetwork) {
         if (!minimalInit && !isStaffLoginPath()) {
-          const throttled = shouldSkipDueToPendingInit() || (!staffPath && shouldSkipStoreNetworkInit());
+          const throttled = staffPath
+            ? shouldSkipStaffNetworkInit()
+            : shouldSkipDueToPendingInit() || shouldSkipStoreNetworkInit();
           if (throttled) {
             setSupabaseReady(true);
             setRemoteCatalog(true);

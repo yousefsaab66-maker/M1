@@ -358,22 +358,6 @@ function emptyProduct(): Product {
 
 const persistProductInFlight = new Set<string>();
 
-/** Confirm product exists in Supabase-backed list before destructive delete. */
-async function productExistsInRemoteCatalog(id: string): Promise<boolean | null> {
-  try {
-    const res = await fetch("/api/catalog/products?full=1", {
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-    if (!res.ok) return null;
-    const body = (await res.json()) as { products?: Product[] };
-    if (!Array.isArray(body.products)) return null;
-    return body.products.some((p) => p.id === id);
-  } catch {
-    return null;
-  }
-}
-
 function persistProductFlightKey(p: Product): string {
   return isDatabaseProductId(p.id) ? p.id : `new:${p.slug.trim() || p.id}`;
 }
@@ -531,18 +515,12 @@ function ProductsPane({
     }
     if (typeof window !== "undefined" && !window.confirm(t("staff.products.deleteConfirm"))) return;
     setSaveError(null);
-    await refreshCatalog();
-    const exists = await productExistsInRemoteCatalog(id);
-    if (exists === false) {
-      await refreshCatalog();
+    const local = products.find((p) => p.id === id);
+    if (!local && isDatabaseProductId(id)) {
       setSaveError(t("staff.products.errorNotFound"));
       return;
     }
-    if (exists === null) {
-      setSaveError(t("staff.products.errorRequest"));
-      return;
-    }
-    const removed = products.find((p) => p.id === id);
+    const removed = local;
     removeRemoteProduct(id);
     if (editing?.id === id) {
       setEditing(null);
@@ -561,6 +539,11 @@ function ProductsPane({
       if (res.status === 401 || body.error === "unauthorized") {
         if (removed) mergeRemoteProduct(removed);
         setSaveError(mapRemoteProductError("unauthorized", t));
+        return;
+      }
+      if (body.error === "not_found") {
+        afterStaffCatalogMutation();
+        hintPurgeCatalogCache();
         return;
       }
       if (!res.ok || !body.ok) {

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { Product } from "@/lib/catalog";
+import { invalidateCatalogProductsCache } from "@/lib/catalog-products-query";
 import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
 import { deleteProductFromSupabase } from "@/lib/muhra-product-delete";
 import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
   }
 
   const result = await upsertProductToSupabase(payload);
+  if (result.ok) invalidateCatalogProductsCache();
   return NextResponse.json(result, { headers: NO_STORE_JSON_HEADERS });
 }
 
@@ -56,6 +58,7 @@ export async function DELETE(req: Request) {
   }
 
   const result = await deleteProductFromSupabase(id);
+  if (result.ok) invalidateCatalogProductsCache();
   if (!result.ok) {
     const status =
       result.error === "not_configured"

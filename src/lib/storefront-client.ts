@@ -35,7 +35,13 @@ export function r2CatalogFallbackIsFresh(catalogUpdatedAt: string | null | undef
   return Date.now() - at < R2_CATALOG_FALLBACK_TTL_MS;
 }
 
-import { markStaffCatalogMutationComplete, STORE_INIT_SKIP_MS } from "@/lib/store-init-client";
+import {
+  markStaffCatalogMutationComplete,
+  PURGE_DEBOUNCE_MS,
+  shouldBustCatalogFetchAfterMutation,
+  STAFF_BOOTSTRAP_CACHE_MS,
+  STORE_INIT_SKIP_MS,
+} from "@/lib/store-init-client";
 
 /** In-memory client cache for storefront/bootstrap fetches (visibility refresh respects this). */
 export const CLIENT_CACHE_MS = STORE_INIT_SKIP_MS;
@@ -46,9 +52,9 @@ let cdnStorefrontCache: CachedEntry<FetchStorefrontClientResult> | null = null;
 let apiStorefrontCache: CachedEntry<FetchStorefrontClientResult> | null = null;
 let bootstrapCache: CachedEntry<CatalogBootstrapClientResult> | null = null;
 
-function readCache<T>(entry: CachedEntry<T> | null): T | null {
+function readCache<T>(entry: CachedEntry<T> | null, ttlMs = CLIENT_CACHE_MS): T | null {
   if (!entry) return null;
-  if (Date.now() - entry.at > CLIENT_CACHE_MS) return null;
+  if (Date.now() - entry.at > ttlMs) return null;
   return entry.value;
 }
 
@@ -279,19 +285,19 @@ export function afterStaffCatalogMutation() {
   markStaffCatalogMutationComplete();
 }
 
-/** Targeted CDN catalog purge after staff save/delete (server save path stays Supabase-only). */
+let purgeCatalogTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Targeted CDN catalog purge after staff save/delete — debounced to one call per 30s. */
 export function hintPurgeCatalogCache() {
+  if (purgeCatalogTimer) clearTimeout(purgeCatalogTimer);
   const run = () => {
+    purgeCatalogTimer = null;
     void fetch("/api/staff/purge-cache?scope=catalog", {
       method: "POST",
       credentials: "include",
     }).catch(() => {});
   };
-  if (typeof requestIdleCallback === "function") {
-    requestIdleCallback(run, { timeout: 5000 });
-  } else {
-    setTimeout(run, 250);
-  }
+  purgeCatalogTimer = setTimeout(run, PURGE_DEBOUNCE_MS);
 }
 
 /** Staff panel init — list products + site/collections only (defer journal/boutiques). */
@@ -299,19 +305,20 @@ export async function fetchStaffBootstrapClient(
   signal?: AbortSignal,
   opts?: { bust?: boolean },
 ): Promise<StaffBootstrapClientResult> {
-  if (!opts?.bust) {
-    const hit = readCache(staffBootstrapCache);
+  const bust = opts?.bust === true || shouldBustCatalogFetchAfterMutation();
+  if (!bust) {
+    const hit = readCache(staffBootstrapCache, STAFF_BOOTSTRAP_CACHE_MS);
     if (hit) return hit;
     if (staffBootstrapInFlight) return staffBootstrapInFlight;
   }
 
   const run = async (): Promise<StaffBootstrapClientResult> => {
     try {
-      const url = opts?.bust
+      const url = bust
         ? `/api/staff/bootstrap?_=${Date.now()}`
         : "/api/staff/bootstrap";
       const res = await fetch(url, {
-        cache: opts?.bust ? "no-store" : "default",
+        cache: bust ? "no-store" : "default",
         credentials: "same-origin",
         signal,
       });
@@ -343,7 +350,7 @@ export async function fetchStaffBootstrapClient(
     }
   };
 
-  if (opts?.bust) return run();
+  if (bust) return run();
 
   staffBootstrapInFlight = run().finally(() => {
     staffBootstrapInFlight = null;
