@@ -7,6 +7,7 @@ import { SectionTitle } from "@/components/Section";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
 import { catalogFilterSlugs, productCategoryLabel } from "@/lib/site-display";
+import { prefetchCatalogProductsApi } from "@/lib/catalog-prefetch-client";
 
 type Sort = "featured" | "priceAsc" | "priceDesc" | "new";
 
@@ -18,6 +19,10 @@ export function ProductsCatalog() {
 
   const [category, setCategory] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>("featured");
+
+  useEffect(() => {
+    prefetchCatalogProductsApi();
+  }, []);
 
   useEffect(() => {
     const cat = sp.get("category")?.trim() ?? "";

@@ -8,6 +8,10 @@ export const STAFF_INIT_SKIP_MS = 2 * 60 * 1000;
 export const PURGE_DEBOUNCE_MS = 30 * 1000;
 /** Debounce background revalidate so reload #2–3 do not each hit the Worker (CF 1102). */
 export const BACKGROUND_REVALIDATE_DEBOUNCE_MS = 2_500;
+/** Staff tab focus/visibility — bust bootstrap cache then refresh (cross-device sync). */
+export const STAFF_VISIBILITY_REFRESH_DEBOUNCE_MS = 4_000;
+/** Lightweight staff bootstrap poll while tab visible (cross-device; not realtime). */
+export const STAFF_BACKGROUND_POLL_MS = 45_000;
 
 const KEY_CATALOG_LOCAL_EDIT = "muhra-catalog-local-edit-v1";
 const KEY_CATALOG_MUTATION_AT = "muhra-catalog-mutation-at-v1";

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { Hero } from "@/components/Hero";
@@ -20,6 +20,7 @@ import {
   productCategoryLabel,
 } from "@/lib/site-display";
 import { useSiteCopy } from "@/components/hooks/useSiteCopy";
+import { prefetchCatalogProductsApi } from "@/lib/catalog-prefetch-client";
 
 function BelowFoldReveal({
   children,
@@ -52,6 +53,10 @@ export default function HomePage() {
   );
   const maisonImage = atelierImage(site);
   const categoryStrip = useMemo(() => homeCategoryStripSlugs(site), [site]);
+
+  useEffect(() => {
+    prefetchCatalogProductsApi();
+  }, []);
 
   return (
     <div className="flex flex-col">

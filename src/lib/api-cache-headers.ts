@@ -4,8 +4,8 @@
  * After deploy: `npm run cf:purge`; storefront edits purge via PUT `/api/staff/storefront`.
  */
 export const CATALOG_JSON_CACHE_HEADERS = {
-  "Cache-Control": "public, max-age=0, s-maxage=90, stale-while-revalidate=300",
-  "CDN-Cache-Control": "max-age=90",
+  "Cache-Control": "public, max-age=0, s-maxage=90, stale-while-revalidate=600",
+  "CDN-Cache-Control": "max-age=90, stale-while-revalidate=600",
 } as const;
 
 /** Site + collections from `/api/catalog/storefront` (same TTL as products). */

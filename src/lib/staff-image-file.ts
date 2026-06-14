@@ -1,8 +1,8 @@
 /** Max edge length for staff product/site image uploads (browser resize before R2 PUT). */
-const MAX_UPLOAD_EDGE_PX = 1600;
-const UPLOAD_JPEG_QUALITY = 0.85;
-/** Skip re-encoding when already small enough (saves CPU on staff devices). */
-const SKIP_REENCODE_MAX_BYTES = 500 * 1024;
+const MAX_UPLOAD_EDGE_PX = 1440;
+const UPLOAD_JPEG_QUALITY = 0.82;
+/** Skip re-encoding when already small enough (saves CPU on staff phones/tablets). */
+const SKIP_REENCODE_MAX_BYTES = 768 * 1024;
 
 function mimeFromName(name: string): string | null {
   const lower = name.toLowerCase();
@@ -62,15 +62,16 @@ async function pickOutputFormat(
   hinted: string,
   originalSize: number,
 ): Promise<{ mime: string; ext: string; quality?: number }> {
-  const webpBlob = await canvasToBlob(canvas, "image/webp", UPLOAD_JPEG_QUALITY);
-  if (webpBlob.size < originalSize * 0.92) {
+  /* Fast path: skip slow WebP trial on mobile staff devices unless source is WebP/PNG. */
+  if (hinted !== "image/png" && hinted !== "image/webp") {
+    return { mime: "image/jpeg", ext: "jpg", quality: UPLOAD_JPEG_QUALITY };
+  }
+  if (hinted === "image/webp") {
     return { mime: "image/webp", ext: "webp", quality: UPLOAD_JPEG_QUALITY };
   }
-  if (hinted === "image/png") {
-    const pngBlob = await canvasToBlob(canvas, "image/png");
-    if (pngBlob.size < originalSize) {
-      return { mime: "image/png", ext: "png" };
-    }
+  const pngBlob = await canvasToBlob(canvas, "image/png");
+  if (pngBlob.size < originalSize) {
+    return { mime: "image/png", ext: "png" };
   }
   return { mime: "image/jpeg", ext: "jpg", quality: UPLOAD_JPEG_QUALITY };
 }

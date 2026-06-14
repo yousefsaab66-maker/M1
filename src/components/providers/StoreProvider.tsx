@@ -59,6 +59,8 @@ import {
   shouldSkipDueToPendingInit,
   shouldSkipStaffNetworkInit,
   shouldSkipStoreNetworkInit,
+  STAFF_BACKGROUND_POLL_MS,
+  STAFF_VISIBILITY_REFRESH_DEBOUNCE_MS,
 } from "@/lib/store-init-client";
 import {
   broadcastCatalogProducts,
@@ -78,6 +80,7 @@ import {
   fetchStorefrontFromPublicCdn,
   remoteStorefrontIsNewer,
   r2CatalogFallbackIsFresh,
+  type StaffBootstrapClientResult,
 } from "@/lib/storefront-client";
 
 export type {
@@ -660,6 +663,9 @@ export function StoreProvider({
   const lastAppliedCrossTabAtRef = useRef(0);
   const staffExtrasLoadedRef = useRef(false);
   const pageLoadedAtRef = useRef(0);
+  const staffRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const staffPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const staffRefreshInFlightRef = useRef(false);
 
   const applyCrossTabCatalog = useCallback((payload: CatalogCrossTabPayload) => {
     if (payload.at <= lastAppliedCrossTabAtRef.current) return;
@@ -745,6 +751,75 @@ export function StoreProvider({
     },
     [applySite, applyCollections, applyJournal, applyBoutiques],
   );
+
+  const applyStaffBootstrap = useCallback(
+    (
+      gen: number,
+      bootstrap: StaffBootstrapClientResult & { ok: true },
+      localEditAtStart: number,
+    ) => {
+      if (gen !== catalogApplyGenRef.current) return;
+      if (localEditAtStart !== readCatalogLocalEdit()) return;
+      if (bootstrap.r2Ready) setR2Ready(true);
+      setR2PresignConfigured(bootstrap.presignConfigured);
+      applyRemoteStorefrontIfNewer(
+        gen,
+        bootstrap.site,
+        bootstrap.collections,
+        null,
+        null,
+        bootstrap.updatedAt,
+        { applyStorefront, setR2Ready, catalogApplyGenRef },
+      );
+      applyRemoteCatalog(
+        gen,
+        bootstrap.products,
+        {
+          setRemoteCatalog,
+          setSupabaseReady,
+          setProductsState,
+          catalogApplyGenRef,
+          onCatalogLoaded: () => {
+            catalogLoadedAtRef.current = Date.now();
+          },
+        },
+        localEditAtStart,
+      );
+      markStaffNetworkInitComplete();
+    },
+    [applyStorefront],
+  );
+
+  const runStaffBootstrapRefresh = useCallback(async () => {
+    if (!isStaffAppPath() || minimalInit || isStaffLoginPath()) return;
+    if (staffRefreshInFlightRef.current) return;
+    staffRefreshInFlightRef.current = true;
+    const gen = (catalogApplyGenRef.current += 1);
+    const localEditAtStart = readCatalogLocalEdit();
+    bustStorefrontClientCache();
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), CATALOG_INIT_MS);
+    try {
+      const bootstrap = await fetchStaffBootstrapClient(ac.signal, { bust: true });
+      if (bootstrap.ok) {
+        applyStaffBootstrap(gen, bootstrap, localEditAtStart);
+      }
+    } catch {
+      /* keep current UI */
+    } finally {
+      clearTimeout(timer);
+      staffRefreshInFlightRef.current = false;
+    }
+  }, [minimalInit, applyStaffBootstrap]);
+
+  const scheduleStaffRemoteRefresh = useCallback(() => {
+    if (!isStaffAppPath() || minimalInit || isStaffLoginPath()) return;
+    if (staffRefreshTimerRef.current) clearTimeout(staffRefreshTimerRef.current);
+    staffRefreshTimerRef.current = setTimeout(() => {
+      staffRefreshTimerRef.current = null;
+      void runStaffBootstrapRefresh();
+    }, STAFF_VISIBILITY_REFRESH_DEBOUNCE_MS);
+  }, [minimalInit, runStaffBootstrapRefresh]);
 
   const refreshStaffStorefrontExtras = useCallback(async () => {
     if (staffExtrasLoadedRef.current) return;
@@ -1067,12 +1142,51 @@ export function StoreProvider({
     return unsub;
   }, [applyCrossTabCatalog]);
 
+  /** Staff cross-device sync: poll bootstrap while tab visible (debounced refresh, CF 1102 safe). */
+  useEffect(() => {
+    if (!isStaffAppPath() || minimalInit || isStaffLoginPath()) return;
+
+    const startPoll = () => {
+      if (staffPollTimerRef.current) return;
+      staffPollTimerRef.current = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          scheduleStaffRemoteRefresh();
+        }
+      }, STAFF_BACKGROUND_POLL_MS);
+    };
+
+    const stopPoll = () => {
+      if (staffPollTimerRef.current) {
+        clearInterval(staffPollTimerRef.current);
+        staffPollTimerRef.current = null;
+      }
+    };
+
+    const onPollVis = () => {
+      if (document.visibilityState === "visible") startPoll();
+      else stopPoll();
+    };
+
+    if (document.visibilityState === "visible") startPoll();
+    document.addEventListener("visibilitychange", onPollVis);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onPollVis);
+      stopPoll();
+      if (staffRefreshTimerRef.current) clearTimeout(staffRefreshTimerRef.current);
+    };
+  }, [minimalInit, scheduleStaffRemoteRefresh]);
+
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === "visible") {
         const crossTab = readCrossTabCatalog();
         if (crossTab && crossTab.at > lastAppliedCrossTabAtRef.current) {
           applyCrossTabCatalog(crossTab);
+          return;
+        }
+        if (isStaffAppPath()) {
+          scheduleStaffRemoteRefresh();
           return;
         }
         scheduleRemoteRefresh();
@@ -1086,8 +1200,9 @@ export function StoreProvider({
       window.removeEventListener("online", onOnline);
       catalogRefreshAbortRef.current?.abort();
       if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
+      if (staffRefreshTimerRef.current) clearTimeout(staffRefreshTimerRef.current);
     };
-  }, [scheduleRemoteRefresh, applyCrossTabCatalog]);
+  }, [scheduleRemoteRefresh, scheduleStaffRemoteRefresh, applyCrossTabCatalog]);
 
   const setProducts = useCallback(
     (p: Product[]) => {

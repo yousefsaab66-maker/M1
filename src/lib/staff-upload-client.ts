@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * Upload path: browser presigned PUT → R2 (fastest). Requires R2 S3 API credentials on the Worker
+ * (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`) — not Supabase Storage.
+ * Workers Paid is not required for presign; it avoids Worker body limits vs proxy upload.
+ * Fallback: multipart POST through `/api/staff/upload` when presign is unavailable.
+ */
 import { prepareStaffImageForUpload } from "@/lib/staff-image-file";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import {
