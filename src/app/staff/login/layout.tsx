@@ -1,10 +1,5 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { NOINDEX_ROBOTS } from "@/lib/seo-metadata";
-
-export {
-  staticPageDynamic as dynamic,
-  staticPageRevalidate as revalidate,
-} from "@/lib/static-page";
 
 /** Static HTML shell — session check client-side only (avoids CF Worker 1102 on reload). */
 
