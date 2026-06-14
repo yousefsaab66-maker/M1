@@ -49,11 +49,11 @@ import {
   productImageAt,
 } from "@/lib/product-media";
 import {
+  enabledEmptySizeKinds,
   formatSizeOptionsSummary,
   formatOrderSizeDisplay,
   getProductSizeGroups,
   isSizeKindEnabled,
-  normalizeSizeOptions,
   productSizeKindForCategory,
   SIZE_PRESETS,
   sizeKindLabelKey,
@@ -1064,7 +1064,7 @@ function ProductEditor({
               if (saving) return;
               setSaving(true);
               try {
-                await onSave(draft);
+                await onSave(ensureProductOrderable(draft));
               } finally {
                 setSaving(false);
               }
@@ -1194,6 +1194,7 @@ function ProductStaffPreview({
   const mainSrc = gallery[safeIdx] ?? productImageAt(draft, 0);
   const previewSizeGroups = getProductSizeGroups(draft, site);
   const sizeKind = productSizeKindForCategory(draft.category, site);
+  const enabledEmptyKinds = enabledEmptySizeKinds(draft.sizeOptions);
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -1261,10 +1262,13 @@ function ProductStaffPreview({
         )}
         <div className="border-t pt-3" style={{ borderColor: "var(--line)" }}>
           <p className="staff-label !mb-2">{t("common.size")}</p>
-          {!sizeKind && previewSizeGroups.length === 0 && (
+          {!sizeKind && previewSizeGroups.length === 0 && enabledEmptyKinds.length === 0 && (
             <p className="text-sm leading-relaxed opacity-75">{t("staff.preview.noSizes")}</p>
           )}
-          {previewSizeGroups.length === 0 && sizeKind && (
+          {sizeKind && previewSizeGroups.length === 0 && enabledEmptyKinds.length === 0 && (
+            <p className="text-sm leading-relaxed opacity-75">{t("staff.preview.sizesOptional")}</p>
+          )}
+          {enabledEmptyKinds.length > 0 && (
             <p className="text-sm leading-relaxed text-amber-800 dark:text-amber-400/95">
               {t("staff.preview.sizesEmpty")}
             </p>

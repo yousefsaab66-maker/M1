@@ -44,6 +44,42 @@ export function normalizeSizeOptions(opts: ProductSizeOptions | undefined): Prod
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/** Staff toggles ON but no values yet (draft UI state). */
+export function enabledEmptySizeKinds(opts: ProductSizeOptions | undefined): ProductSizeKind[] {
+  if (!opts) return [];
+  return SIZE_KINDS.filter(
+    (kind) => isSizeKindEnabled(opts, kind) && !dedupeSizes(opts[kind])?.length,
+  );
+}
+
+/** Persistable size options — drops enabled-but-empty groups; sizes stay optional for all categories. */
+export function coalesceSizeOptionsForSave(
+  opts: ProductSizeOptions | undefined,
+): ProductSizeOptions | undefined {
+  return normalizeSizeOptions(opts);
+}
+
+/**
+ * Save guard for staff payloads. Sizes are never required by category.
+ * Enabled-but-empty groups are stripped on save — only block incoherent partial legacy data.
+ */
+export function validateSizeOptionsForSave(
+  p: Pick<Product, "sizeOptions" | "sizes" | "category">,
+  site?: SiteContent,
+): string | null {
+  const coalesced = coalesceSizeOptionsForSave(p.sizeOptions);
+  if (coalesced) return null;
+
+  const legacy = dedupeSizes(p.sizes);
+  if (!legacy?.length) return null;
+
+  const fromLegacy = legacySizesToOptions(p.sizes, p.category, site);
+  if (fromLegacy) return null;
+
+  // Legacy flat sizes that don't match the category kind — ignore on save, don't block.
+  return null;
+}
+
 /** Maps product category slug to which size group the storefront should show. */
 export function productSizeKindForCategory(
   category: string,

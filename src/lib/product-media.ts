@@ -6,9 +6,10 @@ import {
 } from "./media-image-url";
 import { normalizeStaffMediaUrl } from "./staff-media-url";
 import {
+  coalesceSizeOptionsForSave,
   flattenSizeOptions,
-  normalizeSizeOptions,
   resolveProductSizes,
+  validateSizeOptionsForSave,
 } from "./product-sizes";
 
 /** Decode URL slug and compare case-insensitively (PDP + cards). */
@@ -125,7 +126,7 @@ export function ensureProductOrderable(p: Product): Product {
   const images = imgs.length > 0 ? imgs : [MUHRA_PLACEHOLDER_IMAGE];
   const vids = (p.videos ?? []).map((u) => u.trim()).filter(Boolean);
   const videos = vids.length > 0 ? vids : undefined;
-  const sizeOptions = normalizeSizeOptions(p.sizeOptions);
+  const sizeOptions = coalesceSizeOptionsForSave(p.sizeOptions);
   const resolved = resolveProductSizes({ ...p, sizeOptions });
   const sizes = resolved.length > 0 ? resolved : undefined;
   const flat = flattenSizeOptions(sizeOptions);
@@ -182,5 +183,7 @@ export function validateProductPayloadForServerSave(p: Product): string | null {
     total += u.length;
   }
   if (total > MAX_TOTAL_DATA_URL_CHARS) return "payload_images_too_large";
+  const sizeErr = validateSizeOptionsForSave(p);
+  if (sizeErr) return sizeErr;
   return null;
 }

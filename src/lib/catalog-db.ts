@@ -1,8 +1,8 @@
 import type { Product, Material, Stone, Currency } from "@/lib/catalog";
 import { ensureProductOrderable } from "@/lib/product-media";
 import {
+  coalesceSizeOptionsForSave,
   flattenSizeOptions,
-  normalizeSizeOptions,
   resolveProductSizes,
   sizeOptionsFromRow,
   type ProductSizeOptions,
@@ -58,7 +58,7 @@ export function rowToProduct(row: ProductRow): Product {
 }
 
 export function productToInsert(p: Product) {
-  const sizeOptions = normalizeSizeOptions(p.sizeOptions);
+  const sizeOptions = coalesceSizeOptionsForSave(p.sizeOptions);
   const flatSizes = flattenSizeOptions(sizeOptions);
   const legacySizes =
     flatSizes.length > 0
