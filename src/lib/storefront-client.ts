@@ -287,17 +287,55 @@ export function afterStaffCatalogMutation() {
 
 let purgeCatalogTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** Targeted CDN catalog purge after staff save/delete — debounced to one call per 30s. */
-export function hintPurgeCatalogCache() {
-  if (purgeCatalogTimer) clearTimeout(purgeCatalogTimer);
-  const run = () => {
+function postPurgeCatalogCache() {
+  void fetch("/api/staff/purge-cache?scope=catalog", {
+    method: "POST",
+    credentials: "include",
+  }).catch(() => {});
+}
+
+/** Targeted CDN catalog purge after staff save (debounced) or delete (immediate). */
+export function hintPurgeCatalogCache(opts?: { immediate?: boolean }) {
+  if (opts?.immediate) {
+    if (purgeCatalogTimer) clearTimeout(purgeCatalogTimer);
     purgeCatalogTimer = null;
-    void fetch("/api/staff/purge-cache?scope=catalog", {
-      method: "POST",
-      credentials: "include",
-    }).catch(() => {});
-  };
-  purgeCatalogTimer = setTimeout(run, PURGE_DEBOUNCE_MS);
+    postPurgeCatalogCache();
+    return;
+  }
+  if (purgeCatalogTimer) clearTimeout(purgeCatalogTimer);
+  purgeCatalogTimer = setTimeout(() => {
+    purgeCatalogTimer = null;
+    postPurgeCatalogCache();
+  }, PURGE_DEBOUNCE_MS);
+}
+
+/** Fire CDN catalog purge now — use after product delete so other devices are not stuck on stale edge JSON. */
+export function purgeCatalogCacheNow() {
+  hintPurgeCatalogCache({ immediate: true });
+}
+
+/** True while `/api/staff/bootstrap` client fetch is in flight — skip overlapping poll/refresh (CF 1102). */
+export function isStaffBootstrapInFlight(): boolean {
+  return staffBootstrapInFlight !== null;
+}
+
+/** Staff cross-device sync — list products only (no R2/site); cache-bust to skip CDN stale JSON. */
+export async function fetchStaffCatalogListForSync(
+  signal?: AbortSignal,
+): Promise<{ ok: true; products: Product[] } | { ok: false }> {
+  try {
+    const res = await fetch(`/api/catalog/products?_=${Date.now()}`, {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal,
+    });
+    if (!res.ok) return { ok: false };
+    const d = (await res.json()) as { products?: unknown };
+    const products = Array.isArray(d.products) ? (d.products as Product[]) : [];
+    return { ok: true, products };
+  } catch {
+    return { ok: false };
+  }
 }
 
 /** Staff panel init — list products + site/collections only (defer journal/boutiques). */

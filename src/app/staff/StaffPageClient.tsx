@@ -60,7 +60,7 @@ import {
   type ProductSizeKind,
   type ProductSizeOptions,
 } from "@/lib/product-sizes";
-import { afterStaffCatalogMutation, hintPurgeCatalogCache } from "@/lib/storefront-client";
+import { afterStaffCatalogMutation, hintPurgeCatalogCache, purgeCatalogCacheNow } from "@/lib/storefront-client";
 import { isDatabaseProductId } from "@/lib/catalog-db";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import { isAllowedStaffVideoMime, staffVideoMimeFromFile } from "@/lib/supabase/storage-constants";
@@ -568,7 +568,7 @@ function ProductsPane({
       }
       if (body.error === "not_found") {
         afterStaffCatalogMutation();
-        hintPurgeCatalogCache();
+        purgeCatalogCacheNow();
         return;
       }
       if (!res.ok || !body.ok) {
@@ -577,7 +577,7 @@ function ProductsPane({
         return;
       }
       afterStaffCatalogMutation();
-      hintPurgeCatalogCache();
+      purgeCatalogCacheNow();
     } catch {
       if (removed) mergeRemoteProduct(removed);
       setSaveError(t("staff.products.errorDelete"));

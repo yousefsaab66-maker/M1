@@ -75,9 +75,11 @@ import {
   bustStorefrontClientCache,
   CLIENT_CACHE_MS,
   fetchStaffBootstrapClient,
+  fetchStaffCatalogListForSync,
   fetchStorefrontForClient,
   fetchStorefrontFromApi,
   fetchStorefrontFromPublicCdn,
+  isStaffBootstrapInFlight,
   remoteStorefrontIsNewer,
   r2CatalogFallbackIsFresh,
   type StaffBootstrapClientResult,
@@ -244,6 +246,19 @@ function clearStaleLocalProductCache() {
   } catch {
     /* ignore */
   }
+}
+
+function catalogProductIdsDiffer(local: Product[], remote: Product[]): boolean {
+  const localIds = new Set(local.map((p) => p.id));
+  const remoteIds = new Set(remote.map((p) => p.id));
+  if (localIds.size !== remoteIds.size) return true;
+  for (const id of localIds) {
+    if (!remoteIds.has(id)) return true;
+  }
+  for (const id of remoteIds) {
+    if (!localIds.has(id)) return true;
+  }
+  return false;
 }
 
 function isStaffLoginPath(): boolean {
@@ -666,6 +681,12 @@ export function StoreProvider({
   const staffRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const staffPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const staffRefreshInFlightRef = useRef(false);
+  const staffLightPollInFlightRef = useRef(false);
+  const productsRef = useRef(products);
+
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
 
   const applyCrossTabCatalog = useCallback((payload: CatalogCrossTabPayload) => {
     if (payload.at <= lastAppliedCrossTabAtRef.current) return;
@@ -790,9 +811,56 @@ export function StoreProvider({
     [applyStorefront],
   );
 
+  const runStaffCatalogLightPoll = useCallback(async () => {
+    if (!isStaffAppPath() || minimalInit || isStaffLoginPath()) return;
+    if (
+      staffRefreshInFlightRef.current ||
+      staffLightPollInFlightRef.current ||
+      isStaffBootstrapInFlight()
+    ) {
+      return;
+    }
+    staffLightPollInFlightRef.current = true;
+    const localEditAtStart = readCatalogLocalEdit();
+    const gen = catalogApplyGenRef.current;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 20_000);
+    try {
+      const res = await fetchStaffCatalogListForSync(ac.signal);
+      if (
+        !res.ok ||
+        localEditAtStart !== readCatalogLocalEdit() ||
+        gen !== catalogApplyGenRef.current
+      ) {
+        return;
+      }
+      const current = productsRef.current;
+      if (!catalogProductIdsDiffer(current, res.products)) return;
+      applyRemoteCatalog(
+        gen,
+        res.products,
+        {
+          setRemoteCatalog,
+          setSupabaseReady,
+          setProductsState,
+          catalogApplyGenRef,
+          onCatalogLoaded: () => {
+            catalogLoadedAtRef.current = Date.now();
+          },
+        },
+        localEditAtStart,
+      );
+    } catch {
+      /* keep current UI */
+    } finally {
+      clearTimeout(timer);
+      staffLightPollInFlightRef.current = false;
+    }
+  }, [minimalInit]);
+
   const runStaffBootstrapRefresh = useCallback(async () => {
     if (!isStaffAppPath() || minimalInit || isStaffLoginPath()) return;
-    if (staffRefreshInFlightRef.current) return;
+    if (staffRefreshInFlightRef.current || isStaffBootstrapInFlight()) return;
     staffRefreshInFlightRef.current = true;
     const gen = (catalogApplyGenRef.current += 1);
     const localEditAtStart = readCatalogLocalEdit();
@@ -814,12 +882,21 @@ export function StoreProvider({
 
   const scheduleStaffRemoteRefresh = useCallback(() => {
     if (!isStaffAppPath() || minimalInit || isStaffLoginPath()) return;
+    if (staffRefreshInFlightRef.current || isStaffBootstrapInFlight()) return;
+    if (shouldSkipStaffNetworkInit() && !shouldBustCatalogFetchAfterMutation()) {
+      void runStaffCatalogLightPoll();
+      return;
+    }
     if (staffRefreshTimerRef.current) clearTimeout(staffRefreshTimerRef.current);
     staffRefreshTimerRef.current = setTimeout(() => {
       staffRefreshTimerRef.current = null;
+      if (staffRefreshInFlightRef.current || isStaffBootstrapInFlight()) {
+        void runStaffCatalogLightPoll();
+        return;
+      }
       void runStaffBootstrapRefresh();
     }, STAFF_VISIBILITY_REFRESH_DEBOUNCE_MS);
-  }, [minimalInit, runStaffBootstrapRefresh]);
+  }, [minimalInit, runStaffBootstrapRefresh, runStaffCatalogLightPoll]);
 
   const refreshStaffStorefrontExtras = useCallback(async () => {
     if (staffExtrasLoadedRef.current) return;
@@ -1150,7 +1227,7 @@ export function StoreProvider({
       if (staffPollTimerRef.current) return;
       staffPollTimerRef.current = setInterval(() => {
         if (document.visibilityState === "visible") {
-          scheduleStaffRemoteRefresh();
+          void runStaffCatalogLightPoll();
         }
       }, STAFF_BACKGROUND_POLL_MS);
     };
@@ -1175,7 +1252,7 @@ export function StoreProvider({
       stopPoll();
       if (staffRefreshTimerRef.current) clearTimeout(staffRefreshTimerRef.current);
     };
-  }, [minimalInit, scheduleStaffRemoteRefresh]);
+  }, [minimalInit, runStaffCatalogLightPoll]);
 
   useEffect(() => {
     const onVis = () => {
