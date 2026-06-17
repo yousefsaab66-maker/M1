@@ -1,7 +1,6 @@
 /**
  * Edge catalog JSON — short TTL so public catalog stays fresh without per-save R2 sync.
- * After staff product save: client calls `/api/staff/purge-cache?scope=catalog` (debounced).
- * After staff product delete: purge runs immediately (no debounce).
+ * After staff product save/delete: server patches R2 `catalogProducts` from Supabase + client purge.
  * Requires CLOUDFLARE_ZONE_ID + CLOUDFLARE_API_TOKEN on the Worker or edge may serve stale JSON up to s-maxage + SWR.
  * After deploy: `npm run cf:purge`; storefront edits purge via PUT `/api/staff/storefront`.
  */

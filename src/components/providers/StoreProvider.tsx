@@ -532,14 +532,8 @@ async function loadStaffCatalog(
  * but revalidate catalog at most once per window — fixes ghost products without CF 1102 on reload #2–3.
  * Staff panel reuses 60s bootstrap unless post-mutation bust (cross-device sync preserved).
  */
-function scheduleBackgroundCatalogRevalidate(
-  sfHandlers: StorefrontHandlers,
-  catalogHandlers: CatalogHandlers,
-  setR2PresignConfigured: (v: boolean) => void,
-) {
+function scheduleBackgroundCatalogRevalidate(catalogHandlers: CatalogHandlers) {
   const staffPath = isStaffAppPath();
-  /* Staff panel: Supabase bootstrap + optimistic UI; skip extra Worker round-trip (CF 1102). */
-  if (staffPath) return;
   if (!shouldRunBackgroundRevalidate(staffPath)) return;
 
   scheduleBackgroundRevalidateTimer(() => {
@@ -553,26 +547,16 @@ function scheduleBackgroundCatalogRevalidate(
       const timer = setTimeout(() => ac.abort(), CATALOG_INIT_MS);
       try {
         if (staffPath) {
-          const bootstrap = await fetchStaffBootstrapClient(ac.signal, { bust: true });
+          /* Staff: list-only revalidate — Supabase truth, lighter than full bootstrap (CF 1102). */
+          const catalogRes = await fetchStaffCatalogListForSync(ac.signal);
           if (
             localEditAtStart !== readCatalogLocalEdit() ||
             gen !== catalogHandlers.catalogApplyGenRef.current ||
-            !bootstrap.ok
+            !catalogRes.ok
           ) {
             return;
           }
-          if (bootstrap.r2Ready) sfHandlers.setR2Ready(true);
-          setR2PresignConfigured(bootstrap.presignConfigured);
-          applyRemoteStorefrontIfNewer(
-            gen,
-            bootstrap.site,
-            bootstrap.collections,
-            null,
-            null,
-            bootstrap.updatedAt,
-            sfHandlers,
-          );
-          applyRemoteCatalog(gen, bootstrap.products, catalogHandlers, localEditAtStart);
+          applyRemoteCatalog(gen, catalogRes.products, catalogHandlers, localEditAtStart);
         } else {
           const catalogRes = await fetchCatalogJson(1, ac.signal, true);
           if (
@@ -1079,19 +1063,15 @@ export function StoreProvider({
             setRemoteCatalog(true);
             catalogLoadedAtRef.current = Date.now();
           }
-          scheduleBackgroundCatalogRevalidate(
-            { applyStorefront, setR2Ready, catalogApplyGenRef },
-            {
-              setRemoteCatalog,
-              setSupabaseReady,
-              setProductsState,
-              catalogApplyGenRef,
-              onCatalogLoaded: () => {
-                catalogLoadedAtRef.current = Date.now();
-              },
+          scheduleBackgroundCatalogRevalidate({
+            setRemoteCatalog,
+            setSupabaseReady,
+            setProductsState,
+            catalogApplyGenRef,
+            onCatalogLoaded: () => {
+              catalogLoadedAtRef.current = Date.now();
             },
-            setR2PresignConfigured,
-          );
+          });
         }
         return;
       }
@@ -1240,11 +1220,16 @@ export function StoreProvider({
     };
 
     const onPollVis = () => {
-      if (document.visibilityState === "visible") startPoll();
-      else stopPoll();
+      if (document.visibilityState === "visible") {
+        void runStaffCatalogLightPoll();
+        startPoll();
+      } else stopPoll();
     };
 
-    if (document.visibilityState === "visible") startPoll();
+    if (document.visibilityState === "visible") {
+      void runStaffCatalogLightPoll();
+      startPoll();
+    }
     document.addEventListener("visibilitychange", onPollVis);
 
     return () => {

@@ -10,6 +10,7 @@ import {
   type SiteContent,
 } from "@/lib/catalog";
 import { fetchCatalogProductsForList } from "@/lib/catalog-products-query";
+import { purgeCloudflareCatalogCache } from "@/lib/cloudflare-purge";
 import { normalizeSiteContent } from "@/lib/site-display";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import { isStorableMediaUrl, sanitizeSiteContentForServer } from "@/lib/site-content-storage";
@@ -189,7 +190,12 @@ export async function writeStorefrontToR2(
     boutiques: boutiquesSan.boutiques,
     updatedAt,
   };
-  if (existingCatalog && existingCatalog.length > 0) {
+  /* Supabase is source of truth — never re-embed stale R2 catalog on site/collections save. */
+  const catalogResult = await fetchCatalogProductsForList();
+  if (catalogResult.kind === "ok") {
+    payload.catalogProducts = catalogResult.products;
+    payload.catalogUpdatedAt = new Date().toISOString();
+  } else if (existingCatalog && existingCatalog.length > 0) {
     payload.catalogProducts = existingCatalog;
     if (existingCatalogAt) payload.catalogUpdatedAt = existingCatalogAt;
   }
@@ -244,6 +250,18 @@ export async function refreshStorefrontCatalogInR2(): Promise<
   } catch {
     return { ok: false, error: "r2_write_failed" };
   }
+}
+
+/**
+ * Fire-and-forget — patch R2 `catalogProducts` from Supabase after staff product save/delete.
+ * Purges catalog CDN URLs when R2 write succeeds so other devices skip stale edge JSON.
+ */
+export function scheduleRefreshStorefrontCatalogInR2(): void {
+  void refreshStorefrontCatalogInR2()
+    .then((r) => {
+      if (r.ok) void purgeCloudflareCatalogCache().catch(() => {});
+    })
+    .catch(() => {});
 }
 
 /** @deprecated Legacy key — migrated into storefront on next save. */

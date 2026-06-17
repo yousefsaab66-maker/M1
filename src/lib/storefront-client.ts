@@ -356,7 +356,7 @@ export async function fetchStaffBootstrapClient(
         ? `/api/staff/bootstrap?_=${Date.now()}`
         : "/api/staff/bootstrap";
       const res = await fetch(url, {
-        cache: bust ? "no-store" : "default",
+        cache: "no-store",
         credentials: "same-origin",
         signal,
       });

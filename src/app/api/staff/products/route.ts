@@ -5,6 +5,7 @@ import { invalidateCatalogProductsCache } from "@/lib/catalog-products-query";
 import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
 import { deleteProductFromSupabase } from "@/lib/muhra-product-delete";
 import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
+import { scheduleRefreshStorefrontCatalogInR2 } from "@/lib/storefront-r2";
 import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,10 @@ export async function POST(req: Request) {
   }
 
   const result = await upsertProductToSupabase(payload);
-  if (result.ok) invalidateCatalogProductsCache();
+  if (result.ok) {
+    invalidateCatalogProductsCache();
+    scheduleRefreshStorefrontCatalogInR2();
+  }
   return NextResponse.json(result, { headers: NO_STORE_JSON_HEADERS });
 }
 
@@ -58,7 +62,10 @@ export async function DELETE(req: Request) {
   }
 
   const result = await deleteProductFromSupabase(id);
-  if (result.ok) invalidateCatalogProductsCache();
+  if (result.ok) {
+    invalidateCatalogProductsCache();
+    scheduleRefreshStorefrontCatalogInR2();
+  }
   if (!result.ok) {
     const status =
       result.error === "not_configured"
