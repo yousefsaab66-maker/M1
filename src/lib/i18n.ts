@@ -267,9 +267,11 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.network": "Network error — check connection and try again.",
     "staff.images.uploadErr.unknown": "Cloud upload failed.",
     "staff.images.uploadErr.video_too_large":
-      "This file is too large for server upload — it must go directly to storage. Try again; if it keeps failing, contact the site administrator.",
+      "This file exceeds the Worker proxy limit — use direct R2 upload (presigned URL). Refresh and try again.",
     "staff.images.uploadErr.video_requires_direct_upload":
-      "This file is too large for server upload — direct storage upload only. Refresh and try again; if it keeps failing, contact the site administrator.",
+      "Direct R2 upload failed. Check your connection and try again; if it keeps failing, contact the site administrator.",
+    "staff.images.uploadErr.worker_proxy_too_large":
+      "This file is too large for server proxy upload — it must upload directly to R2. Refresh and try again.",
     "staff.videos.title": "Product videos",
     "staff.videos.urls": "Video URLs (one per line)",
     "staff.videos.upload": "Upload video",
@@ -284,13 +286,15 @@ export const DICTS: Record<Locale, Dict> = {
       "Video uploads require Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). Allowed: MP4, WebM, MOV.",
     "staff.images.uploadErr.invalid_kind": "Invalid media kind for this upload.",
     "staff.images.uploadErr.direct_upload_failed":
-      "Direct upload to storage failed — check your connection and try again.",
+      "Direct upload to R2 failed — check your connection and try again.",
     "staff.images.uploadErr.direct_upload_put_failed":
-      "Direct upload to storage failed — check your connection and try again.",
+      "Direct upload to R2 was rejected — check your connection and try again.",
+    "staff.images.uploadErr.direct_upload_signature":
+      "Direct upload signature mismatch — refresh the page and try again; if it keeps failing, contact the site administrator.",
     "staff.images.uploadErr.direct_upload_cors":
-      "Direct upload was blocked by storage security settings. Refresh and try again; if it keeps failing, contact the site administrator.",
+      "Direct upload was blocked (CORS or permissions). Refresh and try again; if it keeps failing, contact the site administrator.",
     "staff.images.uploadErr.r2_presign_not_configured":
-      "Direct upload is not configured on the server — large files cannot upload. Contact the site administrator.",
+      "Direct R2 upload is not configured on the server — large files cannot upload. Contact the site administrator.",
     "staff.images.presignWarning":
       "Large uploads need direct storage access configured on the server. Without it, only small files may work.",
     "staff.images.uploadErr.aborted": "Upload cancelled.",
@@ -2196,9 +2200,11 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.network": "خطأ في الشبكة — تحقق من الاتصال وأعد المحاولة.",
     "staff.images.uploadErr.unknown": "فشل الرفع للسحابة.",
     "staff.images.uploadErr.video_too_large":
-      "الملف كبير — لا يمكن رفعه عبر السيرفر. جرّب مرة أخرى؛ إذا استمر الخطأ تواصل مع مسؤول الموقع.",
+      "الملف يتجاوز حد رفع السيرفر — يجب الرفع مباشرة إلى R2. حدّث الصفحة وحاول مرة أخرى.",
     "staff.images.uploadErr.video_requires_direct_upload":
-      "الملف كبير — الرفع المباشر فقط. حدّث الصفحة وحاول مرة أخرى؛ إذا استمر الخطأ تواصل مع مسؤول الموقع.",
+      "فشل الرفع المباشر إلى R2. تحقق من الاتصال وأعد المحاولة؛ إذا استمر الخطأ تواصل مع مسؤول الموقع.",
+    "staff.images.uploadErr.worker_proxy_too_large":
+      "الملف كبير لرفع السيرفر — يُرفع مباشرة إلى R2 فقط. حدّث الصفحة وحاول مرة أخرى.",
     "staff.videos.title": "فيديوهات المنتج",
     "staff.videos.urls": "روابط الفيديو (واحد لكل سطر)",
     "staff.videos.upload": "رفع فيديو",
@@ -2213,13 +2219,15 @@ export const DICTS: Record<Locale, Dict> = {
       "رفع الفيديو يحتاج Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). المسموح: MP4، WebM، MOV.",
     "staff.images.uploadErr.invalid_kind": "نوع الوسائط غير صالح لهذا الرفع.",
     "staff.images.uploadErr.direct_upload_failed":
-      "تعذّر الرفع المباشر إلى التخزين — تحقق من الاتصال وأعد المحاولة.",
+      "تعذّر الرفع المباشر إلى R2 — تحقق من الاتصال وأعد المحاولة.",
     "staff.images.uploadErr.direct_upload_put_failed":
-      "تعذّر الرفع المباشر إلى التخزين — تحقق من الاتصال وأعد المحاولة.",
+      "رفض R2 الرفع المباشر — تحقق من الاتصال وأعد المحاولة.",
+    "staff.images.uploadErr.direct_upload_signature":
+      "خطأ في توقيع الرفع المباشر — حدّث الصفحة وحاول مرة أخرى؛ إذا استمر الخطأ تواصل مع مسؤول الموقع.",
     "staff.images.uploadErr.direct_upload_cors":
-      "تعذّر الرفع المباشر بسبب إعدادات أمان التخزين. حدّث الصفحة وحاول مرة أخرى؛ إذا استمر الخطأ تواصل مع مسؤول الموقع.",
+      "حُظر الرفع المباشر (CORS أو صلاحيات). حدّث الصفحة وحاول مرة أخرى؛ إذا استمر الخطأ تواصل مع مسؤول الموقع.",
     "staff.images.uploadErr.r2_presign_not_configured":
-      "الرفع المباشر غير مفعّل على السيرفر — الملفات الكبيرة لا تُرفع. تواصل مع مسؤول الموقع.",
+      "الرفع المباشر إلى R2 غير مفعّل على السيرفر — الملفات الكبيرة لا تُرفع. تواصل مع مسؤول الموقع.",
     "staff.images.presignWarning":
       "الرفع الكبير يحتاج تفعيل الرفع المباشر على السيرفر. بدونه قد ينجح فقط الملفات الصغيرة.",
     "staff.images.uploadErr.aborted": "تم إلغاء الرفع.",

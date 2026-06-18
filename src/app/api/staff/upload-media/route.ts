@@ -12,8 +12,14 @@ import {
   validateStaffVideoMime,
   type StaffMediaKind,
 } from "@/lib/staff-upload-server";
+import { STAFF_WORKER_PROXY_MAX_BYTES } from "@/lib/supabase/storage-constants";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Worker proxy fallback for staff media — small files only.
+ * Large images/videos must use presigned browser → R2 PUT (`POST /api/staff/upload-url`).
+ */
 
 const IMAGE_LIMIT = 45;
 const VIDEO_LIMIT = 12;
@@ -72,6 +78,10 @@ export async function POST(req: Request) {
 
   if (file.size <= 0) {
     return NextResponse.json({ ok: false, error: "empty_file" }, { status: 400 });
+  }
+
+  if (file.size > STAFF_WORKER_PROXY_MAX_BYTES) {
+    return NextResponse.json({ ok: false, error: "worker_proxy_too_large" }, { status: 413 });
   }
 
   const rlKey = isVideo ? `staff_upload_media_vid:${staff}:${ip}` : `staff_upload_media_img:${staff}:${ip}`;
