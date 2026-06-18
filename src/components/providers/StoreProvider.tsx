@@ -1627,7 +1627,8 @@ export function StoreProvider({
     setR2Ready(true);
   }, []);
 
-  const staffCloudUpload = isR2PublicConfiguredClient() || r2Ready;
+  const staffCloudUpload =
+    isR2PublicConfiguredClient() || r2Ready || r2PresignConfigured === true;
 
   const value = useMemo<StoreCtx>(
     () => ({

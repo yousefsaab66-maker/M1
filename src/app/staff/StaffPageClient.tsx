@@ -1656,17 +1656,26 @@ function VideosField({
   const [uploadingName, setUploadingName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const hasVideo = videos.length > 0;
+
+  const openFilePicker = () => {
+    if (busy) return;
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    fileInputRef.current?.click();
+  };
+
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setError(null);
     setSuccess(null);
-    const accepted: string[] = [];
-    const errors: string[] = [];
-    const list = Array.from(files);
     if (!useCloud) {
       setError(t("staff.images.uploadErr.video_not_supported_without_r2"));
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
+    const accepted: string[] = [];
+    const errors: string[] = [];
+    const list = Array.from(files).slice(0, 1);
     setBusy(true);
     try {
       for (const file of list) {
@@ -1691,7 +1700,7 @@ function VideosField({
         else errors.push(`${file.name}: ${translateStaffUploadError(up.code, t)}`);
         await yieldToMain();
       }
-      if (accepted.length > 0) onChange([...videos, ...accepted]);
+      if (accepted.length > 0) onChange(accepted.slice(0, 1));
       if (errors.length > 0) setError(errors.join(" "));
       if (fileInputRef.current) fileInputRef.current.value = "";
     } finally {
@@ -1740,15 +1749,14 @@ function VideosField({
           ref={fileInputRef}
           type="file"
           accept="video/mp4,video/webm,video/quicktime"
-          multiple
           className="hidden"
-          disabled={busy || !useCloud}
+          disabled={busy}
           onChange={(e) => void handleFiles(e.target.files)}
         />
         <button
           type="button"
-          disabled={busy || !useCloud}
-          onClick={() => fileInputRef.current?.click()}
+          disabled={busy}
+          onClick={openFilePicker}
           className="btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Upload className="h-4 w-4" strokeWidth={1.4} />{" "}
@@ -1756,9 +1764,13 @@ function VideosField({
             ? uploadingName
               ? t("staff.videos.uploadingFile").replace("{name}", uploadingName)
               : t("staff.images.uploading")
-            : t("staff.images.upload")}
+            : hasVideo
+              ? t("staff.videos.replace")
+              : t("staff.videos.upload")}
         </button>
-        <span className="text-[11px] opacity-65">{t("staff.videos.uploadHint")}</span>
+        <span className="text-[11px] opacity-65">
+          {hasVideo ? t("staff.videos.replaceHint") : t("staff.videos.uploadHint")}
+        </span>
       </div>
       {success && (
         <p className="mt-2 break-all text-xs opacity-80" dir="ltr" style={{ textAlign: "left" }}>
