@@ -1,12 +1,12 @@
 /**
  * Edge catalog JSON — short TTL so public catalog stays fresh without per-save R2 sync.
  * After staff product save/delete: server patches R2 `catalogProducts` from Supabase + client purge.
- * Requires CLOUDFLARE_ZONE_ID + CLOUDFLARE_API_TOKEN on the Worker or edge may serve stale JSON up to s-maxage + SWR.
+ * Requires CLOUDFLARE_ZONE_ID + CLOUDFLARE_API_TOKEN on the Worker or edge may serve stale JSON up to s-maxage + SWR (~2.5 min).
  * After deploy: `npm run cf:purge`; storefront edits purge via PUT `/api/staff/storefront`.
  */
 export const CATALOG_JSON_CACHE_HEADERS = {
-  "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=180",
-  "CDN-Cache-Control": "max-age=60, stale-while-revalidate=180",
+  "Cache-Control": "public, max-age=0, s-maxage=30, stale-while-revalidate=120",
+  "CDN-Cache-Control": "max-age=30, stale-while-revalidate=120",
 } as const;
 
 /** Site + collections from `/api/catalog/storefront` (same TTL as products). */

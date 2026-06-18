@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { Product } from "@/lib/catalog";
 import { invalidateCatalogProductsCache } from "@/lib/catalog-products-query";
 import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
+import { purgeCloudflareCatalogCache } from "@/lib/cloudflare-purge";
 import { deleteProductFromSupabase } from "@/lib/muhra-product-delete";
 import { upsertProductToSupabase } from "@/lib/muhra-product-upsert";
 import { scheduleRefreshStorefrontCatalogInR2 } from "@/lib/storefront-r2";
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
   if (result.ok) {
     invalidateCatalogProductsCache();
     scheduleRefreshStorefrontCatalogInR2();
+    void purgeCloudflareCatalogCache().catch(() => {});
   }
   return NextResponse.json(result, { headers: NO_STORE_JSON_HEADERS });
 }
@@ -65,6 +67,7 @@ export async function DELETE(req: Request) {
   if (result.ok) {
     invalidateCatalogProductsCache();
     scheduleRefreshStorefrontCatalogInR2();
+    void purgeCloudflareCatalogCache().catch(() => {});
   }
   if (!result.ok) {
     const status =

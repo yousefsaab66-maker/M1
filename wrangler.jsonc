@@ -57,6 +57,7 @@
 	// Public, non-secret variables. Secrets (SUPABASE_SERVICE_ROLE_KEY, STAFF_COOKIE_SECRET, STAFF_PASSWORD)
 	// are configured via `wrangler secret put` or the dashboard — never commit them here.
 	// STAFF_USERNAME is configured per-environment via dashboard (defaults to "staff" if unset).
+	// Optional secrets (wrangler secret put): CLOUDFLARE_ZONE_ID + CLOUDFLARE_API_TOKEN — catalog purge after staff delete.
 	"vars": {
 		"NEXT_PUBLIC_SITE_URL": "https://www.muhrajewelry.com",
 		"SUPABASE_URL": "https://jqiznpmpenabzudcljdl.supabase.co",

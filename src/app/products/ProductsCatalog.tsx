@@ -8,12 +8,13 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore } from "@/components/providers/StoreProvider";
 import { catalogFilterSlugs, productCategoryLabel } from "@/lib/site-display";
 import { prefetchCatalogProductsApi } from "@/lib/catalog-prefetch-client";
+import { bustStorefrontClientCache } from "@/lib/storefront-client";
 
 type Sort = "featured" | "priceAsc" | "priceDesc" | "new";
 
 export function ProductsCatalog() {
   const { t, locale } = useLocale();
-  const { products, site } = useStore();
+  const { products, site, refreshCatalog } = useStore();
   const sp = useSearchParams();
   const filterSlugs = useMemo(() => catalogFilterSlugs(site), [site]);
 
@@ -23,6 +24,12 @@ export function ProductsCatalog() {
   useEffect(() => {
     prefetchCatalogProductsApi();
   }, []);
+
+  /** Fresh Supabase list on /products — avoids ghost rows from sessionStorage or R2 CDN snapshot. */
+  useEffect(() => {
+    bustStorefrontClientCache();
+    void refreshCatalog();
+  }, [refreshCatalog]);
 
   useEffect(() => {
     const cat = sp.get("category")?.trim() ?? "";
