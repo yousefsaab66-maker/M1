@@ -18,18 +18,31 @@ export type BroadcastCatalogOpts = {
   deletedIds?: string[];
 };
 
-/** Union-merge incoming with current; never drop DB products missing from a stale partial broadcast. */
+/**
+ * Cross-tab upsert — union-merge incoming with current.
+ * Never use for delete sync: deleted products would resurrect from `current`.
+ */
 export function mergeCrossTabCatalogProducts(
   current: Product[],
   incoming: Product[],
   deletedIds?: string[],
 ): Product[] {
+  if (deletedIds?.length) {
+    return applyAuthoritativeCatalogProducts(incoming, deletedIds);
+  }
   const byId = new Map(current.map((p) => [p.id, p]));
   for (const p of incoming) byId.set(p.id, p);
-  if (deletedIds?.length) {
-    for (const id of deletedIds) byId.delete(id);
-  }
   return [...byId.values()];
+}
+
+/** Full list from staff save/delete broadcast — replace, do not union-merge with stale local rows. */
+export function applyAuthoritativeCatalogProducts(
+  incoming: Product[],
+  deletedIds?: string[],
+): Product[] {
+  if (!deletedIds?.length) return [...incoming];
+  const drop = new Set(deletedIds);
+  return incoming.filter((p) => !drop.has(p.id));
 }
 
 let channel: BroadcastChannel | null = null;
@@ -52,6 +65,25 @@ export function clearStaleLocalProductListCache(): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(KEY_PRODUCTS);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Staff mutation — drop legacy local list that can resurrect deleted rows. */
+export function clearCatalogCrossDeviceClientCaches(): void {
+  clearStaleLocalProductListCache();
+}
+
+/**
+ * One-time reset after deploy or support instruction — forces every device to refetch Supabase truth.
+ * Clears session snapshot too (unlike post-mutation bust on the editing device).
+ */
+export function clearAllCatalogClientCaches(): void {
+  if (typeof window === "undefined") return;
+  clearCatalogCrossDeviceClientCaches();
+  try {
+    sessionStorage.removeItem(KEY_CATALOG_SNAPSHOT);
   } catch {
     /* ignore */
   }

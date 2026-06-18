@@ -5,7 +5,7 @@ export function prefetchCatalogProductsApi(): void {
   if (typeof window === "undefined" || prefetched) return;
   prefetched = true;
 
-  const href = "/api/catalog/products?full=1";
+  const href = `/api/catalog/products?full=1&_=${Date.now()}`;
   const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
   if (conn?.saveData) return;
 
@@ -16,6 +16,6 @@ export function prefetchCatalogProductsApi(): void {
     link.as = "fetch";
     document.head.appendChild(link);
   } catch {
-    void fetch(href, { credentials: "same-origin", cache: "default" }).catch(() => {});
+    void fetch(href, { credentials: "same-origin", cache: "no-store" }).catch(() => {});
   }
 }

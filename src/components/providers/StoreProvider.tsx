@@ -54,8 +54,6 @@ import {
   shouldBustCatalogFetchAfterMutation,
   markStaffNetworkInitComplete,
   runStoreInitSingleFlight,
-  scheduleBackgroundRevalidateTimer,
-  shouldRunBackgroundRevalidate,
   shouldSkipDueToPendingInit,
   shouldSkipStaffNetworkInit,
   shouldSkipStoreNetworkInit,
@@ -63,6 +61,7 @@ import {
   STAFF_VISIBILITY_REFRESH_DEBOUNCE_MS,
 } from "@/lib/store-init-client";
 import {
+  applyAuthoritativeCatalogProducts,
   broadcastCatalogProducts,
   KEY_CATALOG_SNAPSHOT,
   KEY_PRODUCTS,
@@ -274,13 +273,13 @@ function isStaffAppPath(): boolean {
   return p === "/staff" || (p.startsWith("/staff/") && !isStaffLoginPath());
 }
 
-function catalogProductsUrl(bust = false) {
-  return bust ? `/api/catalog/products?full=1&_=${Date.now()}` : "/api/catalog/products?full=1";
+function catalogProductsUrl() {
+  return `/api/catalog/products?full=1&_=${Date.now()}`;
 }
 
 function catalogFetchOpts(): RequestInit {
   return {
-    cache: isStaffAppPath() ? "no-store" : "default",
+    cache: "no-store",
     credentials: "same-origin",
   };
 }
@@ -293,14 +292,12 @@ function delay(ms: number) {
 async function fetchCatalogJson(
   attempts = 1,
   signal?: AbortSignal,
-  bust = false,
 ): Promise<{ ok: true; products: Product[] } | { ok: false }> {
   for (let i = 0; i < attempts; i += 1) {
     try {
-      const r = await fetch(catalogProductsUrl(bust), {
+      const r = await fetch(catalogProductsUrl(), {
         ...catalogFetchOpts(),
         signal,
-        ...(bust ? { cache: "no-store" as RequestCache } : {}),
       });
       if (r.ok) {
         const d = (await r.json()) as { products?: Product[] };
@@ -430,10 +427,9 @@ async function loadStorefrontVisitorCatalog(
 ): Promise<void> {
   const catalogAc = new AbortController();
   const catalogTimer = setTimeout(() => catalogAc.abort(), CATALOG_INIT_MS);
-  const bustCatalog = shouldBustCatalogFetchAfterMutation();
   const [cdnSf, catalogRes] = await Promise.all([
     fetchStorefrontFromPublicCdn(signal),
-    fetchCatalogJson(1, catalogAc.signal, bustCatalog),
+    fetchCatalogJson(1, catalogAc.signal),
   ]);
   clearTimeout(catalogTimer);
 
@@ -528,55 +524,36 @@ async function loadStaffCatalog(
 }
 
 /**
- * When storefront init is throttled (5min), show sessionStorage snapshot immediately
- * but revalidate catalog at most once per window — fixes ghost products without CF 1102 on reload #2–3.
- * Staff panel reuses 60s bootstrap unless post-mutation bust (cross-device sync preserved).
+ * Throttled reload: still hit Supabase for products (light GET) even when full init is skipped.
+ * Snapshot is paint-only — never the long-lived source of truth across devices.
  */
-function scheduleBackgroundCatalogRevalidate(catalogHandlers: CatalogHandlers) {
-  const staffPath = isStaffAppPath();
-  if (!shouldRunBackgroundRevalidate(staffPath)) return;
-
-  scheduleBackgroundRevalidateTimer(() => {
-    if (!shouldRunBackgroundRevalidate(staffPath)) return;
+function runImmediateCatalogSync(catalogHandlers: CatalogHandlers, staffPath: boolean) {
+  void runStoreInitSingleFlight(async () => {
     const localEditAtStart = readCatalogLocalEdit();
-    void runStoreInitSingleFlight(async () => {
-      if (!shouldRunBackgroundRevalidate(staffPath)) return;
-      if (localEditAtStart !== readCatalogLocalEdit()) return;
-      const gen = (catalogHandlers.catalogApplyGenRef.current += 1);
-      const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), CATALOG_INIT_MS);
-      try {
-        if (staffPath) {
-          /* Staff: list-only revalidate — Supabase truth, lighter than full bootstrap (CF 1102). */
-          const catalogRes = await fetchStaffCatalogListForSync(ac.signal);
-          if (
-            localEditAtStart !== readCatalogLocalEdit() ||
-            gen !== catalogHandlers.catalogApplyGenRef.current ||
-            !catalogRes.ok
-          ) {
-            return;
-          }
-          applyRemoteCatalog(gen, catalogRes.products, catalogHandlers, localEditAtStart);
-        } else {
-          const catalogRes = await fetchCatalogJson(1, ac.signal, true);
-          if (
-            localEditAtStart !== readCatalogLocalEdit() ||
-            gen !== catalogHandlers.catalogApplyGenRef.current ||
-            !catalogRes.ok
-          ) {
-            return;
-          }
-          applyRemoteCatalog(gen, catalogRes.products, catalogHandlers, localEditAtStart);
-        }
-        catalogHandlers.onCatalogLoaded?.();
-        markBackgroundRevalidateComplete();
-        markStoreNetworkInitComplete();
-      } catch {
-        /* keep snapshot UI */
-      } finally {
-        clearTimeout(timer);
+    const gen = (catalogHandlers.catalogApplyGenRef.current += 1);
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), CATALOG_INIT_MS);
+    try {
+      const catalogRes = staffPath
+        ? await fetchStaffCatalogListForSync(ac.signal)
+        : await fetchCatalogJson(1, ac.signal);
+      if (
+        localEditAtStart !== readCatalogLocalEdit() ||
+        gen !== catalogHandlers.catalogApplyGenRef.current ||
+        !catalogRes.ok
+      ) {
+        return;
       }
-    });
+      applyRemoteCatalog(gen, catalogRes.products, catalogHandlers, localEditAtStart);
+      catalogHandlers.onCatalogLoaded?.();
+      markBackgroundRevalidateComplete();
+      if (staffPath) markStaffNetworkInitComplete();
+      else markStoreNetworkInitComplete();
+    } catch {
+      /* keep snapshot UI */
+    } finally {
+      clearTimeout(timer);
+    }
   });
 }
 
@@ -680,7 +657,9 @@ export function StoreProvider({
     bustStorefrontClientCache();
     setProductsState((prev) => {
       const products = stripOptimisticProductDuplicates(
-        mergeCrossTabCatalogProducts(prev, payload.products, payload.deletedIds),
+        payload.deletedIds?.length
+          ? applyAuthoritativeCatalogProducts(payload.products, payload.deletedIds)
+          : mergeCrossTabCatalogProducts(prev, payload.products, payload.deletedIds),
       );
       writeCatalogSnapshot(products);
       clearStaleLocalProductCache();
@@ -698,7 +677,7 @@ export function StoreProvider({
     const gen = (catalogApplyGenRef.current += 1);
     const localEditAtStart = readCatalogLocalEdit();
     try {
-      const res = await fetchCatalogJson(1, ac.signal, true);
+      const res = await fetchCatalogJson(1, ac.signal);
       if (gen !== catalogApplyGenRef.current) return;
       if (localEditAtStart !== readCatalogLocalEdit()) return;
       if (!res.ok) return;
@@ -1026,7 +1005,11 @@ export function StoreProvider({
         const snapBootstrap = readCatalogSnapshot();
         if (crossTab && crossTab.at > initAt) {
           lastAppliedCrossTabAtRef.current = crossTab.at;
-          const crossTabProducts = stripOptimisticProductDuplicates(crossTab.products);
+          const crossTabProducts = stripOptimisticProductDuplicates(
+            crossTab.deletedIds?.length
+              ? applyAuthoritativeCatalogProducts(crossTab.products, crossTab.deletedIds)
+              : crossTab.products,
+          );
           setProductsState(crossTabProducts);
           writeCatalogSnapshot(crossTabProducts);
           setRemoteCatalog(true);
@@ -1055,23 +1038,18 @@ export function StoreProvider({
 
       if (skipNetwork) {
         if (!minimalInit && !isStaffLoginPath()) {
-          const throttled = staffPath
-            ? shouldSkipStaffNetworkInit()
-            : shouldSkipDueToPendingInit() || shouldSkipStoreNetworkInit();
-          if (throttled) {
-            setSupabaseReady(true);
-            setRemoteCatalog(true);
-            catalogLoadedAtRef.current = Date.now();
-          }
-          scheduleBackgroundCatalogRevalidate({
-            setRemoteCatalog,
-            setSupabaseReady,
-            setProductsState,
-            catalogApplyGenRef,
-            onCatalogLoaded: () => {
-              catalogLoadedAtRef.current = Date.now();
+          runImmediateCatalogSync(
+            {
+              setRemoteCatalog,
+              setSupabaseReady,
+              setProductsState,
+              catalogApplyGenRef,
+              onCatalogLoaded: () => {
+                catalogLoadedAtRef.current = Date.now();
+              },
             },
-          });
+            staffPath,
+          );
         }
         return;
       }
@@ -1159,7 +1137,7 @@ export function StoreProvider({
 
         if (skipProducts) return;
 
-        const catalogRes = await fetchCatalogJson(1, undefined, shouldBustCatalogFetchAfterMutation());
+        const catalogRes = await fetchCatalogJson(1, undefined);
         if (
           gen !== catalogApplyGenRef.current ||
           localEditAtStart !== readCatalogLocalEdit() ||

@@ -1,4 +1,5 @@
 import type { Boutique, Collection, JournalArticle, Product, SiteContent } from "@/lib/catalog";
+import { clearCatalogCrossDeviceClientCaches } from "@/lib/catalog-sync-client";
 import { normalizeSiteContent } from "@/lib/site-display";
 
 export type StorefrontClientPayload = {
@@ -276,12 +277,10 @@ export function bustStorefrontClientCache() {
   staffBootstrapCache = null;
 }
 
-import { clearStaleLocalProductListCache } from "@/lib/catalog-sync-client";
-
 /** After staff product save/delete — bust client caches and block stale background revalidate. */
 export function afterStaffCatalogMutation() {
   bustStorefrontClientCache();
-  clearStaleLocalProductListCache();
+  clearCatalogCrossDeviceClientCaches();
   markStaffCatalogMutationComplete();
 }
 
