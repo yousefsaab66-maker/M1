@@ -1,9 +1,12 @@
 import { getR2StaffContext } from "@/lib/r2-staff-context";
-import { createR2PresignedPutUrl, isR2PresignConfigured } from "@/lib/r2-presign";
+import {
+  applyR2ObjectCacheControl,
+  createR2PresignedPutUrl,
+  isR2PresignConfigured,
+} from "@/lib/r2-presign";
 import { uploadStaffBlobToR2 } from "@/lib/r2-upload";
 import {
   buildR2PublicObjectUrl,
-  R2_PRESIGNED_PUT_CACHE_CONTROL,
   sanitizeStorageFileName,
   staffImageMimeFromFile,
   isAllowedStaffImageMime,
@@ -73,7 +76,6 @@ export type StaffDirectUploadResult =
       url: string;
       path: string;
       contentType: string;
-      cacheControl: string;
     }
   | { ok: false; error: string; status: number };
 
@@ -116,8 +118,14 @@ export async function createStaffDirectUpload(
     url,
     path: objectPath,
     contentType: intent.mime,
-    cacheControl: R2_PRESIGNED_PUT_CACHE_CONTROL,
   };
+}
+
+/** Apply cache headers after browser → R2 presigned PUT (best-effort). */
+export async function finalizeStaffDirectUpload(objectPath: string): Promise<{ ok: boolean }> {
+  if (!objectPath.trim()) return { ok: false };
+  const ok = await applyR2ObjectCacheControl(objectPath.trim());
+  return { ok };
 }
 
 export function staffImageExt(mime: string): string {

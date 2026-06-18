@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { CopyObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { R2_PRESIGNED_PUT_CACHE_CONTROL } from "@/lib/supabase/storage-constants";
 
@@ -43,7 +43,18 @@ function getR2S3Client(cfg: R2PresignConfig): S3Client {
   return cachedClient;
 }
 
-/** Presigned PUT URL — browser uploads directly to R2 (bypasses Worker body limit). */
+function encodeCopySource(bucket: string, objectKey: string): string {
+  const encodedKey = objectKey
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `${bucket}/${encodedKey}`;
+}
+
+/**
+ * Presigned PUT URL — browser uploads directly to R2 (bypasses Worker body limit).
+ * Only Content-Type is signed; Cache-Control is applied server-side after PUT via CopyObject.
+ */
 export async function createR2PresignedPutUrl(
   objectKey: string,
   contentType: string,
@@ -57,8 +68,33 @@ export async function createR2PresignedPutUrl(
     Bucket: cfg.bucket,
     Key: objectKey,
     ContentType: contentType,
-    CacheControl: R2_PRESIGNED_PUT_CACHE_CONTROL,
   });
 
-  return getSignedUrl(client, command, { expiresIn: expiresInSec });
+  return getSignedUrl(client, command, {
+    expiresIn: expiresInSec,
+    // R2 browser PUT must send the same Content-Type the URL was signed with.
+    signableHeaders: new Set(["content-type"]),
+  });
+}
+
+/** Set immutable cache headers on an object after browser direct upload. */
+export async function applyR2ObjectCacheControl(objectKey: string): Promise<boolean> {
+  const cfg = getR2PresignConfig();
+  if (!cfg) return false;
+
+  const client = getR2S3Client(cfg);
+  try {
+    await client.send(
+      new CopyObjectCommand({
+        Bucket: cfg.bucket,
+        Key: objectKey,
+        CopySource: encodeCopySource(cfg.bucket, objectKey),
+        CacheControl: R2_PRESIGNED_PUT_CACHE_CONTROL,
+        MetadataDirective: "REPLACE",
+      }),
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }

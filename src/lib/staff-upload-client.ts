@@ -9,7 +9,6 @@
 import { prepareStaffImageForUpload } from "@/lib/staff-image-file";
 import { normalizeStaffMediaUrl } from "@/lib/staff-media-url";
 import {
-  R2_PRESIGNED_PUT_CACHE_CONTROL,
   STAFF_WORKER_PROXY_MAX_BYTES,
   staffImageMimeFromFile,
   staffVideoMimeFromFile,
@@ -31,7 +30,8 @@ const PRESIGN_FALLBACK_ERRORS = new Set([
   "r2_media_required",
 ]);
 
-const WORKER_BODY_LIMIT_ERRORS = new Set(["invalid_body", "too_large", "video_too_large"]);
+/** Worker proxy body-limit errors — only relevant for small-file fallback. */
+const WORKER_BODY_LIMIT_ERRORS = new Set(["invalid_body", "too_large", "worker_proxy_too_large"]);
 
 function delay(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
@@ -47,8 +47,8 @@ type PresignResponse = {
   ok?: boolean;
   uploadUrl?: string;
   url?: string;
+  path?: string;
   contentType?: string;
-  cacheControl?: string;
   error?: string;
 };
 
@@ -74,15 +74,11 @@ async function putFileToPresignedUrl(
   uploadUrl: string,
   file: File,
   contentType: string,
-  cacheControl: string,
   signal?: AbortSignal,
 ): Promise<PutResult> {
   const res = await fetch(uploadUrl, {
     method: "PUT",
-    headers: {
-      "Content-Type": contentType,
-      "Cache-Control": cacheControl,
-    },
+    headers: { "Content-Type": contentType },
     body: file,
     signal,
   });
@@ -90,8 +86,8 @@ async function putFileToPresignedUrl(
   const detail = (await res.text().catch(() => "")).slice(0, 300);
   logUploadDebug("presigned PUT failed", {
     status: res.status,
+    statusText: res.statusText,
     contentType,
-    cacheControl,
     fileName: file.name,
     size: file.size,
     detail,
@@ -99,12 +95,27 @@ async function putFileToPresignedUrl(
   return { ok: false, status: res.status, detail };
 }
 
+async function finalizeDirectUpload(objectPath: string, signal?: AbortSignal): Promise<void> {
+  try {
+    await fetch("/api/staff/upload-finalize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      cache: "no-store",
+      body: JSON.stringify({ path: objectPath }),
+      signal,
+    });
+  } catch {
+    /* cache headers are best-effort after successful PUT */
+  }
+}
+
 type PresignOk = {
   kind: "presign";
   uploadUrl: string;
   publicUrl: string;
+  objectPath: string;
   contentType: string;
-  cacheControl: string;
 };
 type PresignOutcome = PresignOk | StaffUploadResult | "retry" | "fallback";
 
@@ -116,13 +127,20 @@ function resultFromPresign(status: number, body: PresignResponse): PresignOutcom
   if (status === 401 || body.error === "unauthorized") return { ok: false, code: "unauthorized" };
   if (body.error && presignErrorShouldFallback(body.error)) return "fallback";
   if (RETRY_STATUSES.has(status)) return "retry";
-  if (body.ok && typeof body.uploadUrl === "string" && typeof body.url === "string") {
+  if (
+    body.ok &&
+    typeof body.uploadUrl === "string" &&
+    typeof body.url === "string" &&
+    typeof body.path === "string" &&
+    typeof body.contentType === "string" &&
+    body.contentType.length > 0
+  ) {
     return {
       kind: "presign",
       uploadUrl: body.uploadUrl,
       publicUrl: normalizeStaffMediaUrl(body.url),
-      contentType: body.contentType || "",
-      cacheControl: body.cacheControl || R2_PRESIGNED_PUT_CACHE_CONTROL,
+      objectPath: body.path,
+      contentType: body.contentType,
     };
   }
   const code = typeof body.error === "string" && body.error.length > 0 ? body.error : "unknown";
@@ -134,9 +152,16 @@ function workerFallbackAllowed(file: File): boolean {
   return file.size <= STAFF_WORKER_PROXY_MAX_BYTES;
 }
 
-function directPutFailureCode(file: File, putStatus: number | null): string {
-  if (putStatus === 403) return "direct_upload_cors";
-  if (file.size > STAFF_WORKER_PROXY_MAX_BYTES) return "video_requires_direct_upload";
+function directPutFailureCode(putStatus: number | null, detail?: string): string {
+  if (putStatus === null) return "network";
+  if (putStatus === 403) {
+    const d = (detail || "").toLowerCase();
+    if (d.includes("signaturedoesnotmatch") || d.includes("signature")) {
+      return "direct_upload_signature";
+    }
+    return "direct_upload_cors";
+  }
+  if (putStatus >= 400) return "direct_upload_put_failed";
   return "direct_upload_failed";
 }
 
@@ -182,7 +207,7 @@ async function uploadViaWorkerFallback(
   signal?: AbortSignal,
 ): Promise<StaffUploadResult> {
   if (!workerFallbackAllowed(file)) {
-    return { ok: false, code: "video_requires_direct_upload" };
+    return { ok: false, code: "r2_presign_not_configured" };
   }
   try {
     return await uploadViaWorkerProxy(file, workerFallback.fields, workerFallback.endpoint, signal);
@@ -195,6 +220,7 @@ async function uploadViaWorkerFallback(
 async function finishPresignPutWithWorkerFallback(
   file: File,
   putStatus: number | null,
+  putDetail: string | undefined,
   workerFallback: {
     endpoint: "/api/staff/upload" | "/api/staff/upload-media";
     fields: Record<string, string>;
@@ -202,17 +228,17 @@ async function finishPresignPutWithWorkerFallback(
   signal?: AbortSignal,
 ): Promise<StaffUploadResult> {
   if (!workerFallbackAllowed(file)) {
-    return { ok: false, code: directPutFailureCode(file, putStatus) };
+    return { ok: false, code: directPutFailureCode(putStatus, putDetail) };
   }
 
   const fallback = await uploadViaWorkerFallback(file, workerFallback, signal);
   if (fallback.ok) return fallback;
   if (fallback.code === "unauthorized") return fallback;
   if (WORKER_BODY_LIMIT_ERRORS.has(fallback.code)) {
-    return { ok: false, code: "video_requires_direct_upload" };
+    return { ok: false, code: "worker_proxy_too_large" };
   }
   if (fallback.code !== "unknown") return fallback;
-  return { ok: false, code: directPutFailureCode(file, putStatus) };
+  return { ok: false, code: directPutFailureCode(putStatus, putDetail) };
 }
 
 /** Presigned browser → R2 PUT first; Worker binding fallback when presign unavailable or PUT fails (small files). */
@@ -243,11 +269,15 @@ async function uploadViaPresignedPut(
         await delay(500 * (attempt + 1));
         continue;
       }
+      if (!workerFallbackAllowed(file)) return { ok: false, code: "network" };
       return uploadViaWorkerFallback(file, workerFallback, opts?.signal);
     }
 
     const parsed = resultFromPresign(presign.status, presign);
     if (parsed === "fallback") {
+      if (!workerFallbackAllowed(file)) {
+        return { ok: false, code: "r2_presign_not_configured" };
+      }
       return uploadViaWorkerFallback(file, workerFallback, opts?.signal);
     }
     if (parsed === "retry") {
@@ -257,14 +287,14 @@ async function uploadViaPresignedPut(
     }
     if ("ok" in parsed && !parsed.ok) {
       if (presignErrorShouldFallback(parsed.code)) {
+        if (!workerFallbackAllowed(file)) {
+          return { ok: false, code: "r2_presign_not_configured" };
+        }
         return uploadViaWorkerFallback(file, workerFallback, opts?.signal);
       }
       return parsed;
     }
     if (!("kind" in parsed) || parsed.kind !== "presign") return { ok: false, code: "unknown" };
-
-    const contentType = parsed.contentType || file.type || "application/octet-stream";
-    const cacheControl = parsed.cacheControl || R2_PRESIGNED_PUT_CACHE_CONTROL;
 
     opts?.onProgress?.({ phase: "upload", fileName: file.name });
 
@@ -273,8 +303,7 @@ async function uploadViaPresignedPut(
       putResult = await putFileToPresignedUrl(
         parsed.uploadUrl,
         file,
-        contentType,
-        cacheControl,
+        parsed.contentType,
         opts?.signal,
       );
     } catch {
@@ -283,7 +312,8 @@ async function uploadViaPresignedPut(
         await delay(500 * (attempt + 1));
         continue;
       }
-      return finishPresignPutWithWorkerFallback(file, null, workerFallback, opts?.signal);
+      if (!workerFallbackAllowed(file)) return { ok: false, code: "network" };
+      return finishPresignPutWithWorkerFallback(file, null, undefined, workerFallback, opts?.signal);
     }
 
     if (!putResult.ok) {
@@ -291,6 +321,7 @@ async function uploadViaPresignedPut(
         return finishPresignPutWithWorkerFallback(
           file,
           putResult.status,
+          putResult.detail,
           workerFallback,
           opts?.signal,
         );
@@ -299,6 +330,7 @@ async function uploadViaPresignedPut(
       continue;
     }
 
+    void finalizeDirectUpload(parsed.objectPath, opts?.signal);
     opts?.onSuccess?.();
     return { ok: true, url: parsed.publicUrl };
   }

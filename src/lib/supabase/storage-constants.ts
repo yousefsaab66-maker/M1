@@ -10,7 +10,7 @@
  * Worker cannot hold multi-GB bodies; presign + CORS is required for large files.
  */
 
-/** Must match `PutObjectCommand.CacheControl` in r2-presign.ts — browser PUT must send this header. */
+/** Applied via Worker R2 binding or post-upload CopyObject — not signed on presigned browser PUT. */
 export const R2_PRESIGNED_PUT_CACHE_CONTROL = "public, max-age=31536000, immutable" as const;
 
 /** Worker proxy upload practical max (below Cloudflare ~100 MB; large buffers often fail earlier). */

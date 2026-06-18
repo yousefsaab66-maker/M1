@@ -284,7 +284,9 @@ export const DICTS: Record<Locale, Dict> = {
       "Video uploads require Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). Allowed: MP4, WebM, MOV.",
     "staff.images.uploadErr.invalid_kind": "Invalid media kind for this upload.",
     "staff.images.uploadErr.direct_upload_failed":
-      "Direct upload to storage failed (network or browser security). Refresh the page and try again.",
+      "Direct upload to storage failed — check your connection and try again.",
+    "staff.images.uploadErr.direct_upload_put_failed":
+      "Direct upload to storage failed — check your connection and try again.",
     "staff.images.uploadErr.direct_upload_cors":
       "Direct upload was blocked by storage security settings. Refresh and try again; if it keeps failing, contact the site administrator.",
     "staff.images.uploadErr.r2_presign_not_configured":
@@ -2211,7 +2213,9 @@ export const DICTS: Record<Locale, Dict> = {
       "رفع الفيديو يحتاج Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). المسموح: MP4، WebM، MOV.",
     "staff.images.uploadErr.invalid_kind": "نوع الوسائط غير صالح لهذا الرفع.",
     "staff.images.uploadErr.direct_upload_failed":
-      "تعذّر الرفع المباشر إلى التخزين (شبكة أو إعدادات المتصفح). حدّث الصفحة وحاول مرة أخرى.",
+      "تعذّر الرفع المباشر إلى التخزين — تحقق من الاتصال وأعد المحاولة.",
+    "staff.images.uploadErr.direct_upload_put_failed":
+      "تعذّر الرفع المباشر إلى التخزين — تحقق من الاتصال وأعد المحاولة.",
     "staff.images.uploadErr.direct_upload_cors":
       "تعذّر الرفع المباشر بسبب إعدادات أمان التخزين. حدّث الصفحة وحاول مرة أخرى؛ إذا استمر الخطأ تواصل مع مسؤول الموقع.",
     "staff.images.uploadErr.r2_presign_not_configured":
