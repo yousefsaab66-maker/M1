@@ -1675,7 +1675,7 @@ function VideosField({
     }
     const accepted: string[] = [];
     const errors: string[] = [];
-    const list = Array.from(files).slice(0, 1);
+    const list = Array.from(files);
     setBusy(true);
     try {
       for (const file of list) {
@@ -1693,14 +1693,19 @@ function VideosField({
           onSuccess: confirmR2Ready,
           onProgress: ({ fileName }) => setUploadingName(fileName),
         });
-        if (up.ok) {
-          accepted.push(up.url);
-          setSuccess(t("staff.videos.uploadSuccess").replace("{url}", up.url));
-        } else if (up.code === "unauthorized") errors.push(translateStaffUploadError("unauthorized", t));
+        if (up.ok) accepted.push(up.url);
+        else if (up.code === "unauthorized") errors.push(translateStaffUploadError("unauthorized", t));
         else errors.push(`${file.name}: ${translateStaffUploadError(up.code, t)}`);
         await yieldToMain();
       }
-      if (accepted.length > 0) onChange(accepted.slice(0, 1));
+      if (accepted.length > 0) {
+        onChange([...videos, ...accepted]);
+        setSuccess(
+          accepted.length === 1
+            ? t("staff.videos.uploadSuccess").replace("{url}", accepted[0]!)
+            : t("staff.videos.uploadSuccessCount").replace("{count}", String(accepted.length)),
+        );
+      }
       if (errors.length > 0) setError(errors.join(" "));
       if (fileInputRef.current) fileInputRef.current.value = "";
     } finally {
@@ -1749,6 +1754,7 @@ function VideosField({
           ref={fileInputRef}
           type="file"
           accept="video/mp4,video/webm,video/quicktime"
+          multiple
           className="hidden"
           disabled={busy}
           onChange={(e) => void handleFiles(e.target.files)}
@@ -1765,11 +1771,11 @@ function VideosField({
               ? t("staff.videos.uploadingFile").replace("{name}", uploadingName)
               : t("staff.images.uploading")
             : hasVideo
-              ? t("staff.videos.replace")
+              ? t("staff.videos.addAnother")
               : t("staff.videos.upload")}
         </button>
         <span className="text-[11px] opacity-65">
-          {hasVideo ? t("staff.videos.replaceHint") : t("staff.videos.uploadHint")}
+          {hasVideo ? t("staff.videos.addAnotherHint") : t("staff.videos.uploadHint")}
         </span>
       </div>
       {success && (
