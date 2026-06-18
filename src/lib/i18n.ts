@@ -282,7 +282,7 @@ export const DICTS: Record<Locale, Dict> = {
       "Video uploads require Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). Allowed: MP4, WebM, MOV.",
     "staff.images.uploadErr.invalid_kind": "Invalid media kind for this upload.",
     "staff.images.uploadErr.direct_upload_failed":
-      "Direct browser upload to R2 failed (often missing CORS). Run: npx wrangler r2 bucket cors put muhra-media --file scripts/r2-cors.json — AllowedOrigins must include muhrajewelry.com and www.muhrajewelry.com.",
+      "Could not upload the file directly to storage (network or browser security). Refresh the page and try again. If it keeps failing, contact the site administrator.",
     "staff.images.uploadErr.r2_presign_not_configured":
       "R2 presign secrets are not set (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY). Large files cannot upload via Worker. Run: wrangler secret put for each secret, then apply scripts/r2-cors.json.",
     "staff.images.presignWarning":
@@ -2205,7 +2205,7 @@ export const DICTS: Record<Locale, Dict> = {
       "رفع الفيديو يحتاج Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). المسموح: MP4، WebM، MOV.",
     "staff.images.uploadErr.invalid_kind": "نوع الوسائط غير صالح لهذا الرفع.",
     "staff.images.uploadErr.direct_upload_failed":
-      "فشل الرفع المباشر من المتصفح إلى R2 (غالباً CORS غير مضبوط). نفّذ: npx wrangler r2 bucket cors put muhra-media --file scripts/r2-cors.json — يجب أن يتضمّن muhrajewelry.com و www.muhrajewelry.com و localhost:3000.",
+      "تعذّر رفع الملف مباشرة إلى التخزين (شبكة أو إعدادات أمان المتصفح). حدّث الصفحة وحاول مرة أخرى. إذا استمر الخطأ، تواصل مع مسؤول الموقع.",
     "staff.images.uploadErr.r2_presign_not_configured":
       "أسرار الرفع المباشر غير مضبوطة (R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY). الملفات الكبيرة لا تُرفع عبر الـ Worker. نفّذ: wrangler secret put لكل سر، ثم طبّق scripts/r2-cors.json.",
     "staff.images.presignWarning":
