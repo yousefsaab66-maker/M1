@@ -75,6 +75,7 @@ import {
   CLIENT_CACHE_MS,
   fetchStaffBootstrapClient,
   fetchStaffCatalogListForSync,
+  hydrateStaffR2FlagsClient,
   fetchStorefrontForClient,
   fetchStorefrontFromApi,
   fetchStorefrontFromPublicCdn,
@@ -1050,6 +1051,13 @@ export function StoreProvider({
             },
             staffPath,
           );
+          if (staffPath) {
+            void hydrateStaffR2FlagsClient().then((flags) => {
+              if (!flags) return;
+              if (flags.ready) setR2Ready(true);
+              setR2PresignConfigured(flags.presignConfigured);
+            });
+          }
         }
         return;
       }

@@ -276,15 +276,17 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.videos.urls": "Video URLs (one per line)",
     "staff.videos.upload": "Upload video",
     "staff.videos.addAnother": "Add another video",
-    "staff.videos.uploadHint": "MP4 / WebM / MOV — any size. Uploaded directly to Cloudflare R2.",
+    "staff.videos.uploadHint": "MP4, WebM, or MOV — any file size.",
     "staff.videos.addAnotherHint": "You can add multiple videos. Each upload is appended to the list.",
+    "staff.videos.checkingHint": "Checking cloud storage…",
+    "staff.videos.setupHint": "Video upload isn't ready yet. Refresh the page or paste a video URL above.",
     "staff.videos.uploadingFile": "Uploading {name}…",
     "staff.videos.uploadSuccess": "Video uploaded: {url}",
     "staff.videos.uploadSuccessCount": "{count} videos uploaded successfully.",
     "staff.videos.notVideo": "{name} is not a video and was skipped.",
     "staff.videos.tooLarge": "{name} could not be uploaded.",
     "staff.images.uploadErr.video_not_supported_without_r2":
-      "Video uploads require Cloudflare R2 (MUHRA_MEDIA binding + R2_PUBLIC_BASE_URL). Allowed: MP4, WebM, MOV.",
+      "Video upload isn't ready yet. Refresh the page or paste a video URL.",
     "staff.images.uploadErr.r2_only":
       "Video uploads require Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). Allowed: MP4, WebM, MOV.",
     "staff.images.uploadErr.invalid_kind": "Invalid media kind for this upload.",
@@ -299,7 +301,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.r2_presign_not_configured":
       "Direct R2 upload is not configured on the server — large files cannot upload. Contact the site administrator.",
     "staff.images.presignWarning":
-      "Large uploads need direct storage access configured on the server. Without it, only small files may work.",
+      "Very large files need direct upload enabled on the server. Smaller files may still work.",
     "staff.images.uploadErr.aborted": "Upload cancelled.",
     "staff.images.remove": "Remove",
     "staff.images.tooLarge": "{name} could not be uploaded.",
@@ -2212,15 +2214,17 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.videos.urls": "روابط الفيديو (واحد لكل سطر)",
     "staff.videos.upload": "رفع فيديو",
     "staff.videos.addAnother": "إضافة فيديو آخر",
-    "staff.videos.uploadHint": "MP4 / WebM / MOV — أي حجم. يُرفع مباشرة إلى Cloudflare R2.",
+    "staff.videos.uploadHint": "MP4 أو WebM أو MOV — أي حجم.",
     "staff.videos.addAnotherHint": "يمكنك إضافة عدة فيديوهات. كل رفع يُضاف إلى القائمة.",
+    "staff.videos.checkingHint": "جاري التحقق من التخزين…",
+    "staff.videos.setupHint": "رفع الفيديو غير جاهز بعد. حدّث الصفحة أو الصق رابط الفيديو أعلاه.",
     "staff.videos.uploadingFile": "جاري رفع {name}…",
     "staff.videos.uploadSuccess": "تم رفع الفيديو: {url}",
     "staff.videos.uploadSuccessCount": "تم رفع {count} فيديوهات بنجاح.",
     "staff.videos.notVideo": "{name} ليس فيديو وتم تجاوزه.",
     "staff.videos.tooLarge": "تعذّر رفع {name}.",
     "staff.images.uploadErr.video_not_supported_without_r2":
-      "رفع الفيديو يحتاج Cloudflare R2 (ربط MUHRA_MEDIA + R2_PUBLIC_BASE_URL). المسموح: MP4، WebM، MOV.",
+      "رفع الفيديو غير جاهز بعد. حدّث الصفحة أو الصق رابط الفيديو.",
     "staff.images.uploadErr.r2_only":
       "رفع الفيديو يحتاج Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). المسموح: MP4، WebM، MOV.",
     "staff.images.uploadErr.invalid_kind": "نوع الوسائط غير صالح لهذا الرفع.",
@@ -2235,7 +2239,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.r2_presign_not_configured":
       "الرفع المباشر إلى R2 غير مفعّل على السيرفر — الملفات الكبيرة لا تُرفع. تواصل مع مسؤول الموقع.",
     "staff.images.presignWarning":
-      "الرفع الكبير يحتاج تفعيل الرفع المباشر على السيرفر. بدونه قد ينجح فقط الملفات الصغيرة.",
+      "الملفات الكبيرة جداً تحتاج إعداداً إضافياً على السيرفر. الملفات الصغيرة قد تعمل.",
     "staff.images.uploadErr.aborted": "تم إلغاء الرفع.",
     "staff.images.remove": "إزالة",
     "staff.images.tooLarge": "تعذّر رفع {name}.",

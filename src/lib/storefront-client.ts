@@ -394,3 +394,50 @@ export async function fetchStaffBootstrapClient(
   });
   return staffBootstrapInFlight;
 }
+
+export type StaffR2HealthClientResult = {
+  ready: boolean;
+  presignConfigured: boolean;
+};
+
+/** Lightweight R2 gate — used when staff bootstrap is skipped (60s cache) so upload UI still hydrates. */
+export async function fetchStaffR2HealthClient(
+  signal?: AbortSignal,
+): Promise<StaffR2HealthClientResult | null> {
+  try {
+    const res = await fetch("/api/health/r2", {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal,
+    });
+    if (!res.ok) return null;
+    const d = (await res.json()) as { ready?: boolean; presignConfigured?: boolean };
+    return {
+      ready: d.ready === true,
+      presignConfigured: d.presignConfigured === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Hydrate staff upload flags without a full bootstrap — bootstrap cache hit, else `/api/health/r2`.
+ */
+export async function hydrateStaffR2FlagsClient(
+  signal?: AbortSignal,
+): Promise<StaffR2HealthClientResult | null> {
+  const cached = readCache(staffBootstrapCache, STAFF_BOOTSTRAP_CACHE_MS);
+  if (cached?.ok) {
+    return { ready: cached.r2Ready, presignConfigured: cached.presignConfigured };
+  }
+  try {
+    const bootstrap = await fetchStaffBootstrapClient(signal);
+    if (bootstrap.ok) {
+      return { ready: bootstrap.r2Ready, presignConfigured: bootstrap.presignConfigured };
+    }
+  } catch {
+    /* fall through */
+  }
+  return fetchStaffR2HealthClient(signal);
+}

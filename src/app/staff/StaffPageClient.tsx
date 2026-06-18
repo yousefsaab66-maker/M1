@@ -1648,8 +1648,9 @@ function VideosField({
   cloudUpload?: boolean;
 }) {
   const { t } = useLocale();
-  const { staffCloudUpload, confirmR2Ready } = useStore();
+  const { staffCloudUpload, r2PresignConfigured, confirmR2Ready } = useStore();
   const useCloud = cloudUpload || staffCloudUpload;
+  const r2StatusPending = r2PresignConfigured === null && !useCloud;
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1669,7 +1670,11 @@ function VideosField({
     setError(null);
     setSuccess(null);
     if (!useCloud) {
-      setError(t("staff.images.uploadErr.video_not_supported_without_r2"));
+      setError(
+        r2StatusPending
+          ? t("staff.videos.checkingHint")
+          : t("staff.images.uploadErr.video_not_supported_without_r2"),
+      );
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -1775,7 +1780,13 @@ function VideosField({
               : t("staff.videos.upload")}
         </button>
         <span className="text-[11px] opacity-65">
-          {hasVideo ? t("staff.videos.addAnotherHint") : t("staff.videos.uploadHint")}
+          {useCloud
+            ? hasVideo
+              ? t("staff.videos.addAnotherHint")
+              : t("staff.videos.uploadHint")
+            : r2StatusPending
+              ? t("staff.videos.checkingHint")
+              : t("staff.videos.setupHint")}
         </span>
       </div>
       {success && (
