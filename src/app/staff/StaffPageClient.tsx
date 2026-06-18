@@ -1651,12 +1651,15 @@ function VideosField({
   const { staffCloudUpload, confirmR2Ready } = useStore();
   const useCloud = cloudUpload || staffCloudUpload;
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [uploadingName, setUploadingName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setError(null);
+    setSuccess(null);
     const accepted: string[] = [];
     const errors: string[] = [];
     const list = Array.from(files);
@@ -1676,9 +1679,15 @@ function VideosField({
           errors.push(t("staff.images.uploadErr.empty_file"));
           continue;
         }
-        const up = await uploadStaffMediaFile(file, "product", { onSuccess: confirmR2Ready });
-        if (up.ok) accepted.push(up.url);
-        else if (up.code === "unauthorized") errors.push(translateStaffUploadError("unauthorized", t));
+        setUploadingName(file.name);
+        const up = await uploadStaffMediaFile(file, "product", {
+          onSuccess: confirmR2Ready,
+          onProgress: ({ fileName }) => setUploadingName(fileName),
+        });
+        if (up.ok) {
+          accepted.push(up.url);
+          setSuccess(t("staff.videos.uploadSuccess").replace("{url}", up.url));
+        } else if (up.code === "unauthorized") errors.push(translateStaffUploadError("unauthorized", t));
         else errors.push(`${file.name}: ${translateStaffUploadError(up.code, t)}`);
         await yieldToMain();
       }
@@ -1687,6 +1696,7 @@ function VideosField({
       if (fileInputRef.current) fileInputRef.current.value = "";
     } finally {
       setBusy(false);
+      setUploadingName(null);
     }
   };
 
@@ -1742,10 +1752,19 @@ function VideosField({
           className="btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Upload className="h-4 w-4" strokeWidth={1.4} />{" "}
-          {busy ? t("staff.images.uploading") : t("staff.images.upload")}
+          {busy
+            ? uploadingName
+              ? t("staff.videos.uploadingFile").replace("{name}", uploadingName)
+              : t("staff.images.uploading")
+            : t("staff.images.upload")}
         </button>
         <span className="text-[11px] opacity-65">{t("staff.videos.uploadHint")}</span>
       </div>
+      {success && (
+        <p className="mt-2 break-all text-xs opacity-80" dir="ltr" style={{ textAlign: "left" }}>
+          {success}
+        </p>
+      )}
       {error && (
         <p className="mt-2 text-xs" style={{ color: "var(--color-bordeaux)" }}>
           {error}

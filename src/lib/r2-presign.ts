@@ -1,5 +1,8 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { R2_PRESIGNED_PUT_CACHE_CONTROL } from "@/lib/supabase/storage-constants";
+
+export { R2_PRESIGNED_PUT_CACHE_CONTROL };
 
 export type R2PresignConfig = {
   accountId: string;
@@ -54,7 +57,7 @@ export async function createR2PresignedPutUrl(
     Bucket: cfg.bucket,
     Key: objectKey,
     ContentType: contentType,
-    CacheControl: "public, max-age=31536000, immutable",
+    CacheControl: R2_PRESIGNED_PUT_CACHE_CONTROL,
   });
 
   return getSignedUrl(client, command, { expiresIn: expiresInSec });

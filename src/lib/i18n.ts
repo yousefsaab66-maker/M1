@@ -267,13 +267,15 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.network": "Network error — check connection and try again.",
     "staff.images.uploadErr.unknown": "Cloud upload failed.",
     "staff.images.uploadErr.video_too_large":
-      "Upload failed — file may exceed Cloudflare Worker body limit. Set R2 presign secrets and apply scripts/r2-cors.json for unlimited direct upload.",
+      "This file is too large for server upload — it must go directly to storage. Try again; if it keeps failing, contact the site administrator.",
     "staff.images.uploadErr.video_requires_direct_upload":
-      "Large file must upload directly to R2. Set Worker secrets R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and apply bucket CORS (scripts/r2-cors.json).",
+      "This file is too large for server upload — direct storage upload only. Refresh and try again; if it keeps failing, contact the site administrator.",
     "staff.videos.title": "Product videos",
     "staff.videos.urls": "Video URLs (one per line)",
     "staff.videos.upload": "Upload video",
     "staff.videos.uploadHint": "MP4 / WebM / MOV — any size. Uploaded directly to Cloudflare R2.",
+    "staff.videos.uploadingFile": "Uploading {name}…",
+    "staff.videos.uploadSuccess": "Video uploaded: {url}",
     "staff.videos.notVideo": "{name} is not a video and was skipped.",
     "staff.videos.tooLarge": "{name} could not be uploaded.",
     "staff.images.uploadErr.video_not_supported_without_r2":
@@ -282,11 +284,13 @@ export const DICTS: Record<Locale, Dict> = {
       "Video uploads require Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). Allowed: MP4, WebM, MOV.",
     "staff.images.uploadErr.invalid_kind": "Invalid media kind for this upload.",
     "staff.images.uploadErr.direct_upload_failed":
-      "Could not upload the file directly to storage (network or browser security). Refresh the page and try again. If it keeps failing, contact the site administrator.",
+      "Direct upload to storage failed (network or browser security). Refresh the page and try again.",
+    "staff.images.uploadErr.direct_upload_cors":
+      "Direct upload was blocked by storage security settings. Refresh and try again; if it keeps failing, contact the site administrator.",
     "staff.images.uploadErr.r2_presign_not_configured":
-      "R2 presign secrets are not set (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY). Large files cannot upload via Worker. Run: wrangler secret put for each secret, then apply scripts/r2-cors.json.",
+      "Direct upload is not configured on the server — large files cannot upload. Contact the site administrator.",
     "staff.images.presignWarning":
-      "Unlimited uploads need R2 presign secrets (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY) and bucket CORS (scripts/r2-cors.json). Without them, only small files may work via Worker.",
+      "Large uploads need direct storage access configured on the server. Without it, only small files may work.",
     "staff.images.uploadErr.aborted": "Upload cancelled.",
     "staff.images.remove": "Remove",
     "staff.images.tooLarge": "{name} could not be uploaded.",
@@ -2190,13 +2194,15 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.images.uploadErr.network": "خطأ في الشبكة — تحقق من الاتصال وأعد المحاولة.",
     "staff.images.uploadErr.unknown": "فشل الرفع للسحابة.",
     "staff.images.uploadErr.video_too_large":
-      "فشل الرفع — قد يتجاوز الملف حد حجم طلب الـ Worker. اضبط أسرار الرفع المباشر إلى R2 وطبّق scripts/r2-cors.json لرفع بلا حدود.",
+      "الملف كبير — لا يمكن رفعه عبر السيرفر. جرّب مرة أخرى؛ إذا استمر الخطأ تواصل مع مسؤول الموقع.",
     "staff.images.uploadErr.video_requires_direct_upload":
-      "الملف الكبير يجب رفعه مباشرة إلى R2. اضبط أسرار الـ Worker (R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY) وطبّق CORS على الـ bucket (scripts/r2-cors.json).",
+      "الملف كبير — الرفع المباشر فقط. حدّث الصفحة وحاول مرة أخرى؛ إذا استمر الخطأ تواصل مع مسؤول الموقع.",
     "staff.videos.title": "فيديوهات المنتج",
     "staff.videos.urls": "روابط الفيديو (واحد لكل سطر)",
     "staff.videos.upload": "رفع فيديو",
     "staff.videos.uploadHint": "MP4 / WebM / MOV — أي حجم. يُرفع مباشرة إلى Cloudflare R2.",
+    "staff.videos.uploadingFile": "جاري رفع {name}…",
+    "staff.videos.uploadSuccess": "تم رفع الفيديو: {url}",
     "staff.videos.notVideo": "{name} ليس فيديو وتم تجاوزه.",
     "staff.videos.tooLarge": "تعذّر رفع {name}.",
     "staff.images.uploadErr.video_not_supported_without_r2":
@@ -2205,11 +2211,13 @@ export const DICTS: Record<Locale, Dict> = {
       "رفع الفيديو يحتاج Cloudflare R2 (MUHRA_MEDIA + R2_PUBLIC_BASE_URL). المسموح: MP4، WebM، MOV.",
     "staff.images.uploadErr.invalid_kind": "نوع الوسائط غير صالح لهذا الرفع.",
     "staff.images.uploadErr.direct_upload_failed":
-      "تعذّر رفع الملف مباشرة إلى التخزين (شبكة أو إعدادات أمان المتصفح). حدّث الصفحة وحاول مرة أخرى. إذا استمر الخطأ، تواصل مع مسؤول الموقع.",
+      "تعذّر الرفع المباشر إلى التخزين (شبكة أو إعدادات المتصفح). حدّث الصفحة وحاول مرة أخرى.",
+    "staff.images.uploadErr.direct_upload_cors":
+      "تعذّر الرفع المباشر بسبب إعدادات أمان التخزين. حدّث الصفحة وحاول مرة أخرى؛ إذا استمر الخطأ تواصل مع مسؤول الموقع.",
     "staff.images.uploadErr.r2_presign_not_configured":
-      "أسرار الرفع المباشر غير مضبوطة (R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY). الملفات الكبيرة لا تُرفع عبر الـ Worker. نفّذ: wrangler secret put لكل سر، ثم طبّق scripts/r2-cors.json.",
+      "الرفع المباشر غير مفعّل على السيرفر — الملفات الكبيرة لا تُرفع. تواصل مع مسؤول الموقع.",
     "staff.images.presignWarning":
-      "الرفع بلا حدود يحتاج أسرار R2 (R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY) وCORS على الـ bucket (scripts/r2-cors.json). بدونها قد ينجح فقط الملفات الصغيرة عبر الـ Worker.",
+      "الرفع الكبير يحتاج تفعيل الرفع المباشر على السيرفر. بدونه قد ينجح فقط الملفات الصغيرة.",
     "staff.images.uploadErr.aborted": "تم إلغاء الرفع.",
     "staff.images.remove": "إزالة",
     "staff.images.tooLarge": "تعذّر رفع {name}.",

@@ -103,6 +103,7 @@ export async function POST(req: Request) {
         url: direct.url,
         path: direct.path,
         contentType: direct.contentType,
+        cacheControl: direct.cacheControl,
       },
       { headers: rlHeaders },
     );
@@ -133,6 +134,7 @@ export async function POST(req: Request) {
       url: direct.url,
       path: direct.path,
       contentType: direct.contentType,
+      cacheControl: direct.cacheControl,
     },
     { headers: rlHeaders },
   );

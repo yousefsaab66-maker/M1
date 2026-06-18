@@ -4,11 +4,17 @@
  *
  * **Production (unlimited):** set Worker secrets `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
  * `R2_SECRET_ACCESS_KEY`, then apply bucket CORS:
- * `npx wrangler r2 bucket cors put muhra-media --file scripts/r2-cors.json`
+ * `npm run r2:cors`
  *
  * **No app-level file-size cap** — MIME type is validated; empty files are rejected.
  * Worker cannot hold multi-GB bodies; presign + CORS is required for large files.
  */
+
+/** Must match `PutObjectCommand.CacheControl` in r2-presign.ts — browser PUT must send this header. */
+export const R2_PRESIGNED_PUT_CACHE_CONTROL = "public, max-age=31536000, immutable" as const;
+
+/** Worker proxy upload practical max (below Cloudflare ~100 MB; large buffers often fail earlier). */
+export const STAFF_WORKER_PROXY_MAX_BYTES = 48 * 1024 * 1024;
 
 /** Allowed MIME types for product uploads (staff API + bucket policy alignment). */
 export const MUHRA_IMAGE_UPLOAD_MIME: readonly string[] = [
