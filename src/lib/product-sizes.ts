@@ -18,7 +18,7 @@ const SIZE_KINDS: ProductSizeKind[] = ["necklace", "bracelet", "ring"];
 export const SIZE_PRESETS: Record<ProductSizeKind, string[]> = {
   necklace: ["40", "42", "45"],
   bracelet: ["15", "16", "17", "18", "19"],
-  ring: ["48", "50", "52", "54"],
+  ring: ["5", "6", "7", "8", "9", "10", "11", "12", "13"],
 };
 
 export function isSizeKindEnabled(
@@ -225,7 +225,7 @@ function parseSizeNumbers(sizes: string[]): number[] {
 function sizesPlausibleForKind(sizes: string[], kind: ProductSizeKind): boolean {
   const nums = parseSizeNumbers(sizes);
   if (nums.length === 0) return false;
-  if (kind === "ring") return nums.every((n) => n >= 40 && n <= 70);
+  if (kind === "ring") return nums.every((n) => (n >= 4 && n <= 13) || (n >= 40 && n <= 70));
   if (kind === "necklace") return nums.every((n) => n >= 35 && n <= 90);
   if (kind === "bracelet") return nums.every((n) => n >= 12 && n <= 25);
   return true;
