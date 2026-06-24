@@ -12,6 +12,8 @@ export type BagItem = {
   sizeSelections?: ProductSizeSelections;
   /** Index into product.priceOptions when multiple active prices. */
   priceSlotIndex?: number;
+  /** Index into product.productOptions when multiple active options. */
+  productOptionSlotIndex?: number;
   /** Optional shopper note to identify an item in a multi-product photo. */
   customerNote?: string;
 };
@@ -22,6 +24,8 @@ export type OrderLineItem = {
   qty: number;
   price: number;
   size?: string;
+  /** Denormalized label from product.productOptions at checkout. */
+  productOptionLabel?: string;
   customerNote?: string;
 };
 

@@ -60,6 +60,12 @@ import {
   type ProductPriceSlot,
 } from "@/lib/product-prices";
 import {
+  emptyProductOptions,
+  PRODUCT_OPTION_SLOT_COUNT,
+  type ProductOptions,
+  type ProductOptionSlot,
+} from "@/lib/product-options";
+import {
   enabledEmptySizeKinds,
   formatSizeOptionsSummary,
   formatOrderSizeDisplay,
@@ -1044,6 +1050,7 @@ function ProductEditor({
   const [draft, setDraft] = useState<Product>(() => ({
     ...product,
     priceOptions: product.priceOptions ?? emptyPriceOptions(),
+    productOptions: product.productOptions ?? emptyProductOptions(),
   }));
   const [saving, setSaving] = useState(false);
   const categoryOptions = useMemo(() => catalogFilterSlugs(site), [site]);
@@ -1131,6 +1138,13 @@ function ProductEditor({
               priceOptions={draft.priceOptions ?? emptyPriceOptions()}
               imageCount={draft.images.length}
               onChange={(next) => update("priceOptions", next)}
+            />
+          </div>
+          <div className="border-t pt-5" style={{ borderColor: "var(--line)" }}>
+            <ProductOptionsEditor
+              productOptions={draft.productOptions ?? emptyProductOptions()}
+              imageCount={draft.images.length}
+              onChange={(next) => update("productOptions", next)}
             />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1438,6 +1452,71 @@ function PriceOptionsEditor({
                 value={slot.label ?? ""}
                 onChange={(e) => updateSlot(index, { label: e.target.value })}
                 placeholder={t("staff.prices.labelPlaceholder")}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ProductOptionsEditor({
+  productOptions,
+  imageCount,
+  onChange,
+}: {
+  productOptions: ProductOptions;
+  imageCount: number;
+  onChange: (next: ProductOptions) => void;
+}) {
+  const { t } = useLocale();
+  const slots =
+    productOptions.length >= PRODUCT_OPTION_SLOT_COUNT
+      ? productOptions
+      : emptyProductOptions();
+
+  const updateSlot = (index: number, patch: Partial<ProductOptionSlot>) => {
+    const next = slots.map((slot, i) => (i === index ? { ...slot, ...patch } : slot));
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="staff-label !mb-0">{t("staff.options.title")}</p>
+        <p className="mt-1 text-xs opacity-75">{t("staff.options.hint")}</p>
+      </div>
+      <div className="space-y-3">
+        {Array.from({ length: PRODUCT_OPTION_SLOT_COUNT }, (_, index) => {
+          const slot = slots[index]!;
+          const imageHint = imageCount > 0 && index < imageCount;
+          return (
+            <div
+              key={index}
+              className="grid grid-cols-1 items-center gap-3 rounded border p-3 sm:grid-cols-[auto_1fr]"
+              style={{
+                borderColor: slot.enabled ? "var(--color-gold)" : "var(--line)",
+                background: slot.enabled ? "color-mix(in srgb, var(--color-gold) 5%, transparent)" : undefined,
+              }}
+            >
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={slot.enabled}
+                  onChange={(e) => updateSlot(index, { enabled: e.target.checked })}
+                />
+                <span className="whitespace-nowrap text-[11px] uppercase tracking-eyebrow">
+                  {t("staff.options.slot").replace("{n}", String(index + 1))}
+                  {imageHint ? ` · ${t("staff.options.image")} ${index + 1}` : ""}
+                </span>
+              </label>
+              <input
+                className="staff-input"
+                disabled={!slot.enabled}
+                value={slot.label ?? ""}
+                onChange={(e) => updateSlot(index, { label: e.target.value })}
+                placeholder={t("staff.options.labelPlaceholder")}
               />
             </div>
           );
@@ -2237,6 +2316,7 @@ function OrdersPane() {
                                         <p className="text-[11px] opacity-65">
                                           {it.qty} × {formatPrice(it.price, o.currency, locale)}
                                           {sizeLabel ? ` · ${sizeLabel}` : ""}
+                                          {it.productOptionLabel ? ` · ${it.productOptionLabel}` : ""}
                                           {p ? ` · /${p.slug}` : ""}
                                         </p>
                                         {it.customerNote && (

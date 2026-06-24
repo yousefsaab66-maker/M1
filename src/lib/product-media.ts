@@ -5,6 +5,7 @@ import {
   type ProductImageDisplaySize,
 } from "./media-image-url";
 import { normalizeStaffMediaUrl } from "./staff-media-url";
+import { coalesceProductOptionsForSave } from "./product-options";
 import {
   coalescePriceOptionsForSave,
   normalizeProductStock,
@@ -132,6 +133,7 @@ export function ensureProductOrderable(p: Product): Product {
   const videos = vids.length > 0 ? vids : undefined;
   const sizeOptions = coalesceSizeOptionsForSave(p.sizeOptions);
   const priceOptions = coalescePriceOptionsForSave(p.priceOptions);
+  const productOptions = coalesceProductOptionsForSave(p.productOptions);
   const stock = normalizeProductStock(p.stock);
   const resolved = resolveProductSizes({ ...p, sizeOptions });
   const sizes = resolved.length > 0 ? resolved : undefined;
@@ -143,6 +145,7 @@ export function ensureProductOrderable(p: Product): Product {
     videos,
     sizeOptions,
     priceOptions,
+    productOptions,
     stock: stock ?? undefined,
     sizes: sizes ?? (flat.length > 0 ? flat : undefined),
   };

@@ -6,6 +6,7 @@ import {
   normalizeProductStock,
   priceOptionsFromRow,
 } from "@/lib/product-prices";
+import { productOptionsFromRow } from "@/lib/product-options";
 import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin";
 
 export type FetchCatalogProductsResult =
@@ -19,7 +20,7 @@ export type FetchCatalogProductsOptions = {
 };
 
 const LIST_SELECT =
-  "id,slug,name,collection_slug,category,price,stock,price_options,currency,materials,stones,images,videos,sizes,size_options,is_high_jewelry,is_new";
+  "id,slug,name,collection_slug,category,price,stock,price_options,product_options,currency,materials,stones,images,videos,sizes,size_options,is_high_jewelry,is_new";
 
 function rowToProductList(row: ProductRow): Product {
   const images = row.images ?? [];
@@ -37,6 +38,7 @@ function rowToProductList(row: ProductRow): Product {
     price: Number(row.price),
     stock: normalizeProductStock(row.stock ?? null) ?? undefined,
     priceOptions: priceOptionsFromRow(row.price_options),
+    productOptions: productOptionsFromRow(row.product_options),
     currency: row.currency as Product["currency"],
     materials: (row.materials ?? []) as Product["materials"],
     stones: (row.stones ?? []) as Product["stones"],

@@ -12,6 +12,7 @@ import { useStore, type BagItem } from "@/components/providers/StoreProvider";
 import { ProductPrice } from "@/components/ProductPrice";
 import { getCustomerPriceParts } from "@/lib/customer-price";
 import { resolveProductUnitPrice } from "@/lib/product-prices";
+import { resolveProductOptionLabel } from "@/lib/product-options";
 import { maxQtyForBagLine, validateBagStock } from "@/lib/product-stock";
 import { bagLineSizeKey, formatBagItemSizeDisplay } from "@/lib/product-sizes";
 import { CUSTOMER_NOTE_MAX_LENGTH } from "@/lib/customer-note";
@@ -101,6 +102,7 @@ export default function BagPage() {
             <ul className="flex flex-col" aria-live="polite">
               {items.map(({ b, p }, idx) => {
                 const sizeLabel = formatBagItemSizeDisplay(b, t);
+                const optionLabel = resolveProductOptionLabel(p, b.productOptionSlotIndex);
                 const sizeKey = bagLineSizeKey(b);
                 const maxLineQty = maxQtyForBagLine(p, bag, sizeKey);
                 const atMax = maxLineQty != null && b.qty >= maxLineQty;
@@ -141,6 +143,11 @@ export default function BagPage() {
                         {sizeLabel}
                       </p>
                     )}
+                    {optionLabel && (
+                      <p className="mt-1 text-[11px] tracking-eyebrow uppercase opacity-65">
+                        {optionLabel}
+                      </p>
+                    )}
                     <BagLineNoteEditor
                       value={b.customerNote}
                       lineId={`bag-note-${idx}-${p.id}`}
@@ -154,6 +161,7 @@ export default function BagPage() {
                           b.size,
                           b.sizeSelections,
                           b.priceSlotIndex,
+                          b.productOptionSlotIndex,
                           b.customerNote,
                         )
                       }
@@ -166,7 +174,7 @@ export default function BagPage() {
                         <button
                           type="button"
                           aria-label={t("bag.qtyDecrease")}
-                          onClick={() => setBagQty(p.id, b.qty - 1, b.size, b.sizeSelections, b.priceSlotIndex, b.customerNote)}
+                          onClick={() => setBagQty(p.id, b.qty - 1, b.size, b.sizeSelections, b.priceSlotIndex, b.productOptionSlotIndex, b.customerNote)}
                           className="px-2 py-1.5"
                         >
                           <Minus className="h-3.5 w-3.5" strokeWidth={1.4} />
@@ -175,7 +183,7 @@ export default function BagPage() {
                         <button
                           type="button"
                           aria-label={t("bag.qtyIncrease")}
-                          onClick={() => setBagQty(p.id, b.qty + 1, b.size, b.sizeSelections, b.priceSlotIndex, b.customerNote)}
+                          onClick={() => setBagQty(p.id, b.qty + 1, b.size, b.sizeSelections, b.priceSlotIndex, b.productOptionSlotIndex, b.customerNote)}
                           disabled={atMax}
                           className="px-2 py-1.5 disabled:opacity-40"
                         >
@@ -184,7 +192,7 @@ export default function BagPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => removeFromBag(p.id, b.size, b.sizeSelections, b.priceSlotIndex, b.customerNote)}
+                        onClick={() => removeFromBag(p.id, b.size, b.sizeSelections, b.priceSlotIndex, b.productOptionSlotIndex, b.customerNote)}
                         aria-label={t("bag.remove")}
                         className="opacity-65 hover:opacity-100"
                       >

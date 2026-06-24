@@ -135,6 +135,7 @@ export function bagLineSizeKey(item: {
   size?: string;
   sizeSelections?: ProductSizeSelections;
   priceSlotIndex?: number;
+  productOptionSlotIndex?: number;
 }): string {
   const sel = item.sizeSelections;
   let sizePart: string;
@@ -144,7 +145,9 @@ export function bagLineSizeKey(item: {
     sizePart = item.size ?? "";
   }
   const pricePart = item.priceSlotIndex != null ? `@p${item.priceSlotIndex}` : "";
-  return sizePart + pricePart;
+  const optionPart =
+    item.productOptionSlotIndex != null ? `@o${item.productOptionSlotIndex}` : "";
+  return sizePart + pricePart + optionPart;
 }
 
 /** Bag line identity including optional customer note (distinct notes = distinct lines). */
@@ -152,6 +155,7 @@ export function bagLineKey(item: {
   size?: string;
   sizeSelections?: ProductSizeSelections;
   priceSlotIndex?: number;
+  productOptionSlotIndex?: number;
   customerNote?: string;
 }): string {
   const base = bagLineSizeKey(item);

@@ -32,6 +32,7 @@ import {
 } from "@/lib/catalog-defaults";
 import type { BagItem, Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
 import { resolveProductUnitPrice } from "@/lib/product-prices";
+import { resolveProductOptionLabel } from "@/lib/product-options";
 import {
   maxQtyForBagLine,
   validateAddQty,
@@ -157,6 +158,7 @@ type StoreCtx = {
     size?: string;
     sizeSelections?: ProductSizeSelections;
     priceSlotIndex?: number;
+    productOptionSlotIndex?: number;
     qty?: number;
     customerNote?: string;
   }) => AddToBagResult;
@@ -165,6 +167,7 @@ type StoreCtx = {
     size?: string,
     sizeSelections?: ProductSizeSelections,
     priceSlotIndex?: number,
+    productOptionSlotIndex?: number,
     customerNote?: string,
   ) => void;
   setBagQty: (
@@ -173,6 +176,7 @@ type StoreCtx = {
     size?: string,
     sizeSelections?: ProductSizeSelections,
     priceSlotIndex?: number,
+    productOptionSlotIndex?: number,
     customerNote?: string,
   ) => void;
   setBagNote: (
@@ -181,6 +185,7 @@ type StoreCtx = {
     size?: string,
     sizeSelections?: ProductSizeSelections,
     priceSlotIndex?: number,
+    productOptionSlotIndex?: number,
     previousNote?: string,
   ) => void;
   clearBag: () => void;
@@ -1384,6 +1389,7 @@ export function StoreProvider({
       size,
       sizeSelections,
       priceSlotIndex,
+      productOptionSlotIndex,
       qty = 1,
       customerNote,
     }: {
@@ -1391,6 +1397,7 @@ export function StoreProvider({
       size?: string;
       sizeSelections?: ProductSizeSelections;
       priceSlotIndex?: number;
+      productOptionSlotIndex?: number;
       qty?: number;
       customerNote?: string;
     }): AddToBagResult => {
@@ -1398,11 +1405,12 @@ export function StoreProvider({
       if (!product) return { ok: false, error: "product_not_found" };
 
       const normalizedNote = normalizeCustomerNote(customerNote);
-      const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex });
+      const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex, productOptionSlotIndex });
       const fullKey = bagLineKey({
         size,
         sizeSelections,
         priceSlotIndex,
+        productOptionSlotIndex,
         customerNote: normalizedNote,
       });
       let result: AddToBagResult = { ok: true };
@@ -1428,6 +1436,7 @@ export function StoreProvider({
               size,
               sizeSelections,
               priceSlotIndex,
+              productOptionSlotIndex,
               qty,
               customerNote: normalizedNote,
             },
@@ -1447,6 +1456,7 @@ export function StoreProvider({
       size?: string,
       sizeSelections?: ProductSizeSelections,
       priceSlotIndex?: number,
+      productOptionSlotIndex?: number,
       customerNote?: string,
     ) => {
       setBag((curr) => {
@@ -1454,6 +1464,7 @@ export function StoreProvider({
           size,
           sizeSelections,
           priceSlotIndex,
+          productOptionSlotIndex,
           customerNote: normalizeCustomerNote(customerNote),
         });
         const next = curr.filter(
@@ -1473,14 +1484,16 @@ export function StoreProvider({
       size?: string,
       sizeSelections?: ProductSizeSelections,
       priceSlotIndex?: number,
+      productOptionSlotIndex?: number,
       customerNote?: string,
     ) => {
       setBag((curr) => {
-        const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex });
+        const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex, productOptionSlotIndex });
         const fullKey = bagLineKey({
           size,
           sizeSelections,
           priceSlotIndex,
+          productOptionSlotIndex,
           customerNote: normalizeCustomerNote(customerNote),
         });
         const product = productsRef.current.find((p) => p.id === productId);
@@ -1508,6 +1521,7 @@ export function StoreProvider({
       size?: string,
       sizeSelections?: ProductSizeSelections,
       priceSlotIndex?: number,
+      productOptionSlotIndex?: number,
       previousNote?: string,
     ) => {
       const normalized = normalizeCustomerNote(customerNote);
@@ -1515,6 +1529,7 @@ export function StoreProvider({
         size,
         sizeSelections,
         priceSlotIndex,
+        productOptionSlotIndex,
         customerNote: normalizeCustomerNote(previousNote),
       });
       setBag((curr) => {
@@ -1567,12 +1582,14 @@ export function StoreProvider({
       .map((b) => {
         const p = lookup.get(b.productId);
         if (!p) return null;
+        const productOptionLabel = resolveProductOptionLabel(p, b.productOptionSlotIndex);
         return {
           productId: p.id,
           name: p.name,
           price: resolveProductUnitPrice(p, b.priceSlotIndex),
           qty: b.qty,
           size: serializeSizeForOrder(b.sizeSelections, b.size),
+          ...(productOptionLabel ? { productOptionLabel } : {}),
           customerNote: b.customerNote,
           currency: p.currency,
         };
@@ -1636,6 +1653,7 @@ export function StoreProvider({
         size: serializeSizeForOrder(b.sizeSelections, b.size),
         customerNote: b.customerNote,
         priceSlotIndex: b.priceSlotIndex,
+        productOptionSlotIndex: b.productOptionSlotIndex,
       }));
 
       if (supabaseReady) {

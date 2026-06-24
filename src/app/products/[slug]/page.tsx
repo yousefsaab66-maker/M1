@@ -23,6 +23,11 @@ import {
   resolveProductUnitPrice,
 } from "@/lib/product-prices";
 import {
+  getActiveProductOptionSlots,
+  productOptionSlotLabel,
+  requiresProductOptionSelection,
+} from "@/lib/product-options";
+import {
   bagLineKey,
   bagLineSizeKey,
   getProductSizeGroups,
@@ -170,21 +175,28 @@ function ProductBuyColumn({ product }: { product: Product }) {
   const [added, setAdded] = useState(false);
   const [sizeError, setSizeError] = useState(false);
   const [priceError, setPriceError] = useState(false);
+  const [optionError, setOptionError] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
   const wished = inWishlist(product.id);
   const inStock = isProductInStock(product);
   const soldOut = isProductSoldOut(product);
   const activePrices = useMemo(() => getActivePriceSlots(product), [product]);
+  const activeOptions = useMemo(() => getActiveProductOptionSlots(product), [product]);
   const needsPricePick = requiresPriceSelection(product);
+  const needsOptionPick = requiresProductOptionSelection(product);
   const [priceSlotIndex, setPriceSlotIndex] = useState<number | undefined>(() => {
     const slots = getActivePriceSlots(product);
+    return slots.length === 1 ? slots[0]!.index : undefined;
+  });
+  const [productOptionSlotIndex, setProductOptionSlotIndex] = useState<number | undefined>(() => {
+    const slots = getActiveProductOptionSlots(product);
     return slots.length === 1 ? slots[0]!.index : undefined;
   });
   const displayPrice = resolveProductUnitPrice(product, priceSlotIndex);
 
   const lineKey = useMemo(
-    () => bagLineSizeKey({ size, sizeSelections, priceSlotIndex }),
-    [size, sizeSelections, priceSlotIndex],
+    () => bagLineSizeKey({ size, sizeSelections, priceSlotIndex, productOptionSlotIndex }),
+    [size, sizeSelections, priceSlotIndex, productOptionSlotIndex],
   );
   const maxQty = useMemo(
     () => maxQtyForBagLine(product, bag, lineKey),
@@ -200,6 +212,10 @@ function ProductBuyColumn({ product }: { product: Product }) {
       setPriceError(true);
       return;
     }
+    if (needsOptionPick && productOptionSlotIndex == null) {
+      setOptionError(true);
+      return;
+    }
     if (hasSizes) {
       if (multiGroup) {
         if (!isSizeSelectionsComplete(sizeGroups, sizeSelections)) {
@@ -212,6 +228,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
           sizeSelections,
           qty,
           priceSlotIndex,
+          productOptionSlotIndex,
           customerNote: note,
         });
         if (!result.ok) {
@@ -233,6 +250,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
           size,
           qty,
           priceSlotIndex,
+          productOptionSlotIndex,
           customerNote: note,
         });
         if (!result.ok) {
@@ -246,7 +264,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
       }
     } else {
       setSizeError(false);
-      const result = addToBag({ productId: product.id, qty, priceSlotIndex, customerNote: note });
+      const result = addToBag({ productId: product.id, qty, priceSlotIndex, productOptionSlotIndex, customerNote: note });
       if (!result.ok) {
         setStockError(
           result.error === "out_of_stock"
@@ -257,6 +275,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
       }
     }
     setPriceError(false);
+    setOptionError(false);
     setAdded(true);
     setTimeout(() => setAdded(false), 2200);
   };
@@ -316,6 +335,42 @@ function ProductBuyColumn({ product }: { product: Product }) {
       ) : (
         <ProductPrice amount={displayPrice} currency={product.currency} size="lg" className="mt-7" />
       )}
+
+      {activeOptions.length > 1 ? (
+        <div className="mt-7 space-y-3">
+          <p className="eyebrow opacity-80">{t("product.productOptionsTitle")}</p>
+          <div className="flex flex-wrap gap-2">
+            {activeOptions.map((slot) => {
+              const active = productOptionSlotIndex === slot.index;
+              return (
+                <button
+                  key={slot.index}
+                  type="button"
+                  onClick={() => {
+                    setProductOptionSlotIndex(slot.index);
+                    setOptionError(false);
+                  }}
+                  aria-pressed={active}
+                  className="size-chip"
+                  data-active={active}
+                >
+                  {productOptionSlotLabel(slot, t)}
+                </button>
+              );
+            })}
+          </div>
+          {optionError && (
+            <p className="text-sm text-[var(--color-bordeaux)]" role="alert">
+              {t("product.productOptionRequired")}
+            </p>
+          )}
+        </div>
+      ) : activeOptions.length === 1 ? (
+        <p className="mt-5 text-sm opacity-80">
+          <span className="eyebrow opacity-70">{t("product.productOptionsTitle")}: </span>
+          {productOptionSlotLabel(activeOptions[0]!, t)}
+        </p>
+      ) : null}
 
       <dl className="mt-8 grid grid-cols-2 gap-y-3 text-sm">
         <dt className="eyebrow opacity-65">{t("common.materials")}</dt>

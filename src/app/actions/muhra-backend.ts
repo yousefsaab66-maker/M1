@@ -14,6 +14,16 @@ import {
 } from "@/lib/discount";
 import { isIraqCountry, normalizeIraqiPhone, toIqd } from "@/lib/iraq";
 import { normalizeProductStock, priceOptionsFromRow, resolveProductUnitPrice, type ProductPriceOptions } from "@/lib/product-prices";
+import {
+  getActiveProductOptionSlots,
+  productOptionsFromRow,
+  requiresProductOptionSelection,
+  resolveProductOptionLabel,
+  type ProductOptions,
+} from "@/lib/product-options";
+import { decrementStocksForOrder, restoreStocksForOrder } from "@/lib/product-stock-db";
+import { invalidateCatalogProductsCache } from "@/lib/catalog-products-query";
+import { scheduleRefreshStorefrontCatalogInR2 } from "@/lib/storefront-r2";
 import { fetchStorefront } from "@/lib/storefront-query";
 import { getShippingFeeIqd, getUsdIqdRate } from "@/lib/site-display";
 import { deleteProductFromSupabase } from "@/lib/muhra-product-delete";
@@ -40,6 +50,7 @@ export async function createOrderRemote(
     size?: string;
     customerNote?: string;
     priceSlotIndex?: number;
+    productOptionSlotIndex?: number;
   }[],
 ): Promise<{ ok: true; order: Order } | { ok: false; error: string }> {
   if (!isSupabaseBackendConfigured()) return { ok: false, error: "not_configured" };
@@ -75,7 +86,7 @@ export async function createOrderRemote(
 
   const { data: rows, error: fetchErr } = await sb
     .from("products")
-    .select("id, name, price, currency, stock, price_options")
+    .select("id, name, price, currency, stock, price_options, product_options")
     .in("id", ids);
   if (fetchErr) return { ok: false, error: fetchErr.message };
   const map = new Map((rows ?? []).map((r) => [r.id as string, r]));
@@ -96,13 +107,22 @@ export async function createOrderRemote(
   for (const line of bagLines) {
     const r = map.get(line.productId);
     if (!r) return { ok: false, error: "invalid_product" };
-    const price = resolveProductUnitPrice(
-      {
-        price: Number(r.price),
-        priceOptions: priceOptionsFromRow(r.price_options as ProductPriceOptions | null | undefined),
-      },
-      line.priceSlotIndex,
-    );
+    const productOpts = {
+      price: Number(r.price),
+      priceOptions: priceOptionsFromRow(r.price_options as ProductPriceOptions | null | undefined),
+      productOptions: productOptionsFromRow(r.product_options as ProductOptions | null | undefined),
+    };
+    const needsOption = requiresProductOptionSelection(productOpts);
+    if (needsOption && line.productOptionSlotIndex == null) {
+      return { ok: false, error: "product_option_required" };
+    }
+    const activeOptions = getActiveProductOptionSlots(productOpts);
+    if (line.productOptionSlotIndex != null) {
+      const slot = activeOptions.find((s) => s.index === line.productOptionSlotIndex);
+      if (!slot) return { ok: false, error: "invalid_product_option" };
+    }
+    const price = resolveProductUnitPrice(productOpts, line.priceSlotIndex);
+    const productOptionLabel = resolveProductOptionLabel(productOpts, line.productOptionSlotIndex);
     const customerNote = normalizeCustomerNote(line.customerNote);
     items.push({
       productId: r.id as string,
@@ -110,6 +130,7 @@ export async function createOrderRemote(
       qty: line.qty,
       price,
       size: line.size,
+      ...(productOptionLabel ? { productOptionLabel } : {}),
       ...(customerNote ? { customerNote } : {}),
     });
     subtotal += price * line.qty;
@@ -152,6 +173,9 @@ export async function createOrderRemote(
     international: international || undefined,
   };
 
+  const stockAdjust = await decrementStocksForOrder(qtyByProduct);
+  if (!stockAdjust.ok) return { ok: false, error: stockAdjust.reason };
+
   const { data: inserted, error: insErr } = await sb
     .from("orders")
     .insert({
@@ -172,7 +196,15 @@ export async function createOrderRemote(
     .select("id, created_at")
     .single();
 
-  if (insErr || !inserted) return { ok: false, error: insErr?.message ?? "insert_failed" };
+  if (insErr || !inserted) {
+    await restoreStocksForOrder(
+      items.map((it) => ({ productId: it.productId, qty: it.qty })),
+    );
+    return { ok: false, error: insErr?.message ?? "insert_failed" };
+  }
+
+  invalidateCatalogProductsCache();
+  scheduleRefreshStorefrontCatalogInR2();
 
   const order: Order = {
     id: inserted.id as string,
@@ -245,8 +277,25 @@ export async function deleteOrderRemote(id: string): Promise<boolean> {
   if (!(await requireStaff())) return false;
   if (!isSupabaseBackendConfigured()) return false;
   const sb = supabaseAdmin();
+
+  const { data: row, error: fetchErr } = await sb
+    .from("orders")
+    .select("items")
+    .eq("id", id)
+    .maybeSingle();
+  if (fetchErr || !row) return false;
+
+  const items = (row.items as Order["items"]) ?? [];
+  await restoreStocksForOrder(
+    items.map((it) => ({ productId: it.productId, qty: it.qty })),
+  );
+
   const { error } = await sb.from("orders").delete().eq("id", id);
-  return !error;
+  if (error) return false;
+
+  invalidateCatalogProductsCache();
+  scheduleRefreshStorefrontCatalogInR2();
+  return true;
 }
 
 /** Prefer `POST /api/staff/products` from the browser on Cloudflare — lighter than this action. */

@@ -37,12 +37,12 @@ export function SoldOutBadge({ variant = "overlay" }: SoldOutBadgeProps) {
       />
       <span className="pointer-events-none absolute inset-0 z-[6] flex items-center justify-center p-4">
         <span
-          className="px-4 py-2 text-center font-display text-sm tracking-wide md:text-base"
+          className="px-5 py-2.5 text-center font-display text-base font-medium tracking-wide md:text-lg"
           style={{
-            background: "color-mix(in srgb, var(--color-bordeaux) 92%, transparent)",
+            background: "color-mix(in srgb, var(--color-bordeaux) 94%, transparent)",
             color: "var(--color-ivory)",
-            border: "1px solid color-mix(in srgb, var(--color-ivory) 25%, transparent)",
-            boxShadow: "0 8px 32px color-mix(in srgb, var(--color-onyx) 35%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-ivory) 30%, transparent)",
+            boxShadow: "0 10px 40px color-mix(in srgb, var(--color-onyx) 45%, transparent)",
           }}
         >
           {t("product.soldOutBadge")}

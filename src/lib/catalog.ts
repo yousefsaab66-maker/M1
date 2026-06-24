@@ -1,8 +1,10 @@
 import type { SiteCopyBundle } from "@/lib/site-copy";
 import type { ProductPriceOptions } from "@/lib/product-prices";
+import type { ProductOptions } from "@/lib/product-options";
 import type { ProductSizeOptions } from "@/lib/product-sizes";
 
 export type { ProductPriceOptions, ProductPriceSlot } from "@/lib/product-prices";
+export type { ProductOptions, ProductOptionSlot } from "@/lib/product-options";
 export type { ProductSizeOptions } from "@/lib/product-sizes";
 
 export type Category =
@@ -51,6 +53,8 @@ export interface Product {
   stock?: number | null;
   /** Up to 9 optional price slots — staff enable only what they need. */
   priceOptions?: ProductPriceOptions;
+  /** Up to 9 optional variant/description slots — staff enable only what they need. */
+  productOptions?: ProductOptions;
   currency: Currency;
   materials: Material[];
   stones: Stone[];

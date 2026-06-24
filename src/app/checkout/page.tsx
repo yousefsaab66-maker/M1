@@ -36,6 +36,7 @@ import {
   type GovernorateCode,
 } from "@/lib/iraq";
 import { resolveProductUnitPrice } from "@/lib/product-prices";
+import { resolveProductOptionLabel } from "@/lib/product-options";
 import { bagLineKey, formatBagItemSizeDisplay } from "@/lib/product-sizes";
 import { validateBagStock } from "@/lib/product-stock";
 import { getShippingFeeIqd, getUsdIqdRate } from "@/lib/site-display";
@@ -441,6 +442,7 @@ export default function CheckoutPage() {
             <ul className="mt-6 flex flex-col gap-4">
               {items.map(({ b, p }, idx) => {
                 const sizeLabel = formatBagItemSizeDisplay(b, t);
+                const optionLabel = resolveProductOptionLabel(p, b.productOptionSlotIndex);
                 const unitPrice = resolveProductUnitPrice(p, b.priceSlotIndex);
                 return (
                 <li
@@ -467,6 +469,7 @@ export default function CheckoutPage() {
                     <p className="mt-0.5 text-[10px] tracking-eyebrow uppercase opacity-65">
                       {b.qty} × {formatCustomerPrice(unitPrice, p.currency, locale, rateOpts)}
                       {sizeLabel ? ` · ${sizeLabel}` : ""}
+                      {optionLabel ? ` · ${optionLabel}` : ""}
                     </p>
                     {b.customerNote && (
                       <p className="mt-1 text-[11px] leading-snug opacity-75">
