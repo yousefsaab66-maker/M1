@@ -3,6 +3,7 @@
 import { cookies, headers } from "next/headers";
 import type { Product } from "@/lib/catalog";
 import type { Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
+import { normalizeCustomerNote } from "@/lib/customer-note";
 import { isValidInternationalPhone } from "@/lib/countries";
 import {
   buildDiscountLines,
@@ -33,7 +34,7 @@ async function requireStaff(): Promise<boolean> {
 
 export async function createOrderRemote(
   input: PlaceOrderInput,
-  bagLines: { productId: string; qty: number; size?: string }[],
+  bagLines: { productId: string; qty: number; size?: string; customerNote?: string }[],
 ): Promise<{ ok: true; order: Order } | { ok: false; error: string }> {
   if (!isSupabaseBackendConfigured()) return { ok: false, error: "not_configured" };
   if (input.payment.method !== "cod") return { ok: false, error: "cod_only" };
@@ -90,7 +91,15 @@ export async function createOrderRemote(
     const r = map.get(line.productId);
     if (!r) return { ok: false, error: "invalid_product" };
     const price = Number(r.price);
-    items.push({ productId: r.id as string, name: r.name as string, qty: line.qty, price, size: line.size });
+    const customerNote = normalizeCustomerNote(line.customerNote);
+    items.push({
+      productId: r.id as string,
+      name: r.name as string,
+      qty: line.qty,
+      price,
+      size: line.size,
+      ...(customerNote ? { customerNote } : {}),
+    });
     subtotal += price * line.qty;
     currency = r.currency as Order["currency"];
   }

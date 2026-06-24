@@ -38,7 +38,8 @@ import {
   validateBagStock,
   type StockError,
 } from "@/lib/product-stock";
-import { bagLineSizeKey, serializeSizeForOrder, type ProductSizeSelections } from "@/lib/product-sizes";
+import { bagLineKey, bagLineSizeKey, serializeSizeForOrder, type ProductSizeSelections } from "@/lib/product-sizes";
+import { normalizeCustomerNote } from "@/lib/customer-note";
 import {
   buildDiscountLines,
   computeDiscountIqd,
@@ -157,12 +158,14 @@ type StoreCtx = {
     sizeSelections?: ProductSizeSelections;
     priceSlotIndex?: number;
     qty?: number;
+    customerNote?: string;
   }) => AddToBagResult;
   removeFromBag: (
     productId: string,
     size?: string,
     sizeSelections?: ProductSizeSelections,
     priceSlotIndex?: number,
+    customerNote?: string,
   ) => void;
   setBagQty: (
     productId: string,
@@ -170,6 +173,15 @@ type StoreCtx = {
     size?: string,
     sizeSelections?: ProductSizeSelections,
     priceSlotIndex?: number,
+    customerNote?: string,
+  ) => void;
+  setBagNote: (
+    productId: string,
+    customerNote: string | undefined,
+    size?: string,
+    sizeSelections?: ProductSizeSelections,
+    priceSlotIndex?: number,
+    previousNote?: string,
   ) => void;
   clearBag: () => void;
   bagCount: number;
@@ -1373,17 +1385,26 @@ export function StoreProvider({
       sizeSelections,
       priceSlotIndex,
       qty = 1,
+      customerNote,
     }: {
       productId: string;
       size?: string;
       sizeSelections?: ProductSizeSelections;
       priceSlotIndex?: number;
       qty?: number;
+      customerNote?: string;
     }): AddToBagResult => {
       const product = productsRef.current.find((p) => p.id === productId);
       if (!product) return { ok: false, error: "product_not_found" };
 
+      const normalizedNote = normalizeCustomerNote(customerNote);
       const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex });
+      const fullKey = bagLineKey({
+        size,
+        sizeSelections,
+        priceSlotIndex,
+        customerNote: normalizedNote,
+      });
       let result: AddToBagResult = { ok: true };
 
       setBag((curr) => {
@@ -1393,14 +1414,24 @@ export function StoreProvider({
           return curr;
         }
         const idx = curr.findIndex(
-          (i) => i.productId === productId && bagLineSizeKey(i) === lineKey,
+          (i) => i.productId === productId && bagLineKey(i) === fullKey,
         );
         let next: BagItem[];
         if (idx >= 0) {
           next = curr.slice();
           next[idx] = { ...next[idx], qty: next[idx].qty + qty };
         } else {
-          next = [...curr, { productId, size, sizeSelections, priceSlotIndex, qty }];
+          next = [
+            ...curr,
+            {
+              productId,
+              size,
+              sizeSelections,
+              priceSlotIndex,
+              qty,
+              customerNote: normalizedNote,
+            },
+          ];
         }
         writeJSON(KEY_BAG, next);
         return next;
@@ -1416,11 +1447,17 @@ export function StoreProvider({
       size?: string,
       sizeSelections?: ProductSizeSelections,
       priceSlotIndex?: number,
+      customerNote?: string,
     ) => {
       setBag((curr) => {
-        const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex });
+        const fullKey = bagLineKey({
+          size,
+          sizeSelections,
+          priceSlotIndex,
+          customerNote: normalizeCustomerNote(customerNote),
+        });
         const next = curr.filter(
-          (i) => !(i.productId === productId && bagLineSizeKey(i) === lineKey),
+          (i) => !(i.productId === productId && bagLineKey(i) === fullKey),
         );
         writeJSON(KEY_BAG, next);
         return next;
@@ -1436,20 +1473,56 @@ export function StoreProvider({
       size?: string,
       sizeSelections?: ProductSizeSelections,
       priceSlotIndex?: number,
+      customerNote?: string,
     ) => {
       setBag((curr) => {
         const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex });
+        const fullKey = bagLineKey({
+          size,
+          sizeSelections,
+          priceSlotIndex,
+          customerNote: normalizeCustomerNote(customerNote),
+        });
         const product = productsRef.current.find((p) => p.id === productId);
         const maxLine = product ? maxQtyForBagLine(product, curr, lineKey) : null;
         let clamped = Math.max(1, qty);
         if (maxLine != null) clamped = Math.min(clamped, maxLine);
         const next = curr
           .map((i) =>
-            i.productId === productId && bagLineSizeKey(i) === lineKey
+            i.productId === productId && bagLineKey(i) === fullKey
               ? { ...i, qty: clamped }
               : i,
           )
           .filter((i) => i.qty > 0);
+        writeJSON(KEY_BAG, next);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const setBagNote = useCallback(
+    (
+      productId: string,
+      customerNote: string | undefined,
+      size?: string,
+      sizeSelections?: ProductSizeSelections,
+      priceSlotIndex?: number,
+      previousNote?: string,
+    ) => {
+      const normalized = normalizeCustomerNote(customerNote);
+      const prevKey = bagLineKey({
+        size,
+        sizeSelections,
+        priceSlotIndex,
+        customerNote: normalizeCustomerNote(previousNote),
+      });
+      setBag((curr) => {
+        const next = curr.map((i) =>
+          i.productId === productId && bagLineKey(i) === prevKey
+            ? { ...i, customerNote: normalized }
+            : i,
+        );
         writeJSON(KEY_BAG, next);
         return next;
       });
@@ -1500,6 +1573,7 @@ export function StoreProvider({
           price: resolveProductUnitPrice(p, b.priceSlotIndex),
           qty: b.qty,
           size: serializeSizeForOrder(b.sizeSelections, b.size),
+          customerNote: b.customerNote,
           currency: p.currency,
         };
       })
@@ -1560,6 +1634,7 @@ export function StoreProvider({
         productId: b.productId,
         qty: b.qty,
         size: serializeSizeForOrder(b.sizeSelections, b.size),
+        customerNote: b.customerNote,
       }));
 
       if (supabaseReady) {
@@ -1712,6 +1787,7 @@ export function StoreProvider({
       addToBag,
       removeFromBag,
       setBagQty,
+      setBagNote,
       clearBag,
       bagCount,
       wishlist,
@@ -1759,6 +1835,7 @@ export function StoreProvider({
       addToBag,
       removeFromBag,
       setBagQty,
+      setBagNote,
       clearBag,
       bagCount,
       wishlist,

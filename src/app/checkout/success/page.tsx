@@ -71,6 +71,11 @@ function SuccessInner() {
                     <span className="text-sm">
                       {it.name}
                       <span className="opacity-65"> × {it.qty}</span>
+                      {it.customerNote && (
+                        <span className="mt-0.5 block text-[11px] opacity-75">
+                          {t("product.customerNote.label")}: {it.customerNote}
+                        </span>
+                      )}
                     </span>
                     <span className="text-end text-sm">{line.primary}</span>
                   </li>

@@ -35,7 +35,7 @@ import {
   toIqd,
   type GovernorateCode,
 } from "@/lib/iraq";
-import { bagLineSizeKey, formatBagItemSizeDisplay } from "@/lib/product-sizes";
+import { bagLineKey, formatBagItemSizeDisplay } from "@/lib/product-sizes";
 import { validateBagStock } from "@/lib/product-stock";
 import { getShippingFeeIqd, getUsdIqdRate } from "@/lib/site-display";
 
@@ -430,11 +430,11 @@ export default function CheckoutPage() {
           <div className="p-7">
             <h3 className="font-display text-2xl">{t("checkout.summary")}</h3>
             <ul className="mt-6 flex flex-col gap-4">
-              {items.map(({ b, p }) => {
+              {items.map(({ b, p }, idx) => {
                 const sizeLabel = formatBagItemSizeDisplay(b, t);
                 return (
                 <li
-                  key={p.id + bagLineSizeKey(b)}
+                  key={`${idx}-${p.id}-${bagLineKey(b)}`}
                   className="grid grid-cols-[64px_1fr_auto] items-center gap-4"
                 >
                   <div
@@ -458,6 +458,11 @@ export default function CheckoutPage() {
                       {b.qty} × {formatCustomerPrice(p.price, p.currency, locale, rateOpts)}
                       {sizeLabel ? ` · ${sizeLabel}` : ""}
                     </p>
+                    {b.customerNote && (
+                      <p className="mt-1 text-[11px] leading-snug opacity-75">
+                        {t("product.customerNote.label")}: {b.customerNote}
+                      </p>
+                    )}
                   </div>
                   <ProductPrice
                     amount={p.price * b.qty}

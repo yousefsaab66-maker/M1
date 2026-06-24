@@ -382,6 +382,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.orders.filterAll": "All statuses",
     "staff.orders.address": "Delivery address",
     "staff.orders.notes": "Notes",
+    "staff.orders.itemNote": "Item note",
     "staff.orders.items": "Items",
     // Hero
     "hero.scroll": "Scroll",
@@ -514,6 +515,11 @@ export const DICTS: Record<Locale, Dict> = {
     "product.outOfStock": "Out of stock",
     "product.stockQty": "{n} in stock",
     "product.stockOnlyAvailable": "Only {n} available in stock",
+    "product.customerNote.label": "Note (to identify item in photo)",
+    "product.customerNote.placeholder":
+      "e.g. top row, left piece, gold bracelet in the back…",
+    "product.customerNote.hint":
+      "Optional — helpful when the product image shows more than one piece.",
     "stock.bagInvalid":
       "Some items in your bag exceed available stock. Please adjust quantities before checkout.",
     "stock.cannotCheckout": "Cannot checkout — stock unavailable for one or more items.",
@@ -2347,6 +2353,7 @@ export const DICTS: Record<Locale, Dict> = {
     "staff.orders.filterAll": "جميع الحالات",
     "staff.orders.address": "عنوان التوصيل",
     "staff.orders.notes": "ملاحظات",
+    "staff.orders.itemNote": "ملاحظة المنتج",
     "staff.orders.items": "العناصر",
     "hero.scroll": "مرّر",
     "hero.sound.on": "كتم الصوت",
@@ -2468,6 +2475,11 @@ export const DICTS: Record<Locale, Dict> = {
     "product.outOfStock": "غير متوفر",
     "product.stockQty": "{n} متوفر",
     "product.stockOnlyAvailable": "متوفر فقط {n} قطعة",
+    "product.customerNote.label": "ملاحظة (لتحديد المنتج من الصورة)",
+    "product.customerNote.placeholder":
+      "مثال: الصف العلوي، القطعة اليسرى، السوار الذهبي في الخلف…",
+    "product.customerNote.hint":
+      "اختياري — مفيد عندما تعرض صورة المنتج أكثر من قطعة.",
     "stock.bagInvalid":
       "بعض المنتجات في حقيبتك تتجاوز المخزون المتاح. يرجى تعديل الكميات قبل إتمام الشراء.",
     "stock.cannotCheckout": "لا يمكن إتمام الشراء — المخزون غير كافٍ لبعض المنتجات.",

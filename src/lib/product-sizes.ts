@@ -147,6 +147,18 @@ export function bagLineSizeKey(item: {
   return sizePart + pricePart;
 }
 
+/** Bag line identity including optional customer note (distinct notes = distinct lines). */
+export function bagLineKey(item: {
+  size?: string;
+  sizeSelections?: ProductSizeSelections;
+  priceSlotIndex?: number;
+  customerNote?: string;
+}): string {
+  const base = bagLineSizeKey(item);
+  const note = item.customerNote?.trim();
+  return note ? `${base}|n:${encodeURIComponent(note)}` : base;
+}
+
 /** Persist multi-group selections in order `size` column (legacy plain values unchanged). */
 export function serializeSizeForOrder(
   sizeSelections?: ProductSizeSelections,

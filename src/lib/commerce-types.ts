@@ -12,6 +12,17 @@ export type BagItem = {
   sizeSelections?: ProductSizeSelections;
   /** Index into product.priceOptions when multiple active prices. */
   priceSlotIndex?: number;
+  /** Optional shopper note to identify an item in a multi-product photo. */
+  customerNote?: string;
+};
+
+export type OrderLineItem = {
+  productId: string;
+  name: string;
+  qty: number;
+  price: number;
+  size?: string;
+  customerNote?: string;
 };
 
 export type OrderStatus =
@@ -51,7 +62,7 @@ export interface Order {
   createdAt: string;
   customerName: string;
   customer?: OrderCustomer;
-  items: { productId: string; name: string; qty: number; price: number; size?: string }[];
+  items: OrderLineItem[];
   subtotal: number;
   subtotalIqd?: number;
   shippingFeeIqd?: number;

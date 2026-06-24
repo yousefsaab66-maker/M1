@@ -2239,6 +2239,11 @@ function OrdersPane() {
                                           {sizeLabel ? ` · ${sizeLabel}` : ""}
                                           {p ? ` · /${p.slug}` : ""}
                                         </p>
+                                        {it.customerNote && (
+                                          <p className="mt-1 text-[11px] leading-snug opacity-80">
+                                            {t("staff.orders.itemNote")}: {it.customerNote}
+                                          </p>
+                                        )}
                                       </div>
                                       <p className="shrink-0 text-sm">
                                         {formatPrice(it.qty * it.price, o.currency, locale)}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, X } from "lucide-react";
 import { SectionTitle } from "@/components/Section";
@@ -14,10 +14,49 @@ import { getCustomerPriceParts } from "@/lib/customer-price";
 import { resolveProductUnitPrice } from "@/lib/product-prices";
 import { maxQtyForBagLine, validateBagStock } from "@/lib/product-stock";
 import { bagLineSizeKey, formatBagItemSizeDisplay } from "@/lib/product-sizes";
+import { CUSTOMER_NOTE_MAX_LENGTH } from "@/lib/customer-note";
 import { getUsdIqdRate } from "@/lib/site-display";
 
+function BagLineNoteEditor({
+  value,
+  lineId,
+  label,
+  placeholder,
+  maxLength,
+  onCommit,
+}: {
+  value?: string;
+  lineId: string;
+  label: string;
+  placeholder: string;
+  maxLength: number;
+  onCommit: (note: string) => void;
+}) {
+  const [draft, setDraft] = useState(value ?? "");
+  useEffect(() => {
+    setDraft(value ?? "");
+  }, [value]);
+  return (
+    <div className="mt-3">
+      <label className="text-[10px] tracking-eyebrow uppercase opacity-65" htmlFor={lineId}>
+        {label}
+      </label>
+      <textarea
+        id={lineId}
+        className="input-luxe mt-1.5 min-h-[72px] w-full resize-y text-sm"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value.slice(0, maxLength))}
+        onBlur={() => onCommit(draft)}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        rows={2}
+      />
+    </div>
+  );
+}
+
 export default function BagPage() {
-  const { bag, products, setBagQty, removeFromBag, hydrated, site } = useStore();
+  const { bag, products, setBagQty, setBagNote, removeFromBag, hydrated, site } = useStore();
   const { t, locale } = useLocale();
   const router = useRouter();
   const items = bag
@@ -55,15 +94,15 @@ export default function BagPage() {
         ) : (
           <div className="grid gap-12 lg:grid-cols-[1.5fr_1fr] lg:gap-16">
             <ul className="flex flex-col" aria-live="polite">
-              {items.map(({ b, p }) => {
+              {items.map(({ b, p }, idx) => {
                 const sizeLabel = formatBagItemSizeDisplay(b, t);
-                const lineKey = bagLineSizeKey(b);
-                const maxLineQty = maxQtyForBagLine(p, bag, lineKey);
+                const sizeKey = bagLineSizeKey(b);
+                const maxLineQty = maxQtyForBagLine(p, bag, sizeKey);
                 const atMax = maxLineQty != null && b.qty >= maxLineQty;
                 return (
                 <li
-                  key={p.id + lineKey}
-                  className="grid grid-cols-[110px_1fr_auto] items-center gap-5 py-6"
+                  key={`${idx}-${p.id}-${sizeKey}`}
+                  className="grid grid-cols-[110px_1fr_auto] items-start gap-5 py-6"
                   style={{ borderTop: "1px solid var(--line)" }}
                 >
                   <Link
@@ -97,6 +136,23 @@ export default function BagPage() {
                         {sizeLabel}
                       </p>
                     )}
+                    <BagLineNoteEditor
+                      value={b.customerNote}
+                      lineId={`bag-note-${idx}-${p.id}`}
+                      label={t("product.customerNote.label")}
+                      placeholder={t("product.customerNote.placeholder")}
+                      maxLength={CUSTOMER_NOTE_MAX_LENGTH}
+                      onCommit={(note) =>
+                        setBagNote(
+                          p.id,
+                          note,
+                          b.size,
+                          b.sizeSelections,
+                          b.priceSlotIndex,
+                          b.customerNote,
+                        )
+                      }
+                    />
                     <div className="mt-3 flex items-center gap-3">
                       <div
                         className="flex items-center"
@@ -105,7 +161,7 @@ export default function BagPage() {
                         <button
                           type="button"
                           aria-label={t("bag.qtyDecrease")}
-                          onClick={() => setBagQty(p.id, b.qty - 1, b.size, b.sizeSelections, b.priceSlotIndex)}
+                          onClick={() => setBagQty(p.id, b.qty - 1, b.size, b.sizeSelections, b.priceSlotIndex, b.customerNote)}
                           className="px-2 py-1.5"
                         >
                           <Minus className="h-3.5 w-3.5" strokeWidth={1.4} />
@@ -114,7 +170,7 @@ export default function BagPage() {
                         <button
                           type="button"
                           aria-label={t("bag.qtyIncrease")}
-                          onClick={() => setBagQty(p.id, b.qty + 1, b.size, b.sizeSelections, b.priceSlotIndex)}
+                          onClick={() => setBagQty(p.id, b.qty + 1, b.size, b.sizeSelections, b.priceSlotIndex, b.customerNote)}
                           disabled={atMax}
                           className="px-2 py-1.5 disabled:opacity-40"
                         >
@@ -123,7 +179,7 @@ export default function BagPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => removeFromBag(p.id, b.size, b.sizeSelections, b.priceSlotIndex)}
+                        onClick={() => removeFromBag(p.id, b.size, b.sizeSelections, b.priceSlotIndex, b.customerNote)}
                         aria-label={t("bag.remove")}
                         className="opacity-65 hover:opacity-100"
                       >
@@ -131,12 +187,14 @@ export default function BagPage() {
                       </button>
                     </div>
                   </div>
-                  <ProductPrice
+                  <div className="pt-1">
+                    <ProductPrice
                     amount={resolveProductUnitPrice(p, b.priceSlotIndex) * b.qty}
                     currency={p.currency}
                     size="sm"
                     align="end"
                   />
+                  </div>
                 </li>
                 );
               })}

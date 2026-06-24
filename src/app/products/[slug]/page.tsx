@@ -21,6 +21,7 @@ import {
   resolveProductUnitPrice,
 } from "@/lib/product-prices";
 import {
+  bagLineKey,
   bagLineSizeKey,
   getProductSizeGroups,
   isSizeSelectionsComplete,
@@ -30,6 +31,7 @@ import {
   type ProductSizeSelections,
 } from "@/lib/product-sizes";
 import { maxQtyForBagLine } from "@/lib/product-stock";
+import { CUSTOMER_NOTE_MAX_LENGTH, normalizeCustomerNote } from "@/lib/customer-note";
 import type { Product } from "@/lib/catalog";
 import { productCategoryLabel } from "@/lib/site-display";
 
@@ -162,6 +164,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
   });
   const [sizeSelections, setSizeSelections] = useState<ProductSizeSelections>({});
   const [qty, setQty] = useState(1);
+  const [customerNote, setCustomerNote] = useState("");
   const [added, setAdded] = useState(false);
   const [sizeError, setSizeError] = useState(false);
   const [priceError, setPriceError] = useState(false);
@@ -189,6 +192,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
   const onAdd = () => {
     setStockError(null);
     if (!inStock) return;
+    const note = normalizeCustomerNote(customerNote);
     if (needsPricePick && priceSlotIndex == null) {
       setPriceError(true);
       return;
@@ -200,7 +204,13 @@ function ProductBuyColumn({ product }: { product: Product }) {
           return;
         }
         setSizeError(false);
-        const result = addToBag({ productId: product.id, sizeSelections, qty, priceSlotIndex });
+        const result = addToBag({
+          productId: product.id,
+          sizeSelections,
+          qty,
+          priceSlotIndex,
+          customerNote: note,
+        });
         if (!result.ok) {
           setStockError(
             result.error === "out_of_stock"
@@ -215,7 +225,13 @@ function ProductBuyColumn({ product }: { product: Product }) {
           return;
         }
         setSizeError(false);
-        const result = addToBag({ productId: product.id, size, qty, priceSlotIndex });
+        const result = addToBag({
+          productId: product.id,
+          size,
+          qty,
+          priceSlotIndex,
+          customerNote: note,
+        });
         if (!result.ok) {
           setStockError(
             result.error === "out_of_stock"
@@ -227,7 +243,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
       }
     } else {
       setSizeError(false);
-      const result = addToBag({ productId: product.id, qty, priceSlotIndex });
+      const result = addToBag({ productId: product.id, qty, priceSlotIndex, customerNote: note });
       if (!result.ok) {
         setStockError(
           result.error === "out_of_stock"
@@ -374,6 +390,22 @@ function ProductBuyColumn({ product }: { product: Product }) {
             <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
           </button>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <label className="eyebrow block opacity-80" htmlFor={`note-${product.id}`}>
+          {t("product.customerNote.label")}
+        </label>
+        <textarea
+          id={`note-${product.id}`}
+          className="input-luxe mt-3 min-h-[88px] w-full resize-y text-sm"
+          value={customerNote}
+          onChange={(e) => setCustomerNote(e.target.value.slice(0, CUSTOMER_NOTE_MAX_LENGTH))}
+          placeholder={t("product.customerNote.placeholder")}
+          maxLength={CUSTOMER_NOTE_MAX_LENGTH}
+          rows={3}
+        />
+        <p className="mt-2 text-[11px] opacity-60">{t("product.customerNote.hint")}</p>
       </div>
 
       {stockError && (
