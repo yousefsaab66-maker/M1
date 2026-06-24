@@ -35,6 +35,7 @@ import {
   toIqd,
   type GovernorateCode,
 } from "@/lib/iraq";
+import { resolveProductUnitPrice } from "@/lib/product-prices";
 import { bagLineKey, formatBagItemSizeDisplay } from "@/lib/product-sizes";
 import { validateBagStock } from "@/lib/product-stock";
 import { getShippingFeeIqd, getUsdIqdRate } from "@/lib/site-display";
@@ -51,7 +52,7 @@ type FieldErrors = Partial<{
 export default function CheckoutPage() {
   const router = useRouter();
   const { t, locale } = useLocale();
-  const { bag, products, placeOrder, hydrated, site } = useStore();
+  const { bag, products, placeOrder, hydrated, site, refreshCatalog } = useStore();
 
   const items = useMemo(
     () =>
@@ -60,7 +61,10 @@ export default function CheckoutPage() {
         .filter((x): x is { b: BagItem; p: Product } => Boolean(x.p)),
     [bag, products],
   );
-  const subtotal = items.reduce((s, { b, p }) => s + p.price * b.qty, 0);
+  const subtotal = items.reduce(
+    (s, { b, p }) => s + resolveProductUnitPrice(p, b.priceSlotIndex) * b.qty,
+    0,
+  );
   const currency = items[0]?.p.currency ?? "EUR";
   const usdIqdRate = getUsdIqdRate(site);
   const rateOpts = { usdIqdRate };
@@ -93,7 +97,7 @@ export default function CheckoutPage() {
   const discountLines = buildDiscountLines(
     items.map(({ b, p }) => ({
       productId: p.id,
-      price: p.price,
+      price: resolveProductUnitPrice(p, b.priceSlotIndex),
       qty: b.qty,
       currency: p.currency,
     })),
@@ -139,6 +143,11 @@ export default function CheckoutPage() {
       // Allow the empty state below to render; no redirect — keeps /checkout addressable.
     }
   }, [hydrated, items.length, submitting]);
+
+  useEffect(() => {
+    if (!hydrated || items.length === 0) return;
+    void refreshCatalog();
+  }, [hydrated, items.length, refreshCatalog]);
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
@@ -432,6 +441,7 @@ export default function CheckoutPage() {
             <ul className="mt-6 flex flex-col gap-4">
               {items.map(({ b, p }, idx) => {
                 const sizeLabel = formatBagItemSizeDisplay(b, t);
+                const unitPrice = resolveProductUnitPrice(p, b.priceSlotIndex);
                 return (
                 <li
                   key={`${idx}-${p.id}-${bagLineKey(b)}`}
@@ -455,7 +465,7 @@ export default function CheckoutPage() {
                   <div className="min-w-0">
                     <p className="font-display text-base leading-tight">{p.name}</p>
                     <p className="mt-0.5 text-[10px] tracking-eyebrow uppercase opacity-65">
-                      {b.qty} × {formatCustomerPrice(p.price, p.currency, locale, rateOpts)}
+                      {b.qty} × {formatCustomerPrice(unitPrice, p.currency, locale, rateOpts)}
                       {sizeLabel ? ` · ${sizeLabel}` : ""}
                     </p>
                     {b.customerNote && (
@@ -465,7 +475,7 @@ export default function CheckoutPage() {
                     )}
                   </div>
                   <ProductPrice
-                    amount={p.price * b.qty}
+                    amount={unitPrice * b.qty}
                     currency={p.currency}
                     size="sm"
                     align="end"

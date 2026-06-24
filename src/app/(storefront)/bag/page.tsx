@@ -56,7 +56,7 @@ function BagLineNoteEditor({
 }
 
 export default function BagPage() {
-  const { bag, products, setBagQty, setBagNote, removeFromBag, hydrated, site } = useStore();
+  const { bag, products, setBagQty, setBagNote, removeFromBag, hydrated, site, refreshCatalog } = useStore();
   const { t, locale } = useLocale();
   const router = useRouter();
   const items = bag
@@ -72,6 +72,11 @@ export default function BagPage() {
   const subtotalDisplay = getCustomerPriceParts(subtotal, currency, locale, rateOpts);
   const stockCheck = useMemo(() => validateBagStock(bag, products), [bag, products]);
   const hasStockIssues = !stockCheck.ok;
+
+  useEffect(() => {
+    if (!hydrated || bag.length === 0) return;
+    void refreshCatalog();
+  }, [hydrated, bag.length, refreshCatalog]);
 
   const onCheckout = () => {
     if (hasStockIssues) return;

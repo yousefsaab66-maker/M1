@@ -1635,6 +1635,7 @@ export function StoreProvider({
         qty: b.qty,
         size: serializeSizeForOrder(b.sizeSelections, b.size),
         customerNote: b.customerNote,
+        priceSlotIndex: b.priceSlotIndex,
       }));
 
       if (supabaseReady) {
