@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, X } from "lucide-react";
 import { SectionTitle } from "@/components/Section";
@@ -11,6 +12,7 @@ import { useStore, type BagItem } from "@/components/providers/StoreProvider";
 import { ProductPrice } from "@/components/ProductPrice";
 import { getCustomerPriceParts } from "@/lib/customer-price";
 import { resolveProductUnitPrice } from "@/lib/product-prices";
+import { maxQtyForBagLine, validateBagStock } from "@/lib/product-stock";
 import { bagLineSizeKey, formatBagItemSizeDisplay } from "@/lib/product-sizes";
 import { getUsdIqdRate } from "@/lib/site-display";
 
@@ -29,8 +31,11 @@ export default function BagPage() {
   const usdIqdRate = getUsdIqdRate(site);
   const rateOpts = { usdIqdRate };
   const subtotalDisplay = getCustomerPriceParts(subtotal, currency, locale, rateOpts);
+  const stockCheck = useMemo(() => validateBagStock(bag, products), [bag, products]);
+  const hasStockIssues = !stockCheck.ok;
 
   const onCheckout = () => {
+    if (hasStockIssues) return;
     router.push("/checkout" as never);
   };
 
@@ -53,6 +58,8 @@ export default function BagPage() {
               {items.map(({ b, p }) => {
                 const sizeLabel = formatBagItemSizeDisplay(b, t);
                 const lineKey = bagLineSizeKey(b);
+                const maxLineQty = maxQtyForBagLine(p, bag, lineKey);
+                const atMax = maxLineQty != null && b.qty >= maxLineQty;
                 return (
                 <li
                   key={p.id + lineKey}
@@ -108,7 +115,8 @@ export default function BagPage() {
                           type="button"
                           aria-label={t("bag.qtyIncrease")}
                           onClick={() => setBagQty(p.id, b.qty + 1, b.size, b.sizeSelections, b.priceSlotIndex)}
-                          className="px-2 py-1.5"
+                          disabled={atMax}
+                          className="px-2 py-1.5 disabled:opacity-40"
                         >
                           <Plus className="h-3.5 w-3.5" strokeWidth={1.4} />
                         </button>
@@ -152,8 +160,18 @@ export default function BagPage() {
                   <span className="opacity-75">{t("checkout.shippingFlat")}</span>
                 </div>
                 <div className="mt-6 hairline" />
-                <button type="button" onClick={onCheckout} className="btn-primary mt-8 w-full">
-                  {t("common.checkout")}
+                {hasStockIssues && (
+                  <p className="text-sm text-[var(--color-bordeaux)]" role="alert">
+                    {t("stock.bagInvalid")}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={onCheckout}
+                  disabled={hasStockIssues}
+                  className="btn-primary mt-8 w-full disabled:opacity-50"
+                >
+                  {hasStockIssues ? t("stock.cannotCheckout") : t("common.checkout")}
                 </button>
                 <p className="mt-5 text-xs opacity-65">{t("delivery.iraqAndInternational")}</p>
               </div>

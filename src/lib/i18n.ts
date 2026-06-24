@@ -161,6 +161,9 @@ export const DICTS: Record<Locale, Dict> = {
     "checkout.empty.cta": "Discover the catalogue",
     "checkout.orderFailed":
       "We could not place your order. Check your connection, that the bag is still valid, then try again.",
+    "checkout.stockOut": "One or more items are out of stock. Please update your bag.",
+    "checkout.stockInsufficient":
+      "Requested quantity exceeds available stock. Please update your bag.",
     "checkout.rateLimited":
       "Too many orders from this phone or network. Please wait a few minutes before trying again.",
     "checkout.discount.label": "Discount code",
@@ -510,6 +513,10 @@ export const DICTS: Record<Locale, Dict> = {
     "product.inStock": "In stock",
     "product.outOfStock": "Out of stock",
     "product.stockQty": "{n} in stock",
+    "product.stockOnlyAvailable": "Only {n} available in stock",
+    "stock.bagInvalid":
+      "Some items in your bag exceed available stock. Please adjust quantities before checkout.",
+    "stock.cannotCheckout": "Cannot checkout — stock unavailable for one or more items.",
     "product.back": "Back",
     "product.care.body":
       "Each MUHRA piece is delivered in a Maison case and may be returned to any boutique for cleaning and inspection. Avoid contact with perfumes and cosmetics; store separately on a soft cloth.",
@@ -2128,6 +2135,9 @@ export const DICTS: Record<Locale, Dict> = {
     "checkout.empty.cta": "استكشف الكتالوج",
     "checkout.orderFailed":
       "تعذّر إتمام الطلب. تحقّق من الاتصال أو أن المنتجات ما زالت متوفرة ثم أعد المحاولة.",
+    "checkout.stockOut": "أحد المنتجات غير متوفر. يرجى تحديث حقيبتك.",
+    "checkout.stockInsufficient":
+      "الكمية المطلوبة تتجاوز المخزون المتاح. يرجى تحديث حقيبتك.",
     "checkout.rateLimited":
       "محاولات كثيرة من هذا الرقم أو الشبكة. انتظر بضع دقائق ثم أعد المحاولة.",
     "checkout.discount.label": "رمز الخصم",
@@ -2457,6 +2467,10 @@ export const DICTS: Record<Locale, Dict> = {
     "product.inStock": "متوفر",
     "product.outOfStock": "غير متوفر",
     "product.stockQty": "{n} متوفر",
+    "product.stockOnlyAvailable": "متوفر فقط {n} قطعة",
+    "stock.bagInvalid":
+      "بعض المنتجات في حقيبتك تتجاوز المخزون المتاح. يرجى تعديل الكميات قبل إتمام الشراء.",
+    "stock.cannotCheckout": "لا يمكن إتمام الشراء — المخزون غير كافٍ لبعض المنتجات.",
     "product.back": "عودة",
     "product.care.body":
       "تُسلَّم كلّ قطعة من مُهرَة في علبة الدار، ويمكن إعادتها إلى أيّ بوتيك للتنظيف والفحص. تجنّبوا ملامستها للعطور ومستحضرات التجميل، واحفظوها بعيداً على قطعة قماشٍ ناعمة.",

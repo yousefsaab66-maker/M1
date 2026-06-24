@@ -12,6 +12,7 @@ import {
   validateDiscountCode,
 } from "@/lib/discount";
 import { isIraqCountry, normalizeIraqiPhone, toIqd } from "@/lib/iraq";
+import { normalizeProductStock } from "@/lib/product-prices";
 import { fetchStorefront } from "@/lib/storefront-query";
 import { getShippingFeeIqd, getUsdIqdRate } from "@/lib/site-display";
 import { deleteProductFromSupabase } from "@/lib/muhra-product-delete";
@@ -60,9 +61,26 @@ export async function createOrderRemote(
 
   const sb = supabaseAdmin();
   const ids = [...new Set(bagLines.map((b) => b.productId))];
-  const { data: rows, error: fetchErr } = await sb.from("products").select("id, name, price, currency").in("id", ids);
+  const qtyByProduct = new Map<string, number>();
+  for (const line of bagLines) {
+    qtyByProduct.set(line.productId, (qtyByProduct.get(line.productId) ?? 0) + line.qty);
+  }
+
+  const { data: rows, error: fetchErr } = await sb
+    .from("products")
+    .select("id, name, price, currency, stock")
+    .in("id", ids);
   if (fetchErr) return { ok: false, error: fetchErr.message };
   const map = new Map((rows ?? []).map((r) => [r.id as string, r]));
+
+  for (const [productId, requestedQty] of qtyByProduct) {
+    const row = map.get(productId);
+    if (!row) return { ok: false, error: "invalid_product" };
+    const stock = normalizeProductStock(row.stock as number | null | undefined);
+    if (stock == null) continue;
+    if (stock === 0) return { ok: false, error: "stock_out" };
+    if (requestedQty > stock) return { ok: false, error: "stock_insufficient" };
+  }
 
   const items: Order["items"] = [];
   let subtotal = 0;

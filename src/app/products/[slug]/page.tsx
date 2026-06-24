@@ -21,6 +21,7 @@ import {
   resolveProductUnitPrice,
 } from "@/lib/product-prices";
 import {
+  bagLineSizeKey,
   getProductSizeGroups,
   isSizeSelectionsComplete,
   formatSizeDisplayValue,
@@ -28,6 +29,7 @@ import {
   type ProductSizeKind,
   type ProductSizeSelections,
 } from "@/lib/product-sizes";
+import { maxQtyForBagLine } from "@/lib/product-stock";
 import type { Product } from "@/lib/catalog";
 import { productCategoryLabel } from "@/lib/site-display";
 
@@ -144,7 +146,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
   const { t, locale } = useLocale();
   const tc = useSiteCopy();
   const router = useRouter();
-  const { addToBag, toggleWish, inWishlist, site } = useStore();
+  const { bag, addToBag, toggleWish, inWishlist, site } = useStore();
 
   const sizeGroups = useMemo(
     () => getProductSizeGroups(product, site),
@@ -163,6 +165,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
   const [added, setAdded] = useState(false);
   const [sizeError, setSizeError] = useState(false);
   const [priceError, setPriceError] = useState(false);
+  const [stockError, setStockError] = useState<string | null>(null);
   const wished = inWishlist(product.id);
   const inStock = isProductInStock(product);
   const activePrices = useMemo(() => getActivePriceSlots(product), [product]);
@@ -173,7 +176,18 @@ function ProductBuyColumn({ product }: { product: Product }) {
   });
   const displayPrice = resolveProductUnitPrice(product, priceSlotIndex);
 
+  const lineKey = useMemo(
+    () => bagLineSizeKey({ size, sizeSelections, priceSlotIndex }),
+    [size, sizeSelections, priceSlotIndex],
+  );
+  const maxQty = useMemo(
+    () => maxQtyForBagLine(product, bag, lineKey),
+    [product, bag, lineKey],
+  );
+  const canAddMore = inStock && (maxQty == null || maxQty > 0);
+
   const onAdd = () => {
+    setStockError(null);
     if (!inStock) return;
     if (needsPricePick && priceSlotIndex == null) {
       setPriceError(true);
@@ -186,18 +200,42 @@ function ProductBuyColumn({ product }: { product: Product }) {
           return;
         }
         setSizeError(false);
-        addToBag({ productId: product.id, sizeSelections, qty, priceSlotIndex });
+        const result = addToBag({ productId: product.id, sizeSelections, qty, priceSlotIndex });
+        if (!result.ok) {
+          setStockError(
+            result.error === "out_of_stock"
+              ? t("product.outOfStock")
+              : t("product.stockOnlyAvailable").replace("{n}", String(result.available ?? 0)),
+          );
+          return;
+        }
       } else {
         if (!size) {
           setSizeError(true);
           return;
         }
         setSizeError(false);
-        addToBag({ productId: product.id, size, qty, priceSlotIndex });
+        const result = addToBag({ productId: product.id, size, qty, priceSlotIndex });
+        if (!result.ok) {
+          setStockError(
+            result.error === "out_of_stock"
+              ? t("product.outOfStock")
+              : t("product.stockOnlyAvailable").replace("{n}", String(result.available ?? 0)),
+          );
+          return;
+        }
       }
     } else {
       setSizeError(false);
-      addToBag({ productId: product.id, qty, priceSlotIndex });
+      const result = addToBag({ productId: product.id, qty, priceSlotIndex });
+      if (!result.ok) {
+        setStockError(
+          result.error === "out_of_stock"
+            ? t("product.outOfStock")
+            : t("product.stockOnlyAvailable").replace("{n}", String(result.available ?? 0)),
+        );
+        return;
+      }
     }
     setPriceError(false);
     setAdded(true);
@@ -328,8 +366,9 @@ function ProductBuyColumn({ product }: { product: Product }) {
           <span className="px-4 py-2 text-sm">{qty}</span>
           <button
             type="button"
-            onClick={() => setQty((q) => q + 1)}
-            className="px-3 py-2"
+            onClick={() => setQty((q) => (maxQty == null ? q + 1 : Math.min(maxQty, q + 1)))}
+            disabled={maxQty != null && (maxQty === 0 || qty >= maxQty)}
+            className="px-3 py-2 disabled:opacity-40"
             aria-label={t("bag.qtyIncrease")}
           >
             <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
@@ -337,14 +376,20 @@ function ProductBuyColumn({ product }: { product: Product }) {
         </div>
       </div>
 
+      {stockError && (
+        <p className="mt-3 text-sm text-[var(--color-bordeaux)]" role="alert">
+          {stockError}
+        </p>
+      )}
+
       <div className="mt-8 flex flex-wrap items-center gap-4">
         <button
           type="button"
           onClick={onAdd}
-          disabled={!inStock}
+          disabled={!canAddMore}
           className="btn-primary flex-1 min-w-[220px] disabled:opacity-50"
         >
-          {!inStock ? t("product.outOfStock") : added ? t("common.added") : t("common.add")}
+          {!inStock || maxQty === 0 ? t("product.outOfStock") : added ? t("common.added") : t("common.add")}
         </button>
         <button
           type="button"

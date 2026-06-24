@@ -32,6 +32,12 @@ import {
 } from "@/lib/catalog-defaults";
 import type { BagItem, Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
 import { resolveProductUnitPrice } from "@/lib/product-prices";
+import {
+  maxQtyForBagLine,
+  validateAddQty,
+  validateBagStock,
+  type StockError,
+} from "@/lib/product-stock";
 import { bagLineSizeKey, serializeSizeForOrder, type ProductSizeSelections } from "@/lib/product-sizes";
 import {
   buildDiscountLines,
@@ -96,6 +102,11 @@ export type {
   PlaceOrderInput,
 } from "@/lib/commerce-types";
 export type { GovernorateCode };
+export type { StockError } from "@/lib/product-stock";
+
+export type AddToBagResult =
+  | { ok: true }
+  | { ok: false; error: StockError | "product_not_found"; available?: number };
 
 const KEY_COLLECTIONS = "muhra-collections-v1";
 const KEY_JOURNAL = "muhra-journal-v1";
@@ -146,7 +157,7 @@ type StoreCtx = {
     sizeSelections?: ProductSizeSelections;
     priceSlotIndex?: number;
     qty?: number;
-  }) => void;
+  }) => AddToBagResult;
   removeFromBag: (
     productId: string,
     size?: string,
@@ -1368,9 +1379,19 @@ export function StoreProvider({
       sizeSelections?: ProductSizeSelections;
       priceSlotIndex?: number;
       qty?: number;
-    }) => {
+    }): AddToBagResult => {
+      const product = productsRef.current.find((p) => p.id === productId);
+      if (!product) return { ok: false, error: "product_not_found" };
+
+      const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex });
+      let result: AddToBagResult = { ok: true };
+
       setBag((curr) => {
-        const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex });
+        const check = validateAddQty(product, curr, productId, qty, lineKey);
+        if (!check.ok) {
+          result = { ok: false, error: check.error, available: check.available };
+          return curr;
+        }
         const idx = curr.findIndex(
           (i) => i.productId === productId && bagLineSizeKey(i) === lineKey,
         );
@@ -1384,6 +1405,7 @@ export function StoreProvider({
         writeJSON(KEY_BAG, next);
         return next;
       });
+      return result;
     },
     [],
   );
@@ -1417,10 +1439,14 @@ export function StoreProvider({
     ) => {
       setBag((curr) => {
         const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex });
+        const product = productsRef.current.find((p) => p.id === productId);
+        const maxLine = product ? maxQtyForBagLine(product, curr, lineKey) : null;
+        let clamped = Math.max(1, qty);
+        if (maxLine != null) clamped = Math.min(clamped, maxLine);
         const next = curr
           .map((i) =>
             i.productId === productId && bagLineSizeKey(i) === lineKey
-              ? { ...i, qty: Math.max(1, qty) }
+              ? { ...i, qty: clamped }
               : i,
           )
           .filter((i) => i.qty > 0);
@@ -1484,6 +1510,7 @@ export function StoreProvider({
   const placeDemoOrder = useCallback((): Order | null => {
     if (supabaseReady) return null;
     if (bag.length === 0) return null;
+    if (!validateBagStock(bag, products).ok) return null;
     const items = buildOrderItems();
     if (items.length === 0) return null;
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
@@ -1514,13 +1541,21 @@ export function StoreProvider({
     setBag([]);
     writeJSON(KEY_BAG, []);
     return order;
-  }, [supabaseReady, bag, buildOrderItems, user, site]);
+  }, [supabaseReady, bag, products, buildOrderItems, user, site]);
 
   const placeOrder = useCallback(
     async (
       input: PlaceOrderInput,
     ): Promise<{ ok: true; order: Order } | { ok: false; error: string }> => {
       if (bag.length === 0) return { ok: false, error: "empty" };
+      const stockCheck = validateBagStock(bag, products);
+      if (!stockCheck.ok) {
+        const first = stockCheck.issues[0]!;
+        return {
+          ok: false,
+          error: first.error === "out_of_stock" ? "stock_out" : "stock_insufficient",
+        };
+      }
       const lines = bag.map((b) => ({
         productId: b.productId,
         qty: b.qty,
@@ -1596,7 +1631,7 @@ export function StoreProvider({
       writeJSON(KEY_BAG, []);
       return { ok: true, order };
     },
-    [supabaseReady, bag, buildOrderItems, site],
+    [supabaseReady, bag, products, buildOrderItems, site],
   );
 
   const setOrderStatus = useCallback(

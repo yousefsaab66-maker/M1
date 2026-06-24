@@ -36,6 +36,7 @@ import {
   type GovernorateCode,
 } from "@/lib/iraq";
 import { bagLineSizeKey, formatBagItemSizeDisplay } from "@/lib/product-sizes";
+import { validateBagStock } from "@/lib/product-stock";
 import { getShippingFeeIqd, getUsdIqdRate } from "@/lib/site-display";
 
 type FieldErrors = Partial<{
@@ -107,6 +108,8 @@ export default function CheckoutPage() {
     shippingFeeIqd,
     discountAmountIqd: discountAmountIqd > 0 ? discountAmountIqd : undefined,
   });
+  const stockCheck = useMemo(() => validateBagStock(bag, products), [bag, products]);
+  const hasStockIssues = !stockCheck.ok;
 
   const applyDiscount = () => {
     setDiscountError(null);
@@ -156,6 +159,10 @@ export default function CheckoutPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setOrderError(null);
+    if (hasStockIssues) {
+      setOrderError(t("stock.bagInvalid"));
+      return;
+    }
     const next = validate();
     setErrors(next);
     if (Object.keys(next).length > 0) {
@@ -186,7 +193,11 @@ export default function CheckoutPage() {
       const errKey =
         result.error === "rate_limited"
           ? "checkout.rateLimited"
-          : result.error === "invalid_phone"
+          : result.error === "stock_out"
+            ? "checkout.stockOut"
+            : result.error === "stock_insufficient"
+              ? "checkout.stockInsufficient"
+              : result.error === "invalid_phone"
             ? isIraq
               ? "v.phone"
               : "v.phoneInternational"
@@ -529,11 +540,20 @@ export default function CheckoutPage() {
             </div>
             <button
               type="submit"
-              disabled={submitting}
-              className="btn-primary mt-8 w-full"
+              disabled={submitting || hasStockIssues}
+              className="btn-primary mt-8 w-full disabled:opacity-50"
             >
-              {submitting ? t("checkout.placing") : t("checkout.placeOrder")}
+              {submitting
+                ? t("checkout.placing")
+                : hasStockIssues
+                  ? t("stock.cannotCheckout")
+                  : t("checkout.placeOrder")}
             </button>
+            {hasStockIssues && (
+              <p className="mt-4 text-[11px] text-[var(--color-bordeaux)] text-center" role="alert">
+                {t("stock.bagInvalid")}
+              </p>
+            )}
             <p className="mt-4 text-[11px] opacity-65 text-center">
               {isIraq ? t("delivery.iraqDomestic") : t("checkout.internationalNoticeShort")}
             </p>
