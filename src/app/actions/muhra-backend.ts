@@ -21,6 +21,11 @@ import {
   resolveProductOptionLabel,
   type ProductOptions,
 } from "@/lib/product-options";
+import {
+  aggregateStockAdjustLines,
+  resolveLineStock,
+  type StockAdjustLine,
+} from "@/lib/product-stock";
 import { decrementStocksForOrder, restoreStocksForOrder } from "@/lib/product-stock-db";
 import { invalidateCatalogProductsCache } from "@/lib/catalog-products-query";
 import { scheduleRefreshStorefrontCatalogInR2 } from "@/lib/storefront-r2";
@@ -79,10 +84,14 @@ export async function createOrderRemote(
 
   const sb = supabaseAdmin();
   const ids = [...new Set(bagLines.map((b) => b.productId))];
-  const qtyByProduct = new Map<string, number>();
-  for (const line of bagLines) {
-    qtyByProduct.set(line.productId, (qtyByProduct.get(line.productId) ?? 0) + line.qty);
-  }
+  const stockLines = aggregateStockAdjustLines(
+    bagLines.map((line) => ({
+      productId: line.productId,
+      qty: line.qty,
+      priceSlotIndex: line.priceSlotIndex,
+      productOptionSlotIndex: line.productOptionSlotIndex,
+    })),
+  );
 
   const { data: rows, error: fetchErr } = await sb
     .from("products")
@@ -91,13 +100,18 @@ export async function createOrderRemote(
   if (fetchErr) return { ok: false, error: fetchErr.message };
   const map = new Map((rows ?? []).map((r) => [r.id as string, r]));
 
-  for (const [productId, requestedQty] of qtyByProduct) {
-    const row = map.get(productId);
+  for (const line of stockLines) {
+    const row = map.get(line.productId);
     if (!row) return { ok: false, error: "invalid_product" };
-    const stock = normalizeProductStock(row.stock as number | null | undefined);
-    if (stock == null) continue;
-    if (stock === 0) return { ok: false, error: "stock_out" };
-    if (requestedQty > stock) return { ok: false, error: "stock_insufficient" };
+    const productOpts = {
+      stock: normalizeProductStock(row.stock as number | null | undefined),
+      priceOptions: priceOptionsFromRow(row.price_options as ProductPriceOptions | null | undefined),
+      productOptions: productOptionsFromRow(row.product_options as ProductOptions | null | undefined),
+    };
+    const effective = resolveLineStock(productOpts, line);
+    if (effective == null) continue;
+    if (effective === 0) return { ok: false, error: "stock_out" };
+    if (line.qty > effective) return { ok: false, error: "stock_insufficient" };
   }
 
   const items: Order["items"] = [];
@@ -130,6 +144,10 @@ export async function createOrderRemote(
       qty: line.qty,
       price,
       size: line.size,
+      ...(line.priceSlotIndex != null ? { priceSlotIndex: line.priceSlotIndex } : {}),
+      ...(line.productOptionSlotIndex != null
+        ? { productOptionSlotIndex: line.productOptionSlotIndex }
+        : {}),
       ...(productOptionLabel ? { productOptionLabel } : {}),
       ...(customerNote ? { customerNote } : {}),
     });
@@ -173,7 +191,13 @@ export async function createOrderRemote(
     international: international || undefined,
   };
 
-  const stockAdjust = await decrementStocksForOrder(qtyByProduct);
+  const adjustLines: StockAdjustLine[] = items.map((it) => ({
+    productId: it.productId,
+    qty: it.qty,
+    priceSlotIndex: it.priceSlotIndex,
+    productOptionSlotIndex: it.productOptionSlotIndex,
+  }));
+  const stockAdjust = await decrementStocksForOrder(adjustLines);
   if (!stockAdjust.ok) return { ok: false, error: stockAdjust.reason };
 
   const { data: inserted, error: insErr } = await sb
@@ -197,9 +221,7 @@ export async function createOrderRemote(
     .single();
 
   if (insErr || !inserted) {
-    await restoreStocksForOrder(
-      items.map((it) => ({ productId: it.productId, qty: it.qty })),
-    );
+    await restoreStocksForOrder(adjustLines);
     return { ok: false, error: insErr?.message ?? "insert_failed" };
   }
 
@@ -287,7 +309,12 @@ export async function deleteOrderRemote(id: string): Promise<boolean> {
 
   const items = (row.items as Order["items"]) ?? [];
   await restoreStocksForOrder(
-    items.map((it) => ({ productId: it.productId, qty: it.qty })),
+    items.map((it) => ({
+      productId: it.productId,
+      qty: it.qty,
+      priceSlotIndex: it.priceSlotIndex,
+      productOptionSlotIndex: it.productOptionSlotIndex,
+    })),
   );
 
   const { error } = await sb.from("orders").delete().eq("id", id);

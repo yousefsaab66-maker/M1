@@ -1416,7 +1416,14 @@ export function StoreProvider({
       let result: AddToBagResult = { ok: true };
 
       setBag((curr) => {
-        const check = validateAddQty(product, curr, productId, qty, lineKey);
+        const check = validateAddQty(
+          product,
+          curr,
+          productId,
+          qty,
+          lineKey,
+          { priceSlotIndex, productOptionSlotIndex },
+        );
         if (!check.ok) {
           result = { ok: false, error: check.error, available: check.available };
           return curr;
@@ -1497,7 +1504,12 @@ export function StoreProvider({
           customerNote: normalizeCustomerNote(customerNote),
         });
         const product = productsRef.current.find((p) => p.id === productId);
-        const maxLine = product ? maxQtyForBagLine(product, curr, lineKey) : null;
+        const maxLine = product
+          ? maxQtyForBagLine(product, curr, lineKey, {
+              priceSlotIndex,
+              productOptionSlotIndex,
+            })
+          : null;
         let clamped = Math.max(1, qty);
         if (maxLine != null) clamped = Math.min(clamped, maxLine);
         const next = curr
@@ -1589,6 +1601,10 @@ export function StoreProvider({
           price: resolveProductUnitPrice(p, b.priceSlotIndex),
           qty: b.qty,
           size: serializeSizeForOrder(b.sizeSelections, b.size),
+          ...(b.priceSlotIndex != null ? { priceSlotIndex: b.priceSlotIndex } : {}),
+          ...(b.productOptionSlotIndex != null
+            ? { productOptionSlotIndex: b.productOptionSlotIndex }
+            : {}),
           ...(productOptionLabel ? { productOptionLabel } : {}),
           customerNote: b.customerNote,
           currency: p.currency,

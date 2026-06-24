@@ -52,13 +52,15 @@ import {
   emptyPriceOptions,
   getActivePriceSlots,
   getProductListingPrice,
-  isProductInStock,
-  isStockTracked,
   priceSlotLabel,
   PRICE_SLOT_COUNT,
   type ProductPriceOptions,
   type ProductPriceSlot,
 } from "@/lib/product-prices";
+import {
+  isProductInStock,
+  isStockTracked,
+} from "@/lib/product-stock";
 import {
   emptyProductOptions,
   PRODUCT_OPTION_SLOT_COUNT,
@@ -1420,7 +1422,7 @@ function PriceOptionsEditor({
           return (
             <div
               key={index}
-              className="grid grid-cols-1 items-center gap-3 rounded border p-3 sm:grid-cols-[auto_1fr_1fr]"
+              className="grid grid-cols-1 items-center gap-3 rounded border p-3 sm:grid-cols-[auto_1fr_1fr_1fr]"
               style={{
                 borderColor: slot.enabled ? "var(--color-gold)" : "var(--line)",
                 background: slot.enabled ? "color-mix(in srgb, var(--color-gold) 5%, transparent)" : undefined,
@@ -1452,6 +1454,19 @@ function PriceOptionsEditor({
                 value={slot.label ?? ""}
                 onChange={(e) => updateSlot(index, { label: e.target.value })}
                 placeholder={t("staff.prices.labelPlaceholder")}
+              />
+              <input
+                type="number"
+                className="staff-input"
+                min="0"
+                disabled={!slot.enabled}
+                value={slot.enabled && slot.stock != null ? slot.stock : ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  updateSlot(index, { stock: v === "" ? null : Math.max(0, Number(v)) });
+                }}
+                placeholder={t("staff.prices.stockPlaceholder")}
+                title={t("staff.prices.stockHint")}
               />
             </div>
           );
@@ -1494,7 +1509,7 @@ function ProductOptionsEditor({
           return (
             <div
               key={index}
-              className="grid grid-cols-1 items-center gap-3 rounded border p-3 sm:grid-cols-[auto_1fr]"
+              className="grid grid-cols-1 items-center gap-3 rounded border p-3 sm:grid-cols-[auto_1fr_1fr]"
               style={{
                 borderColor: slot.enabled ? "var(--color-gold)" : "var(--line)",
                 background: slot.enabled ? "color-mix(in srgb, var(--color-gold) 5%, transparent)" : undefined,
@@ -1517,6 +1532,19 @@ function ProductOptionsEditor({
                 value={slot.label ?? ""}
                 onChange={(e) => updateSlot(index, { label: e.target.value })}
                 placeholder={t("staff.options.labelPlaceholder")}
+              />
+              <input
+                type="number"
+                className="staff-input"
+                min="0"
+                disabled={!slot.enabled}
+                value={slot.enabled && slot.stock != null ? slot.stock : ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  updateSlot(index, { stock: v === "" ? null : Math.max(0, Number(v)) });
+                }}
+                placeholder={t("staff.options.stockPlaceholder")}
+                title={t("staff.options.stockHint")}
               />
             </div>
           );

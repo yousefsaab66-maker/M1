@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import type { StockAdjustLine } from "@/lib/product-stock";
 
 export type StockAdjustResult =
   | { ok: true; newStock: number | null; skipped: boolean }
@@ -8,12 +9,16 @@ export type StockAdjustResult =
 export async function decrementProductStock(
   productId: string,
   qty: number,
+  priceSlotIndex?: number,
+  productOptionSlotIndex?: number,
 ): Promise<StockAdjustResult> {
   if (qty <= 0) return { ok: false, reason: "insufficient" };
   const sb = supabaseAdmin();
   const { data, error } = await sb.rpc("decrement_product_stock", {
     p_product_id: productId,
     p_qty: qty,
+    p_price_slot_index: priceSlotIndex ?? null,
+    p_product_option_slot_index: productOptionSlotIndex ?? null,
   });
   if (error) return { ok: false, reason: "rpc_error" };
   const code = Number(data);
@@ -28,12 +33,16 @@ export async function decrementProductStock(
 export async function incrementProductStock(
   productId: string,
   qty: number,
+  priceSlotIndex?: number,
+  productOptionSlotIndex?: number,
 ): Promise<StockAdjustResult> {
   if (qty <= 0) return { ok: false, reason: "insufficient" };
   const sb = supabaseAdmin();
   const { data, error } = await sb.rpc("increment_product_stock", {
     p_product_id: productId,
     p_qty: qty,
+    p_price_slot_index: priceSlotIndex ?? null,
+    p_product_option_slot_index: productOptionSlotIndex ?? null,
   });
   if (error) return { ok: false, reason: "rpc_error" };
   const code = Number(data);
@@ -45,35 +54,44 @@ export async function incrementProductStock(
 }
 
 export async function decrementStocksForOrder(
-  qtyByProduct: Map<string, number>,
+  lines: StockAdjustLine[],
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const decremented: { productId: string; qty: number }[] = [];
+  const decremented: StockAdjustLine[] = [];
 
-  for (const [productId, qty] of qtyByProduct) {
-    const result = await decrementProductStock(productId, qty);
+  for (const line of lines) {
+    const result = await decrementProductStock(
+      line.productId,
+      line.qty,
+      line.priceSlotIndex,
+      line.productOptionSlotIndex,
+    );
     if (!result.ok) {
       for (const prev of decremented) {
-        await incrementProductStock(prev.productId, prev.qty);
+        await incrementProductStock(
+          prev.productId,
+          prev.qty,
+          prev.priceSlotIndex,
+          prev.productOptionSlotIndex,
+        );
       }
       return {
         ok: false,
         reason: result.reason === "insufficient" ? "stock_insufficient" : "stock_adjust_failed",
       };
     }
-    if (!result.skipped) decremented.push({ productId, qty });
+    if (!result.skipped) decremented.push(line);
   }
 
   return { ok: true };
 }
 
-export async function restoreStocksForOrder(
-  items: { productId: string; qty: number }[],
-): Promise<void> {
-  const qtyByProduct = new Map<string, number>();
-  for (const item of items) {
-    qtyByProduct.set(item.productId, (qtyByProduct.get(item.productId) ?? 0) + item.qty);
-  }
-  for (const [productId, qty] of qtyByProduct) {
-    await incrementProductStock(productId, qty);
+export async function restoreStocksForOrder(lines: StockAdjustLine[]): Promise<void> {
+  for (const line of lines) {
+    await incrementProductStock(
+      line.productId,
+      line.qty,
+      line.priceSlotIndex,
+      line.productOptionSlotIndex,
+    );
   }
 }

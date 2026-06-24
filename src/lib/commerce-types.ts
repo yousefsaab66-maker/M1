@@ -24,6 +24,10 @@ export type OrderLineItem = {
   qty: number;
   price: number;
   size?: string;
+  /** Index into product.priceOptions when multiple active prices. */
+  priceSlotIndex?: number;
+  /** Index into product.productOptions when multiple active options. */
+  productOptionSlotIndex?: number;
   /** Denormalized label from product.productOptions at checkout. */
   productOptionLabel?: string;
   customerNote?: string;

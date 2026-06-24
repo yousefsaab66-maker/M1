@@ -7,7 +7,8 @@ import { SafeImage } from "@/components/SafeImage";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { ProductPrice } from "@/components/ProductPrice";
-import { getProductListingPrice, isProductSoldOut, productHasMultiplePrices } from "@/lib/product-prices";
+import { getProductListingPrice, productHasMultiplePrices } from "@/lib/product-prices";
+import { hasPartialSlotAvailability, isProductSoldOut } from "@/lib/product-stock";
 import { productHasVideos, productImageAtForDisplay } from "@/lib/product-media";
 import { SoldOutBadge } from "@/components/SoldOutBadge";
 
@@ -22,6 +23,7 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
   const { locale, t } = useLocale();
   const wished = inWishlist(product.id);
   const soldOut = isProductSoldOut(product);
+  const partialAvailability = !soldOut && hasPartialSlotAvailability(product);
 
   return (
     <article className={`group flex flex-col${soldOut ? " opacity-90" : ""}`}>
@@ -96,6 +98,11 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
         {soldOut && (
           <p className="text-[10px] uppercase tracking-eyebrow text-[var(--color-bordeaux)]">
             {t("product.outOfStock")}
+          </p>
+        )}
+        {partialAvailability && (
+          <p className="text-[10px] uppercase tracking-eyebrow opacity-70">
+            {t("product.partialAvailability")}
           </p>
         )}
         <p className="text-[11px] tracking-eyebrow uppercase opacity-65">{product.collection.replace("muhra-", "")}</p>

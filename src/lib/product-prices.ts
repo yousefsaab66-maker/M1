@@ -8,6 +8,8 @@ export type ProductPriceSlot = {
   amount: number;
   /** Optional label (variant name, image caption, etc.). */
   label?: string;
+  /** Per-slot quantity; omitted/null = use global product stock. */
+  stock?: number | null;
 };
 
 export type ProductPriceOptions = ProductPriceSlot[];
@@ -20,10 +22,16 @@ export function emptyPriceOptions(): ProductPriceOptions {
 }
 
 function normalizeSlot(raw: Partial<ProductPriceSlot> | undefined): ProductPriceSlot {
+  const stockRaw = raw?.stock;
+  const stock =
+    stockRaw != null && !Number.isNaN(Number(stockRaw))
+      ? Math.max(0, Math.floor(Number(stockRaw)))
+      : undefined;
   return {
     enabled: !!raw?.enabled,
     amount: Math.max(0, Number(raw?.amount) || 0),
     label: raw?.label?.trim() || undefined,
+    ...(stock != null ? { stock } : {}),
   };
 }
 
@@ -99,21 +107,6 @@ export function requiresPriceSelection(
   product: Pick<Product, "price" | "priceOptions">,
 ): boolean {
   return getActivePriceSlots(product).length > 1;
-}
-
-/** null/undefined = untracked (treated as in stock). */
-export function isProductInStock(product: Pick<Product, "stock">): boolean {
-  if (product.stock == null) return true;
-  return product.stock > 0;
-}
-
-export function isStockTracked(product: Pick<Product, "stock">): boolean {
-  return product.stock != null;
-}
-
-/** Tracked stock at zero — sold out, not orderable. */
-export function isProductSoldOut(product: Pick<Product, "stock">): boolean {
-  return product.stock === 0;
 }
 
 export function normalizeProductStock(stock: number | null | undefined): number | null | undefined {

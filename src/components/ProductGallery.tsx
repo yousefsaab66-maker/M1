@@ -11,7 +11,7 @@ import {
   productImageForDisplay,
   productVideoSources,
 } from "@/lib/product-media";
-import { isProductSoldOut } from "@/lib/product-prices";
+import { isProductSoldOut } from "@/lib/product-stock";
 import type { Product } from "@/lib/catalog";
 
 interface ProductGalleryProps {

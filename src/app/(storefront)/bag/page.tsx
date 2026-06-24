@@ -104,7 +104,10 @@ export default function BagPage() {
                 const sizeLabel = formatBagItemSizeDisplay(b, t);
                 const optionLabel = resolveProductOptionLabel(p, b.productOptionSlotIndex);
                 const sizeKey = bagLineSizeKey(b);
-                const maxLineQty = maxQtyForBagLine(p, bag, sizeKey);
+                const maxLineQty = maxQtyForBagLine(p, bag, sizeKey, {
+                  priceSlotIndex: b.priceSlotIndex,
+                  productOptionSlotIndex: b.productOptionSlotIndex,
+                });
                 const atMax = maxLineQty != null && b.qty >= maxLineQty;
                 return (
                 <li

@@ -7,6 +7,8 @@ export type ProductOptionSlot = {
   enabled: boolean;
   /** Variant / description label shown to shoppers. */
   label?: string;
+  /** Per-slot quantity; omitted/null = use global product stock. */
+  stock?: number | null;
 };
 
 export type ProductOptions = ProductOptionSlot[];
@@ -18,9 +20,15 @@ export function emptyProductOptions(): ProductOptions {
 }
 
 function normalizeSlot(raw: Partial<ProductOptionSlot> | undefined): ProductOptionSlot {
+  const stockRaw = raw?.stock;
+  const stock =
+    stockRaw != null && !Number.isNaN(Number(stockRaw))
+      ? Math.max(0, Math.floor(Number(stockRaw)))
+      : undefined;
   return {
     enabled: !!raw?.enabled,
     label: raw?.label?.trim() || undefined,
+    ...(stock != null ? { stock } : {}),
   };
 }
 

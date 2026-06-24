@@ -15,9 +15,6 @@ import { SoldOutBadge } from "@/components/SoldOutBadge";
 import { findProductBySlug, productGallerySources } from "@/lib/product-media";
 import {
   getActivePriceSlots,
-  isProductInStock,
-  isProductSoldOut,
-  isStockTracked,
   priceSlotLabel,
   requiresPriceSelection,
   resolveProductUnitPrice,
@@ -37,7 +34,15 @@ import {
   type ProductSizeKind,
   type ProductSizeSelections,
 } from "@/lib/product-sizes";
-import { maxQtyForBagLine } from "@/lib/product-stock";
+import {
+  hasPartialSlotAvailability,
+  isProductInStock,
+  isProductSoldOut,
+  isSlotInStock,
+  isStockTracked,
+  maxQtyForBagLine,
+  resolveSlotStockDisplay,
+} from "@/lib/product-stock";
 import { CUSTOMER_NOTE_MAX_LENGTH, normalizeCustomerNote } from "@/lib/customer-note";
 import type { Product } from "@/lib/catalog";
 import { productCategoryLabel } from "@/lib/site-display";
@@ -194,15 +199,26 @@ function ProductBuyColumn({ product }: { product: Product }) {
   });
   const displayPrice = resolveProductUnitPrice(product, priceSlotIndex);
 
+  const stockRef = useMemo(
+    () => ({ priceSlotIndex, productOptionSlotIndex }),
+    [priceSlotIndex, productOptionSlotIndex],
+  );
   const lineKey = useMemo(
     () => bagLineSizeKey({ size, sizeSelections, priceSlotIndex, productOptionSlotIndex }),
     [size, sizeSelections, priceSlotIndex, productOptionSlotIndex],
   );
   const maxQty = useMemo(
-    () => maxQtyForBagLine(product, bag, lineKey),
-    [product, bag, lineKey],
+    () => maxQtyForBagLine(product, bag, lineKey, stockRef),
+    [product, bag, lineKey, stockRef],
   );
-  const canAddMore = inStock && (maxQty == null || maxQty > 0);
+  const hasRequiredSelections =
+    (!needsPricePick || priceSlotIndex != null) &&
+    (!needsOptionPick || productOptionSlotIndex != null);
+  const selectionSoldOut = hasRequiredSelections && !isSlotInStock(product, stockRef);
+  const canAddMore =
+    inStock && hasRequiredSelections && !selectionSoldOut && (maxQty == null || maxQty > 0);
+  const slotStockDisplay = resolveSlotStockDisplay(product, stockRef);
+  const partialAvailability = hasPartialSlotAvailability(product);
 
   const onAdd = () => {
     setStockError(null);
@@ -295,11 +311,28 @@ function ProductBuyColumn({ product }: { product: Product }) {
           <SoldOutBadge variant="banner" />
         </div>
       )}
-      {isStockTracked(product) && inStock && (
+      {!soldOut && partialAvailability && (
+        <p className="mt-4 text-[11px] uppercase tracking-eyebrow text-[var(--color-bordeaux)]">
+          {t("product.partialAvailability")}
+        </p>
+      )}
+      {hasRequiredSelections && slotStockDisplay != null && slotStockDisplay > 0 && (
         <p className="mt-4 text-[11px] uppercase tracking-eyebrow opacity-75">
-          {product.stock != null && product.stock > 0
-            ? t("product.stockQty").replace("{n}", String(product.stock))
-            : t("product.inStock")}
+          {t("product.stockQty").replace("{n}", String(slotStockDisplay))}
+        </p>
+      )}
+      {hasRequiredSelections && slotStockDisplay === 0 && (
+        <p className="mt-4 text-[11px] uppercase tracking-eyebrow text-[var(--color-bordeaux)]">
+          {t("product.slotOutOfStock")}
+        </p>
+      )}
+      {isStockTracked(product) && inStock && !hasRequiredSelections && (
+        <p className="mt-4 text-[11px] uppercase tracking-eyebrow opacity-75">
+          {partialAvailability
+            ? t("product.partialAvailability")
+            : product.stock != null && product.stock > 0
+              ? t("product.stockQty").replace("{n}", String(product.stock))
+              : t("product.inStock")}
         </p>
       )}
       {activePrices.length > 1 ? (
@@ -308,20 +341,28 @@ function ProductBuyColumn({ product }: { product: Product }) {
           <div className="flex flex-wrap gap-2">
             {activePrices.map((slot) => {
               const active = priceSlotIndex === slot.index;
+              const slotAvailable = isSlotInStock(product, { priceSlotIndex: slot.index });
               return (
                 <button
                   key={slot.index}
                   type="button"
                   onClick={() => {
+                    if (!slotAvailable) return;
                     setPriceSlotIndex(slot.index);
                     setPriceError(false);
                   }}
+                  disabled={!slotAvailable}
                   aria-pressed={active}
-                  className="size-chip"
+                  className="size-chip disabled:cursor-not-allowed disabled:opacity-45"
                   data-active={active}
                 >
                   <span className="block text-[10px] opacity-75">{priceSlotLabel(slot, t)}</span>
                   <ProductPrice amount={slot.amount} currency={product.currency} size="sm" className="!mt-0" align="center" />
+                  {!slotAvailable && (
+                    <span className="mt-1 block text-[9px] uppercase tracking-eyebrow text-[var(--color-bordeaux)]">
+                      {t("product.slotOutOfStock")}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -342,19 +383,27 @@ function ProductBuyColumn({ product }: { product: Product }) {
           <div className="flex flex-wrap gap-2">
             {activeOptions.map((slot) => {
               const active = productOptionSlotIndex === slot.index;
+              const slotAvailable = isSlotInStock(product, { productOptionSlotIndex: slot.index });
               return (
                 <button
                   key={slot.index}
                   type="button"
                   onClick={() => {
+                    if (!slotAvailable) return;
                     setProductOptionSlotIndex(slot.index);
                     setOptionError(false);
                   }}
+                  disabled={!slotAvailable}
                   aria-pressed={active}
-                  className="size-chip"
+                  className="size-chip disabled:cursor-not-allowed disabled:opacity-45"
                   data-active={active}
                 >
                   {productOptionSlotLabel(slot, t)}
+                  {!slotAvailable && (
+                    <span className="mt-1 block text-[9px] uppercase tracking-eyebrow text-[var(--color-bordeaux)]">
+                      {t("product.slotOutOfStock")}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -428,7 +477,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
       <div className="mt-8 flex items-center gap-4">
         <p className="eyebrow opacity-80">{t("common.qty")}</p>
         <div
-          className={`flex items-center${soldOut ? " opacity-40 pointer-events-none" : ""}`}
+          className={`flex items-center${soldOut || selectionSoldOut ? " opacity-40 pointer-events-none" : ""}`}
           style={{ border: "1px solid var(--line-strong)" }}
         >
           <button
@@ -482,7 +531,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
           aria-disabled={!canAddMore}
           className="btn-primary flex-1 min-w-[220px] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {soldOut || maxQty === 0 ? t("product.outOfStock") : added ? t("common.added") : t("common.add")}
+          {soldOut || selectionSoldOut || maxQty === 0 ? t("product.outOfStock") : added ? t("common.added") : t("common.add")}
         </button>
         <button
           type="button"
