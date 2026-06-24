@@ -111,6 +111,11 @@ export function isStockTracked(product: Pick<Product, "stock">): boolean {
   return product.stock != null;
 }
 
+/** Tracked stock at zero — sold out, not orderable. */
+export function isProductSoldOut(product: Pick<Product, "stock">): boolean {
+  return product.stock === 0;
+}
+
 export function normalizeProductStock(stock: number | null | undefined): number | null | undefined {
   if (stock == null) return null;
   const n = Math.floor(Number(stock));

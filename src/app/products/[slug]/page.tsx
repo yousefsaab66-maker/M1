@@ -11,10 +11,12 @@ import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 import { ProductPrice } from "@/components/ProductPrice";
+import { SoldOutBadge } from "@/components/SoldOutBadge";
 import { findProductBySlug, productGallerySources } from "@/lib/product-media";
 import {
   getActivePriceSlots,
   isProductInStock,
+  isProductSoldOut,
   isStockTracked,
   priceSlotLabel,
   requiresPriceSelection,
@@ -171,6 +173,7 @@ function ProductBuyColumn({ product }: { product: Product }) {
   const [stockError, setStockError] = useState<string | null>(null);
   const wished = inWishlist(product.id);
   const inStock = isProductInStock(product);
+  const soldOut = isProductSoldOut(product);
   const activePrices = useMemo(() => getActivePriceSlots(product), [product]);
   const needsPricePick = requiresPriceSelection(product);
   const [priceSlotIndex, setPriceSlotIndex] = useState<number | undefined>(() => {
@@ -268,17 +271,16 @@ function ProductBuyColumn({ product }: { product: Product }) {
       <p className="eyebrow">{product.collection.replace("muhra-", "MUHRA ")}</p>
       <h1 className="font-display mt-4 text-4xl leading-[1.05] md:text-5xl">{product.name}</h1>
       <p className="mt-3 italic opacity-75">{product.description}</p>
-      {isStockTracked(product) && (
-        <p
-          className={`mt-4 text-[11px] uppercase tracking-eyebrow ${
-            inStock ? "opacity-75" : "text-[var(--color-bordeaux)]"
-          }`}
-        >
-          {!inStock
-            ? t("product.outOfStock")
-            : product.stock != null && product.stock > 0
-              ? t("product.stockQty").replace("{n}", String(product.stock))
-              : t("product.inStock")}
+      {soldOut && (
+        <div className="mt-6">
+          <SoldOutBadge variant="banner" />
+        </div>
+      )}
+      {isStockTracked(product) && inStock && (
+        <p className="mt-4 text-[11px] uppercase tracking-eyebrow opacity-75">
+          {product.stock != null && product.stock > 0
+            ? t("product.stockQty").replace("{n}", String(product.stock))
+            : t("product.inStock")}
         </p>
       )}
       {activePrices.length > 1 ? (
@@ -370,7 +372,10 @@ function ProductBuyColumn({ product }: { product: Product }) {
 
       <div className="mt-8 flex items-center gap-4">
         <p className="eyebrow opacity-80">{t("common.qty")}</p>
-        <div className="flex items-center" style={{ border: "1px solid var(--line-strong)" }}>
+        <div
+          className={`flex items-center${soldOut ? " opacity-40 pointer-events-none" : ""}`}
+          style={{ border: "1px solid var(--line-strong)" }}
+        >
           <button
             type="button"
             onClick={() => setQty((q) => Math.max(1, q - 1))}
@@ -419,9 +424,10 @@ function ProductBuyColumn({ product }: { product: Product }) {
           type="button"
           onClick={onAdd}
           disabled={!canAddMore}
-          className="btn-primary flex-1 min-w-[220px] disabled:opacity-50"
+          aria-disabled={!canAddMore}
+          className="btn-primary flex-1 min-w-[220px] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {!inStock || maxQty === 0 ? t("product.outOfStock") : added ? t("common.added") : t("common.add")}
+          {soldOut || maxQty === 0 ? t("product.outOfStock") : added ? t("common.added") : t("common.add")}
         </button>
         <button
           type="button"

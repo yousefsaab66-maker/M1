@@ -7,8 +7,9 @@ import { SafeImage } from "@/components/SafeImage";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { ProductPrice } from "@/components/ProductPrice";
-import { getProductListingPrice, isProductInStock, isStockTracked, productHasMultiplePrices } from "@/lib/product-prices";
+import { getProductListingPrice, isProductSoldOut, productHasMultiplePrices } from "@/lib/product-prices";
 import { productHasVideos, productImageAtForDisplay } from "@/lib/product-media";
+import { SoldOutBadge } from "@/components/SoldOutBadge";
 
 interface ProductCardProps {
   product: Product;
@@ -20,9 +21,10 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
   const { toggleWish, inWishlist } = useStore();
   const { locale, t } = useLocale();
   const wished = inWishlist(product.id);
+  const soldOut = isProductSoldOut(product);
 
   return (
-    <article className="group flex flex-col">
+    <article className={`group flex flex-col${soldOut ? " opacity-90" : ""}`}>
       <Link
         href={`/products/${product.slug}` as never}
         className="product-image-zoom relative block overflow-hidden"
@@ -30,6 +32,7 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
           aspectRatio: size === "tall" ? "3/4" : "1/1",
           background: "var(--surface-2)",
         }}
+        aria-label={soldOut ? `${product.name} — ${t("product.soldOutBadge")}` : product.name}
       >
         <SafeImage
           src={productImageAtForDisplay(product, 0, "card")}
@@ -37,7 +40,7 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
           fill
           loading="lazy"
           sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
-          className="object-cover"
+          className={`object-cover transition-[filter,opacity] duration-500${soldOut ? " grayscale opacity-55" : ""}`}
         />
         <button
           type="button"
@@ -73,7 +76,7 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
             <Play className="h-4 w-4" strokeWidth={1.4} fill="currentColor" />
           </span>
         )}
-        {product.isNew && (
+        {product.isNew && !soldOut && (
           <span
             className="absolute start-3 top-3 z-10 px-2 py-1 text-[9px] tracking-eyebrow uppercase"
             style={{ background: "var(--color-ivory)", color: "var(--color-onyx)" }}
@@ -81,22 +84,20 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
             {t("product.new")}
           </span>
         )}
-        {isStockTracked(product) && !isProductInStock(product) && (
-          <span
-            className="absolute bottom-3 start-3 z-10 px-2 py-1 text-[9px] tracking-eyebrow uppercase"
-            style={{ background: "var(--color-bordeaux)", color: "var(--color-ivory)" }}
-          >
-            {t("product.outOfStock")}
-          </span>
-        )}
+        {soldOut && <SoldOutBadge />}
       </Link>
       <div className="mt-5 flex flex-col items-center gap-1.5 text-center">
         <Link
           href={`/products/${product.slug}` as never}
-          className="font-display text-lg leading-none gold-underline"
+          className={`font-display text-lg leading-none gold-underline${soldOut ? " opacity-60" : ""}`}
         >
           {product.name}
         </Link>
+        {soldOut && (
+          <p className="text-[10px] uppercase tracking-eyebrow text-[var(--color-bordeaux)]">
+            {t("product.outOfStock")}
+          </p>
+        )}
         <p className="text-[11px] tracking-eyebrow uppercase opacity-65">{product.collection.replace("muhra-", "")}</p>
         {productHasMultiplePrices(product) ? (
           <p className="mt-1 text-sm opacity-85">

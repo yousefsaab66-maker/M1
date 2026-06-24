@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { Maximize2 } from "lucide-react";
 import { SafeImage } from "@/components/SafeImage";
 import { ProductImageLightbox } from "@/components/ProductImageLightbox";
+import { SoldOutBadge } from "@/components/SoldOutBadge";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import {
   productImageAt,
   productImageForDisplay,
   productVideoSources,
 } from "@/lib/product-media";
+import { isProductSoldOut } from "@/lib/product-prices";
 import type { Product } from "@/lib/catalog";
 
 interface ProductGalleryProps {
@@ -23,6 +25,7 @@ export function ProductGallery({ product, images }: ProductGalleryProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [hiResReady, setHiResReady] = useState(false);
   const videos = productVideoSources(product);
+  const soldOut = isProductSoldOut(product);
 
   const mainRaw = productImageAt(product, active);
   const mainPreview = productImageForDisplay(mainRaw, "card");
@@ -64,8 +67,9 @@ export function ProductGallery({ product, images }: ProductGalleryProps) {
             fill
             priority
             sizes="(min-width: 1024px) 60vw, 100vw"
-            className="object-cover"
+            className={`object-cover${soldOut ? " grayscale opacity-55" : ""}`}
           />
+          {soldOut && <SoldOutBadge />}
           <span
             className="pointer-events-none absolute inset-0 flex items-end justify-end p-4 opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-focus-visible:opacity-100"
             aria-hidden
