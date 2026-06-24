@@ -10,6 +10,8 @@ export type BagItem = {
   size?: string;
   /** Multi-group size selections (necklace / bracelet / ring). */
   sizeSelections?: ProductSizeSelections;
+  /** Index into product.priceOptions when multiple active prices. */
+  priceSlotIndex?: number;
 };
 
 export type OrderStatus =

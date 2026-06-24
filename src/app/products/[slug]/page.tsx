@@ -13,6 +13,14 @@ import { useSiteCopy } from "@/components/hooks/useSiteCopy";
 import { ProductPrice } from "@/components/ProductPrice";
 import { findProductBySlug, productGallerySources } from "@/lib/product-media";
 import {
+  getActivePriceSlots,
+  isProductInStock,
+  isStockTracked,
+  priceSlotLabel,
+  requiresPriceSelection,
+  resolveProductUnitPrice,
+} from "@/lib/product-prices";
+import {
   getProductSizeGroups,
   isSizeSelectionsComplete,
   formatSizeDisplayValue,
@@ -154,9 +162,23 @@ function ProductBuyColumn({ product }: { product: Product }) {
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [sizeError, setSizeError] = useState(false);
+  const [priceError, setPriceError] = useState(false);
   const wished = inWishlist(product.id);
+  const inStock = isProductInStock(product);
+  const activePrices = useMemo(() => getActivePriceSlots(product), [product]);
+  const needsPricePick = requiresPriceSelection(product);
+  const [priceSlotIndex, setPriceSlotIndex] = useState<number | undefined>(() => {
+    const slots = getActivePriceSlots(product);
+    return slots.length === 1 ? slots[0]!.index : undefined;
+  });
+  const displayPrice = resolveProductUnitPrice(product, priceSlotIndex);
 
   const onAdd = () => {
+    if (!inStock) return;
+    if (needsPricePick && priceSlotIndex == null) {
+      setPriceError(true);
+      return;
+    }
     if (hasSizes) {
       if (multiGroup) {
         if (!isSizeSelectionsComplete(sizeGroups, sizeSelections)) {
@@ -164,19 +186,20 @@ function ProductBuyColumn({ product }: { product: Product }) {
           return;
         }
         setSizeError(false);
-        addToBag({ productId: product.id, sizeSelections, qty });
+        addToBag({ productId: product.id, sizeSelections, qty, priceSlotIndex });
       } else {
         if (!size) {
           setSizeError(true);
           return;
         }
         setSizeError(false);
-        addToBag({ productId: product.id, size, qty });
+        addToBag({ productId: product.id, size, qty, priceSlotIndex });
       }
     } else {
       setSizeError(false);
-      addToBag({ productId: product.id, qty });
+      addToBag({ productId: product.id, qty, priceSlotIndex });
     }
+    setPriceError(false);
     setAdded(true);
     setTimeout(() => setAdded(false), 2200);
   };
@@ -191,7 +214,52 @@ function ProductBuyColumn({ product }: { product: Product }) {
       <p className="eyebrow">{product.collection.replace("muhra-", "MUHRA ")}</p>
       <h1 className="font-display mt-4 text-4xl leading-[1.05] md:text-5xl">{product.name}</h1>
       <p className="mt-3 italic opacity-75">{product.description}</p>
-      <ProductPrice amount={product.price} currency={product.currency} size="lg" className="mt-7" />
+      {isStockTracked(product) && (
+        <p
+          className={`mt-4 text-[11px] uppercase tracking-eyebrow ${
+            inStock ? "opacity-75" : "text-[var(--color-bordeaux)]"
+          }`}
+        >
+          {!inStock
+            ? t("product.outOfStock")
+            : product.stock != null && product.stock > 0
+              ? t("product.stockQty").replace("{n}", String(product.stock))
+              : t("product.inStock")}
+        </p>
+      )}
+      {activePrices.length > 1 ? (
+        <div className="mt-7 space-y-3">
+          <p className="eyebrow opacity-80">{t("product.priceOptionsTitle")}</p>
+          <div className="flex flex-wrap gap-2">
+            {activePrices.map((slot) => {
+              const active = priceSlotIndex === slot.index;
+              return (
+                <button
+                  key={slot.index}
+                  type="button"
+                  onClick={() => {
+                    setPriceSlotIndex(slot.index);
+                    setPriceError(false);
+                  }}
+                  aria-pressed={active}
+                  className="size-chip"
+                  data-active={active}
+                >
+                  <span className="block text-[10px] opacity-75">{priceSlotLabel(slot, t)}</span>
+                  <ProductPrice amount={slot.amount} currency={product.currency} size="sm" className="!mt-0" align="center" />
+                </button>
+              );
+            })}
+          </div>
+          {priceError && (
+            <p className="text-sm text-[var(--color-bordeaux)]" role="alert">
+              {t("product.priceRequired")}
+            </p>
+          )}
+        </div>
+      ) : (
+        <ProductPrice amount={displayPrice} currency={product.currency} size="lg" className="mt-7" />
+      )}
 
       <dl className="mt-8 grid grid-cols-2 gap-y-3 text-sm">
         <dt className="eyebrow opacity-65">{t("common.materials")}</dt>
@@ -270,8 +338,13 @@ function ProductBuyColumn({ product }: { product: Product }) {
       </div>
 
       <div className="mt-8 flex flex-wrap items-center gap-4">
-        <button type="button" onClick={onAdd} className="btn-primary flex-1 min-w-[220px]">
-          {added ? t("common.added") : t("common.add")}
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={!inStock}
+          className="btn-primary flex-1 min-w-[220px] disabled:opacity-50"
+        >
+          {!inStock ? t("product.outOfStock") : added ? t("common.added") : t("common.add")}
         </button>
         <button
           type="button"

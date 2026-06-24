@@ -130,16 +130,21 @@ export function sizeKindLabelKey(kind: ProductSizeKind): `product.size.${Product
   return `product.size.${kind}`;
 }
 
-/** Stable bag line key for single or multi-group size selections. */
+/** Stable bag line key for single or multi-group size selections and price slot. */
 export function bagLineSizeKey(item: {
   size?: string;
   sizeSelections?: ProductSizeSelections;
+  priceSlotIndex?: number;
 }): string {
   const sel = item.sizeSelections;
+  let sizePart: string;
   if (sel && Object.keys(sel).length > 0) {
-    return SIZE_KINDS.map((k) => `${k}=${sel[k] ?? ""}`).join("|");
+    sizePart = SIZE_KINDS.map((k) => `${k}=${sel[k] ?? ""}`).join("|");
+  } else {
+    sizePart = item.size ?? "";
   }
-  return item.size ?? "";
+  const pricePart = item.priceSlotIndex != null ? `@p${item.priceSlotIndex}` : "";
+  return sizePart + pricePart;
 }
 
 /** Persist multi-group selections in order `size` column (legacy plain values unchanged). */

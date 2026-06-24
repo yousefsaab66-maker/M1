@@ -1,6 +1,12 @@
 import type { Product, Material, Stone, Currency } from "@/lib/catalog";
 import { ensureProductOrderable } from "@/lib/product-media";
 import {
+  coalescePriceOptionsForSave,
+  normalizeProductStock,
+  priceOptionsFromRow,
+  type ProductPriceOptions,
+} from "@/lib/product-prices";
+import {
   coalesceSizeOptionsForSave,
   flattenSizeOptions,
   resolveProductSizes,
@@ -15,6 +21,8 @@ export type ProductRow = {
   collection_slug: string;
   category: string;
   price: number | string;
+  stock?: number | null;
+  price_options?: ProductPriceOptions | null;
   currency: string;
   materials: string[] | null;
   stones: string[] | null;
@@ -42,6 +50,8 @@ export function rowToProduct(row: ProductRow): Product {
     collection: row.collection_slug,
     category: row.category,
     price: Number(row.price),
+    stock: normalizeProductStock(row.stock ?? null) ?? undefined,
+    priceOptions: priceOptionsFromRow(row.price_options),
     currency: row.currency as Currency,
     materials: (row.materials ?? []) as Material[],
     stones: (row.stones ?? []) as Stone[],
@@ -64,12 +74,16 @@ export function productToInsert(p: Product) {
     flatSizes.length > 0
       ? flatSizes
       : [...new Set((p.sizes ?? []).map((s) => s.trim()).filter(Boolean))];
+  const stock = normalizeProductStock(p.stock);
+  const priceOptions = coalescePriceOptionsForSave(p.priceOptions);
   return {
     slug: p.slug.trim(),
     name: p.name.trim(),
     collection_slug: p.collection,
     category: p.category,
     price: p.price,
+    stock: stock ?? null,
+    price_options: priceOptions ?? null,
     currency: p.currency,
     materials: p.materials,
     stones: p.stones,

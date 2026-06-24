@@ -10,6 +10,7 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 import { useStore, type BagItem } from "@/components/providers/StoreProvider";
 import { ProductPrice } from "@/components/ProductPrice";
 import { getCustomerPriceParts } from "@/lib/customer-price";
+import { resolveProductUnitPrice } from "@/lib/product-prices";
 import { bagLineSizeKey, formatBagItemSizeDisplay } from "@/lib/product-sizes";
 import { getUsdIqdRate } from "@/lib/site-display";
 
@@ -20,7 +21,10 @@ export default function BagPage() {
   const items = bag
     .map((b) => ({ b, p: products.find((p) => p.id === b.productId) }))
     .filter((x): x is { b: BagItem; p: NonNullable<typeof x.p> } => Boolean(x.p));
-  const subtotal = items.reduce((s, { b, p }) => s + p.price * b.qty, 0);
+  const subtotal = items.reduce(
+    (s, { b, p }) => s + resolveProductUnitPrice(p, b.priceSlotIndex) * b.qty,
+    0,
+  );
   const currency = items[0]?.p.currency ?? "EUR";
   const usdIqdRate = getUsdIqdRate(site);
   const rateOpts = { usdIqdRate };
@@ -94,7 +98,7 @@ export default function BagPage() {
                         <button
                           type="button"
                           aria-label={t("bag.qtyDecrease")}
-                          onClick={() => setBagQty(p.id, b.qty - 1, b.size, b.sizeSelections)}
+                          onClick={() => setBagQty(p.id, b.qty - 1, b.size, b.sizeSelections, b.priceSlotIndex)}
                           className="px-2 py-1.5"
                         >
                           <Minus className="h-3.5 w-3.5" strokeWidth={1.4} />
@@ -103,7 +107,7 @@ export default function BagPage() {
                         <button
                           type="button"
                           aria-label={t("bag.qtyIncrease")}
-                          onClick={() => setBagQty(p.id, b.qty + 1, b.size, b.sizeSelections)}
+                          onClick={() => setBagQty(p.id, b.qty + 1, b.size, b.sizeSelections, b.priceSlotIndex)}
                           className="px-2 py-1.5"
                         >
                           <Plus className="h-3.5 w-3.5" strokeWidth={1.4} />
@@ -111,7 +115,7 @@ export default function BagPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => removeFromBag(p.id, b.size, b.sizeSelections)}
+                        onClick={() => removeFromBag(p.id, b.size, b.sizeSelections, b.priceSlotIndex)}
                         aria-label={t("bag.remove")}
                         className="opacity-65 hover:opacity-100"
                       >
@@ -120,7 +124,7 @@ export default function BagPage() {
                     </div>
                   </div>
                   <ProductPrice
-                    amount={p.price * b.qty}
+                    amount={resolveProductUnitPrice(p, b.priceSlotIndex) * b.qty}
                     currency={p.currency}
                     size="sm"
                     align="end"

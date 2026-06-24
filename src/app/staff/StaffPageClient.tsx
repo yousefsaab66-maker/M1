@@ -49,6 +49,17 @@ import {
   productImageAt,
 } from "@/lib/product-media";
 import {
+  emptyPriceOptions,
+  getActivePriceSlots,
+  getProductListingPrice,
+  isProductInStock,
+  isStockTracked,
+  priceSlotLabel,
+  PRICE_SLOT_COUNT,
+  type ProductPriceOptions,
+  type ProductPriceSlot,
+} from "@/lib/product-prices";
+import {
   enabledEmptySizeKinds,
   formatSizeOptionsSummary,
   formatOrderSizeDisplay,
@@ -749,6 +760,7 @@ function ProductsPane({
               <th>{t("staff.table.collection")}</th>
               <th>{t("staff.table.category")}</th>
               <th>{t("staff.table.sizes")}</th>
+              <th>{t("staff.table.stock")}</th>
               <th>{t("staff.table.price")}</th>
               <th></th>
             </tr>
@@ -868,7 +880,16 @@ const StaffProductRow = memo(function StaffProductRow({
       <td className="max-w-[140px] text-sm opacity-90">
         {formatSizeOptionsSummary(p.sizeOptions) || (p.sizes?.length ? p.sizes.join(", ") : "—")}
       </td>
-      <td>{formatPrice(p.price, p.currency, "en")}</td>
+      <td className="text-sm opacity-90">
+        {!isStockTracked(p)
+          ? "—"
+          : isProductInStock(p)
+            ? p.stock != null && p.stock > 0
+              ? String(p.stock)
+              : t("product.inStock")
+            : t("product.outOfStock")}
+      </td>
+      <td>{formatPrice(getProductListingPrice(p), p.currency, "en")}</td>
       <td>
         <div className="flex justify-end gap-2">
           <Link
@@ -1020,7 +1041,10 @@ function ProductEditor({
 }) {
   const { t, locale } = useLocale();
   const { site } = useStore();
-  const [draft, setDraft] = useState<Product>(product);
+  const [draft, setDraft] = useState<Product>(() => ({
+    ...product,
+    priceOptions: product.priceOptions ?? emptyPriceOptions(),
+  }));
   const [saving, setSaving] = useState(false);
   const categoryOptions = useMemo(() => catalogFilterSlugs(site), [site]);
   const update = <K extends keyof Product>(k: K, v: Product[K]) =>
@@ -1087,6 +1111,27 @@ function ProductEditor({
                 ))}
               </select>
             </Field>
+          </div>
+          <Field label={t("staff.form.stock")}>
+            <input
+              type="number"
+              className="staff-input"
+              min="0"
+              value={draft.stock ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                update("stock", v === "" ? null : Math.max(0, Number(v)));
+              }}
+              placeholder={t("staff.form.stockPlaceholder")}
+            />
+            <p className="mt-1 text-xs opacity-70">{t("staff.form.stockHint")}</p>
+          </Field>
+          <div className="border-t pt-5" style={{ borderColor: "var(--line)" }}>
+            <PriceOptionsEditor
+              priceOptions={draft.priceOptions ?? emptyPriceOptions()}
+              imageCount={draft.images.length}
+              onChange={(next) => update("priceOptions", next)}
+            />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={t("staff.form.collection")}>
@@ -1231,7 +1276,27 @@ function ProductStaffPreview({
       )}
       <div className="space-y-3 text-sm">
         <h4 className="font-display text-xl leading-snug sm:text-2xl">{draft.name.trim() || "—"}</h4>
-        <p className="font-display text-lg opacity-90">{formatPrice(draft.price || 0, draft.currency, locale)}</p>
+        <p className="font-display text-lg opacity-90">
+          {formatPrice(getProductListingPrice(draft), draft.currency, locale)}
+        </p>
+        {getActivePriceSlots(draft).length > 1 && (
+          <ul className="space-y-1 text-sm opacity-85">
+            {getActivePriceSlots(draft).map((slot) => (
+              <li key={slot.index}>
+                {priceSlotLabel(slot, t)}: {formatPrice(slot.amount, draft.currency, locale)}
+              </li>
+            ))}
+          </ul>
+        )}
+        {isStockTracked(draft) && (
+          <p className="text-xs uppercase tracking-eyebrow opacity-70">
+            {!isProductInStock(draft)
+              ? t("staff.preview.stockOut")
+              : draft.stock != null && draft.stock > 0
+                ? t("staff.preview.stockQty").replace("{n}", String(draft.stock))
+                : t("staff.preview.stockIn")}
+          </p>
+        )}
         <dl className="space-y-1.5 text-[11px] uppercase tracking-[0.2em] opacity-75">
           <div className="flex flex-wrap gap-x-2 gap-y-0.5">
             <dt className="shrink-0 opacity-60">{t("staff.preview.slug")}</dt>
@@ -1306,6 +1371,77 @@ function ProductStaffPreview({
             {draft.description}
           </p>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PriceOptionsEditor({
+  priceOptions,
+  imageCount,
+  onChange,
+}: {
+  priceOptions: ProductPriceOptions;
+  imageCount: number;
+  onChange: (next: ProductPriceOptions) => void;
+}) {
+  const { t } = useLocale();
+  const slots = priceOptions.length >= PRICE_SLOT_COUNT ? priceOptions : emptyPriceOptions();
+
+  const updateSlot = (index: number, patch: Partial<ProductPriceSlot>) => {
+    const next = slots.map((slot, i) => (i === index ? { ...slot, ...patch } : slot));
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="staff-label !mb-0">{t("staff.prices.title")}</p>
+        <p className="mt-1 text-xs opacity-75">{t("staff.prices.hint")}</p>
+      </div>
+      <div className="space-y-3">
+        {Array.from({ length: PRICE_SLOT_COUNT }, (_, index) => {
+          const slot = slots[index]!;
+          const imageHint = imageCount > 0 && index < imageCount;
+          return (
+            <div
+              key={index}
+              className="grid grid-cols-1 items-center gap-3 rounded border p-3 sm:grid-cols-[auto_1fr_1fr]"
+              style={{
+                borderColor: slot.enabled ? "var(--color-gold)" : "var(--line)",
+                background: slot.enabled ? "color-mix(in srgb, var(--color-gold) 5%, transparent)" : undefined,
+              }}
+            >
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={slot.enabled}
+                  onChange={(e) => updateSlot(index, { enabled: e.target.checked })}
+                />
+                <span className="whitespace-nowrap text-[11px] uppercase tracking-eyebrow">
+                  {t("staff.prices.slot").replace("{n}", String(index + 1))}
+                  {imageHint ? ` · ${t("staff.prices.image")} ${index + 1}` : ""}
+                </span>
+              </label>
+              <input
+                type="number"
+                className="staff-input"
+                min="0"
+                disabled={!slot.enabled}
+                value={slot.enabled ? slot.amount : ""}
+                onChange={(e) => updateSlot(index, { amount: Math.max(0, Number(e.target.value)) })}
+                placeholder={t("staff.prices.amount")}
+              />
+              <input
+                className="staff-input"
+                disabled={!slot.enabled}
+                value={slot.label ?? ""}
+                onChange={(e) => updateSlot(index, { label: e.target.value })}
+                placeholder={t("staff.prices.labelPlaceholder")}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

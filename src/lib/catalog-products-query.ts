@@ -2,6 +2,10 @@ import type { Product } from "@/lib/catalog";
 import { rowToProduct, type ProductRow } from "@/lib/catalog-db";
 import { ensureProductOrderable, sanitizeProductForCatalogApi } from "@/lib/product-media";
 import { resolveProductSizes, sizeOptionsFromRow } from "@/lib/product-sizes";
+import {
+  normalizeProductStock,
+  priceOptionsFromRow,
+} from "@/lib/product-prices";
 import { isSupabaseBackendConfigured, supabaseAdmin } from "@/lib/supabase/admin";
 
 export type FetchCatalogProductsResult =
@@ -15,7 +19,7 @@ export type FetchCatalogProductsOptions = {
 };
 
 const LIST_SELECT =
-  "id,slug,name,collection_slug,category,price,currency,materials,stones,images,videos,sizes,size_options,is_high_jewelry,is_new";
+  "id,slug,name,collection_slug,category,price,stock,price_options,currency,materials,stones,images,videos,sizes,size_options,is_high_jewelry,is_new";
 
 function rowToProductList(row: ProductRow): Product {
   const images = row.images ?? [];
@@ -31,6 +35,8 @@ function rowToProductList(row: ProductRow): Product {
     collection: row.collection_slug,
     category: row.category,
     price: Number(row.price),
+    stock: normalizeProductStock(row.stock ?? null) ?? undefined,
+    priceOptions: priceOptionsFromRow(row.price_options),
     currency: row.currency as Product["currency"],
     materials: (row.materials ?? []) as Product["materials"],
     stones: (row.stones ?? []) as Product["stones"],

@@ -1,6 +1,8 @@
 import type { SiteCopyBundle } from "@/lib/site-copy";
+import type { ProductPriceOptions } from "@/lib/product-prices";
 import type { ProductSizeOptions } from "@/lib/product-sizes";
 
+export type { ProductPriceOptions, ProductPriceSlot } from "@/lib/product-prices";
 export type { ProductSizeOptions } from "@/lib/product-sizes";
 
 export type Category =
@@ -45,6 +47,10 @@ export interface Product {
   /** Built-in slug (rings, earrings…) or a custom category slug from site.customCategories. */
   category: string;
   price: number;
+  /** null/undefined = untracked (in stock); 0 = out of stock; >0 = quantity on hand. */
+  stock?: number | null;
+  /** Up to 9 optional price slots — staff enable only what they need. */
+  priceOptions?: ProductPriceOptions;
   currency: Currency;
   materials: Material[];
   stones: Stone[];

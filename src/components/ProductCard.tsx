@@ -7,6 +7,7 @@ import { SafeImage } from "@/components/SafeImage";
 import { useStore } from "@/components/providers/StoreProvider";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { ProductPrice } from "@/components/ProductPrice";
+import { getProductListingPrice, isProductInStock, isStockTracked, productHasMultiplePrices } from "@/lib/product-prices";
 import { productHasVideos, productImageAtForDisplay } from "@/lib/product-media";
 
 interface ProductCardProps {
@@ -80,6 +81,14 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
             {t("product.new")}
           </span>
         )}
+        {isStockTracked(product) && !isProductInStock(product) && (
+          <span
+            className="absolute bottom-3 start-3 z-10 px-2 py-1 text-[9px] tracking-eyebrow uppercase"
+            style={{ background: "var(--color-bordeaux)", color: "var(--color-ivory)" }}
+          >
+            {t("product.outOfStock")}
+          </span>
+        )}
       </Link>
       <div className="mt-5 flex flex-col items-center gap-1.5 text-center">
         <Link
@@ -89,7 +98,14 @@ export function ProductCard({ product, size = "default" }: ProductCardProps) {
           {product.name}
         </Link>
         <p className="text-[11px] tracking-eyebrow uppercase opacity-65">{product.collection.replace("muhra-", "")}</p>
-        <ProductPrice amount={product.price} currency={product.currency} size="sm" className="mt-1" />
+        {productHasMultiplePrices(product) ? (
+          <p className="mt-1 text-sm opacity-85">
+            <span className="text-[10px] uppercase tracking-eyebrow opacity-70">{t("product.priceFrom")} </span>
+            <ProductPrice amount={getProductListingPrice(product)} currency={product.currency} size="sm" className="!inline" />
+          </p>
+        ) : (
+          <ProductPrice amount={getProductListingPrice(product)} currency={product.currency} size="sm" className="mt-1" />
+        )}
       </div>
     </article>
   );

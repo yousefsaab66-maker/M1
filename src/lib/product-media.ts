@@ -6,6 +6,10 @@ import {
 } from "./media-image-url";
 import { normalizeStaffMediaUrl } from "./staff-media-url";
 import {
+  coalescePriceOptionsForSave,
+  normalizeProductStock,
+} from "./product-prices";
+import {
   coalesceSizeOptionsForSave,
   flattenSizeOptions,
   resolveProductSizes,
@@ -127,6 +131,8 @@ export function ensureProductOrderable(p: Product): Product {
   const vids = (p.videos ?? []).map((u) => u.trim()).filter(Boolean);
   const videos = vids.length > 0 ? vids : undefined;
   const sizeOptions = coalesceSizeOptionsForSave(p.sizeOptions);
+  const priceOptions = coalescePriceOptionsForSave(p.priceOptions);
+  const stock = normalizeProductStock(p.stock);
   const resolved = resolveProductSizes({ ...p, sizeOptions });
   const sizes = resolved.length > 0 ? resolved : undefined;
   const flat = flattenSizeOptions(sizeOptions);
@@ -136,6 +142,8 @@ export function ensureProductOrderable(p: Product): Product {
     images,
     videos,
     sizeOptions,
+    priceOptions,
+    stock: stock ?? undefined,
     sizes: sizes ?? (flat.length > 0 ? flat : undefined),
   };
 }

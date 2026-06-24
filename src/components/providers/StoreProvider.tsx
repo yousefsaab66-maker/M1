@@ -31,6 +31,7 @@ import {
   EMPTY_PRODUCTS,
 } from "@/lib/catalog-defaults";
 import type { BagItem, Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
+import { resolveProductUnitPrice } from "@/lib/product-prices";
 import { bagLineSizeKey, serializeSizeForOrder, type ProductSizeSelections } from "@/lib/product-sizes";
 import {
   buildDiscountLines,
@@ -143,18 +144,21 @@ type StoreCtx = {
     productId: string;
     size?: string;
     sizeSelections?: ProductSizeSelections;
+    priceSlotIndex?: number;
     qty?: number;
   }) => void;
   removeFromBag: (
     productId: string,
     size?: string,
     sizeSelections?: ProductSizeSelections,
+    priceSlotIndex?: number,
   ) => void;
   setBagQty: (
     productId: string,
     qty: number,
     size?: string,
     sizeSelections?: ProductSizeSelections,
+    priceSlotIndex?: number,
   ) => void;
   clearBag: () => void;
   bagCount: number;
@@ -1356,15 +1360,17 @@ export function StoreProvider({
       productId,
       size,
       sizeSelections,
+      priceSlotIndex,
       qty = 1,
     }: {
       productId: string;
       size?: string;
       sizeSelections?: ProductSizeSelections;
+      priceSlotIndex?: number;
       qty?: number;
     }) => {
       setBag((curr) => {
-        const lineKey = bagLineSizeKey({ size, sizeSelections });
+        const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex });
         const idx = curr.findIndex(
           (i) => i.productId === productId && bagLineSizeKey(i) === lineKey,
         );
@@ -1373,7 +1379,7 @@ export function StoreProvider({
           next = curr.slice();
           next[idx] = { ...next[idx], qty: next[idx].qty + qty };
         } else {
-          next = [...curr, { productId, size, sizeSelections, qty }];
+          next = [...curr, { productId, size, sizeSelections, priceSlotIndex, qty }];
         }
         writeJSON(KEY_BAG, next);
         return next;
@@ -1383,9 +1389,14 @@ export function StoreProvider({
   );
 
   const removeFromBag = useCallback(
-    (productId: string, size?: string, sizeSelections?: ProductSizeSelections) => {
+    (
+      productId: string,
+      size?: string,
+      sizeSelections?: ProductSizeSelections,
+      priceSlotIndex?: number,
+    ) => {
       setBag((curr) => {
-        const lineKey = bagLineSizeKey({ size, sizeSelections });
+        const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex });
         const next = curr.filter(
           (i) => !(i.productId === productId && bagLineSizeKey(i) === lineKey),
         );
@@ -1397,9 +1408,15 @@ export function StoreProvider({
   );
 
   const setBagQty = useCallback(
-    (productId: string, qty: number, size?: string, sizeSelections?: ProductSizeSelections) => {
+    (
+      productId: string,
+      qty: number,
+      size?: string,
+      sizeSelections?: ProductSizeSelections,
+      priceSlotIndex?: number,
+    ) => {
       setBag((curr) => {
-        const lineKey = bagLineSizeKey({ size, sizeSelections });
+        const lineKey = bagLineSizeKey({ size, sizeSelections, priceSlotIndex });
         const next = curr
           .map((i) =>
             i.productId === productId && bagLineSizeKey(i) === lineKey
@@ -1454,7 +1471,7 @@ export function StoreProvider({
         return {
           productId: p.id,
           name: p.name,
-          price: p.price,
+          price: resolveProductUnitPrice(p, b.priceSlotIndex),
           qty: b.qty,
           size: serializeSizeForOrder(b.sizeSelections, b.size),
           currency: p.currency,

@@ -27,7 +27,7 @@ import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3
 
 const STOREFRONT_R2_KEY = "site/storefront.json";
 const LIST_SELECT =
-  "id,slug,name,collection_slug,category,price,currency,materials,stones,images,videos,sizes,size_options,is_high_jewelry,is_new";
+  "id,slug,name,collection_slug,category,price,stock,price_options,currency,materials,stones,images,videos,sizes,size_options,is_high_jewelry,is_new";
 
 const MUHRA_PLACEHOLDER_IMAGE =
   "data:image/svg+xml," +
@@ -222,6 +222,11 @@ function rowToProductList(row) {
     sizeOptions,
     sizes: row.sizes ?? undefined,
   });
+  const stock = row.stock == null ? undefined : Math.max(0, Math.floor(Number(row.stock) || 0));
+  const priceOptions =
+    Array.isArray(row.price_options) && row.price_options.some((s) => s?.enabled && Number(s?.amount) > 0)
+      ? row.price_options
+      : undefined;
   return ensureProductOrderable({
     id: row.id,
     slug: row.slug,
@@ -229,6 +234,8 @@ function rowToProductList(row) {
     collection: row.collection_slug,
     category: row.category,
     price: Number(row.price),
+    stock,
+    priceOptions,
     currency: row.currency,
     materials: row.materials ?? [],
     stones: row.stones ?? [],
