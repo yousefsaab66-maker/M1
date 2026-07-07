@@ -99,6 +99,7 @@ import {
   StaffSingleImageField,
 } from "@/components/staff/StaffSiteEditor";
 import type { Order } from "@/lib/commerce-types";
+import { getOrderSource } from "@/lib/order-source";
 import { normalizeSiteContent, getUsdIqdRate, hasConfiguredUsdIqdRate, catalogFilterSlugs, productCategoryLabel } from "@/lib/site-display";
 import { isCoarsePointerDevice, yieldToMain } from "@/lib/touch-device";
 import { useBodyScrollLock } from "@/components/staff/useBodyScrollLock";
@@ -318,6 +319,8 @@ function DashboardPane() {
   const { t, locale } = useLocale();
   const pending = orders.filter((o) => o.status === "pending").length;
   const shipped = orders.filter((o) => o.status === "shipped" || o.status === "delivered").length;
+  const appOrders = orders.filter((o) => getOrderSource(o) === "app").length;
+  const websiteOrders = orders.filter((o) => getOrderSource(o) === "website").length;
   const usdIqdRate = getUsdIqdRate(site);
   const rateOpts = { usdIqdRate };
   const revenueIqd = orders
@@ -343,6 +346,16 @@ function DashboardPane() {
             <p className="font-display mt-3 text-4xl">{s.value}</p>
           </div>
         ))}
+      </div>
+      <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-2">
+        <div className="staff-card text-center">
+          <p className="eyebrow">{t("staff.dashboard.statAppOrders")}</p>
+          <p className="font-display mt-3 text-4xl">{appOrders}</p>
+        </div>
+        <div className="staff-card text-center">
+          <p className="eyebrow">{t("staff.dashboard.statWebsiteOrders")}</p>
+          <p className="font-display mt-3 text-4xl">{websiteOrders}</p>
+        </div>
       </div>
       <div className="mt-8 staff-card">
         <p className="eyebrow">{t("staff.dashboard.demoRevenue")}</p>
@@ -2097,6 +2110,7 @@ function OrdersPane() {
   const usdIqdRate = getUsdIqdRate(site);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "app" | "website">("all");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpand = (id: string) => {
@@ -2112,6 +2126,7 @@ function OrdersPane() {
     const ql = q.trim().toLowerCase();
     return orders.filter((o) => {
       if (statusFilter !== "all" && o.status !== statusFilter) return false;
+      if (sourceFilter !== "all" && getOrderSource(o) !== sourceFilter) return false;
       if (!ql) return true;
       const haystacks = [
         o.id,
@@ -2125,7 +2140,7 @@ function OrdersPane() {
       ];
       return haystacks.some((h) => h.toLowerCase().includes(ql));
     });
-  }, [orders, q, statusFilter]);
+  }, [orders, q, statusFilter, sourceFilter]);
 
   return (
     <section>
@@ -2145,6 +2160,16 @@ function OrdersPane() {
               </option>
             ))}
           </select>
+          <select
+            className="staff-input"
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value as "all" | "app" | "website")}
+            style={{ padding: "0.55rem 0.7rem" }}
+          >
+            <option value="all">{t("staff.orders.filterAllSources")}</option>
+            <option value="app">{t("staff.orders.sourceApp")}</option>
+            <option value="website">{t("staff.orders.sourceWebsite")}</option>
+          </select>
           <input
             className="staff-input w-full min-w-0 sm:max-w-xs"
             placeholder={t("staff.orders.searchPlaceholder")}
@@ -2158,6 +2183,7 @@ function OrdersPane() {
           <thead>
             <tr>
               <th></th>
+              <th>{t("staff.orders.source")}</th>
               <th>{t("staff.orders.id")}</th>
               <th>{t("staff.orders.date")}</th>
               <th>{t("staff.orders.customer")}</th>
@@ -2172,7 +2198,7 @@ function OrdersPane() {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="py-12 text-center opacity-60">
+                <td colSpan={11} className="py-12 text-center opacity-60">
                   No orders yet — try a demo checkout from the bag.
                 </td>
               </tr>
@@ -2189,6 +2215,7 @@ function OrdersPane() {
               const locationLabel = international
                 ? `${countryLabel}${o.customer?.city ? ` · ${o.customer.city}` : ""}`
                 : `${govLabel}${o.customer?.city ? ` · ${o.customer.city}` : ""}`;
+              const orderSource = getOrderSource(o);
               return (
                 <FragmentRow key={o.id}>
                   <tr
@@ -2201,6 +2228,20 @@ function OrdersPane() {
                       ) : (
                         <ChevronRight className="h-4 w-4 opacity-60" strokeWidth={1.5} />
                       )}
+                    </td>
+                    <td>
+                      <span
+                        className="inline-block px-2 py-0.5 text-[9px] tracking-eyebrow uppercase"
+                        style={{
+                          border: "1px solid var(--line-strong)",
+                          background: orderSource === "app" ? "var(--color-gold)" : "var(--surface)",
+                          color: orderSource === "app" ? "var(--background)" : "inherit",
+                        }}
+                      >
+                        {orderSource === "app"
+                          ? t("staff.orders.sourceApp")
+                          : t("staff.orders.sourceWebsite")}
+                      </span>
                     </td>
                     <td className="font-mono text-xs">{o.id}</td>
                     <td className="opacity-80">{formatDate(o.createdAt, locale)}</td>
@@ -2275,7 +2316,7 @@ function OrdersPane() {
                   </tr>
                   {isOpen && (
                     <tr>
-                      <td colSpan={10} style={{ background: "var(--surface)" }}>
+                      <td colSpan={11} style={{ background: "var(--surface)" }}>
                         <div className="p-6 grid gap-6 md:grid-cols-2">
                           <div>
                             <p className="eyebrow">{t("staff.orders.address")}</p>

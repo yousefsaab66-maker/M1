@@ -4,10 +4,16 @@ import { MessageCircle } from "lucide-react";
 import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useLocale } from "@/components/providers/LocaleProvider";
+import { useStore } from "@/components/providers/StoreProvider";
 
-/** العراق 078… → صيغة واتساب الدولية بدون + */
+/** Fallback until site settings include WhatsApp numbers in bootstrap. */
 const WHATSAPP_RETAIL = "9647715937565";
 const WHATSAPP_WHOLESALE = "9647717200022";
+
+function digitsOnly(value: string | undefined, fallback: string): string {
+  const d = (value ?? "").replace(/\D/g, "");
+  return d.length >= 10 ? d : fallback;
+}
 
 const FAB_CLASS =
   "flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-white shadow-[0_4px_24px_rgba(0,0,0,0.2)] transition-[filter,transform] hover:brightness-105 active:scale-[0.98] sm:px-5";
@@ -52,13 +58,17 @@ function WhatsAppFabLink({ href, ariaLabel, label, compact }: WhatsAppFabLinkPro
 
 export function WhatsAppFab() {
   const { t } = useLocale();
+  const { site } = useStore();
   const isBrowser = useIsBrowser();
+
+  const retail = digitsOnly(site?.whatsappRetail, WHATSAPP_RETAIL);
+  const wholesale = digitsOnly(site?.whatsappWholesale, WHATSAPP_WHOLESALE);
 
   const retailText = encodeURIComponent(t("common.whatsappPrefill"));
   const wholesaleText = encodeURIComponent(t("common.whatsappWholesalePrefill"));
 
-  const retailHref = `https://wa.me/${WHATSAPP_RETAIL}?text=${retailText}`;
-  const wholesaleHref = `https://wa.me/${WHATSAPP_WHOLESALE}?text=${wholesaleText}`;
+  const retailHref = `https://wa.me/${retail}?text=${retailText}`;
+  const wholesaleHref = `https://wa.me/${wholesale}?text=${wholesaleText}`;
 
   const node = (
     <div className="wa-fab-root">

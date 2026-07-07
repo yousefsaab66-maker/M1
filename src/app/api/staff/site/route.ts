@@ -1,28 +1,33 @@
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import type { SiteContent } from "@/lib/catalog";
 import { upsertSiteContent } from "@/lib/storefront-query";
-import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
+import { getStaffUserFromRequest } from "@/lib/staff-auth-request";
+import { STAFF_CORS_HEADERS } from "@/lib/staff-cors";
 
 export const dynamic = "force-dynamic";
 
-async function requireStaff(): Promise<boolean> {
-  const secret = process.env.STAFF_COOKIE_SECRET;
-  const jar = await cookies();
-  return Boolean(verifyStaffSession(jar.get(STAFF_COOKIE_NAME)?.value, secret));
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: STAFF_CORS_HEADERS });
 }
 
 /** Staff site settings — persisted in Supabase for all visitors/devices. */
-export async function PUT(req: Request) {
-  if (!(await requireStaff())) {
-    return NextResponse.json({ ok: false, error: "unauthorized" } as const, { status: 401 });
+export async function PUT(req: NextRequest) {
+  const staff = await getStaffUserFromRequest(req);
+  if (!staff) {
+    return NextResponse.json(
+      { ok: false, error: "unauthorized" } as const,
+      { status: 401, headers: STAFF_CORS_HEADERS },
+    );
   }
 
   let payload: SiteContent;
   try {
     payload = (await req.json()) as SiteContent;
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" } as const, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "invalid_json" } as const,
+      { status: 400, headers: STAFF_CORS_HEADERS },
+    );
   }
 
   const result = await upsertSiteContent(payload);
@@ -36,7 +41,13 @@ export async function PUT(req: Request) {
             result.error === "table_missing"
           ? 503
           : 500;
-    return NextResponse.json({ ok: false, error: result.error } as const, { status });
+    return NextResponse.json(
+      { ok: false, error: result.error } as const,
+      { status, headers: STAFF_CORS_HEADERS },
+    );
   }
-  return NextResponse.json({ ok: true, updatedAt: result.updatedAt } as const);
+  return NextResponse.json(
+    { ok: true, updatedAt: result.updatedAt } as const,
+    { headers: STAFF_CORS_HEADERS },
+  );
 }

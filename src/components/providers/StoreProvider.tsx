@@ -1675,7 +1675,7 @@ export function StoreProvider({
       if (supabaseReady) {
         try {
           const { createOrderRemote } = await import("@/app/actions/muhra-backend");
-          const res = await createOrderRemote(input, lines);
+          const res = await createOrderRemote(input, lines, "website");
           if (!res.ok) return { ok: false, error: res.error };
           setBag([]);
           writeJSON(KEY_BAG, []);

@@ -151,6 +151,10 @@ export interface SiteContent {
   shippingFeeIqd?: number;
   /** Promotional discount codes managed by staff. */
   discountCodes?: DiscountCode[];
+  /** WhatsApp retail line (digits, Iraq intl format e.g. 9647715937565). */
+  whatsappRetail?: string;
+  /** WhatsApp wholesale line. */
+  whatsappWholesale?: string;
 }
 
 export type DiscountAppliesTo = "all" | "products";

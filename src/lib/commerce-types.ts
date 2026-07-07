@@ -43,6 +43,8 @@ export type OrderStatus =
 /** حالياً: عند الاستلام فقط على الخادم. */
 export type PaymentMethod = "cod";
 
+export type OrderSource = "app" | "website";
+
 export interface OrderCustomer {
   name: string;
   phone: string;
@@ -58,6 +60,7 @@ export interface OrderCustomer {
 
 export interface OrderPayment {
   method: PaymentMethod;
+  source?: OrderSource;
   /** Legacy rows from older demo checkout versions. */
   cardLast4?: string;
   zaincashPhone?: string;
@@ -80,6 +83,8 @@ export interface Order {
   currency: Currency;
   status: OrderStatus;
   payment?: OrderPayment;
+  /** Denormalized from payment.source for convenience. */
+  source?: OrderSource;
 }
 
 export interface PlaceOrderInput {

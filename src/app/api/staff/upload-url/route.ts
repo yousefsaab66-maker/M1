@@ -1,7 +1,5 @@
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
 import {
   createStaffDirectUpload,
   isStaffMediaKind,
@@ -10,18 +8,14 @@ import {
   validateStaffImageMime,
   validateStaffVideoMime,
 } from "@/lib/staff-upload-server";
+import { getStaffUserFromRequest } from "@/lib/staff-auth-request";
+import { STAFF_CORS_HEADERS } from "@/lib/staff-cors";
 
 export const dynamic = "force-dynamic";
 
 const URL_LIMIT = 120;
 const URL_WINDOW_MS = 60 * 60 * 1000;
 const URL_WINDOW_SEC = URL_WINDOW_MS / 1000;
-
-async function requireStaff(): Promise<string | null> {
-  const secret = process.env.STAFF_COOKIE_SECRET;
-  const jar = await cookies();
-  return verifyStaffSession(jar.get(STAFF_COOKIE_NAME)?.value, secret);
-}
 
 function isImageScope(s: string): s is StaffImageScope {
   return s === "site" || s === "collections" || s === "products";
@@ -34,19 +28,25 @@ type UploadUrlBody = {
   kind?: string;
 };
 
-export async function POST(req: Request) {
-  const staff = await requireStaff();
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: STAFF_CORS_HEADERS });
+}
+
+export async function POST(req: NextRequest) {
+  const staff = await getStaffUserFromRequest(req);
   if (!staff) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401, headers: STAFF_CORS_HEADERS });
   }
 
   const ip = getClientIp(req.headers);
   const rl = rateLimit(`staff_upload_url:${staff}:${ip}`, URL_LIMIT, URL_WINDOW_MS);
   const rlHeaders = rateLimitHeaders(rl, URL_LIMIT, URL_WINDOW_SEC);
+  const headers = { ...STAFF_CORS_HEADERS, ...rlHeaders };
+
   if (!rl.ok) {
     return NextResponse.json(
       { ok: false, error: "rate_limited", retryAfter: rl.retryAfter },
-      { status: 429, headers: rlHeaders },
+      { status: 429, headers },
     );
   }
 
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as UploadUrlBody;
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400, headers: rlHeaders });
+    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400, headers });
   }
 
   const mimeRaw = typeof body.mime === "string" ? body.mime.trim() : "";
@@ -66,15 +66,15 @@ export async function POST(req: Request) {
   const hasScope = scopeRaw.length > 0;
 
   if (hasKind && hasScope) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400, headers: rlHeaders });
+    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400, headers });
   }
   if (!hasKind && !hasScope) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400, headers: rlHeaders });
+    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400, headers });
   }
 
   if (hasKind) {
     if (!isStaffMediaKind(kindRaw)) {
-      return NextResponse.json({ ok: false, error: "invalid_kind" }, { status: 400, headers: rlHeaders });
+      return NextResponse.json({ ok: false, error: "invalid_kind" }, { status: 400, headers });
     }
 
     const videoMime = validateStaffVideoMime({ type: mimeRaw, name: fileName });
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     const isVideo = Boolean(videoMime);
     const isImage = Boolean(imageMime);
     if (!isVideo && !isImage) {
-      return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400, headers: rlHeaders });
+      return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400, headers });
     }
 
     const mime = (isVideo ? videoMime : imageMime)!;
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
       isVideo,
     });
     if (!direct.ok) {
-      return NextResponse.json({ ok: false, error: direct.error }, { status: direct.status, headers: rlHeaders });
+      return NextResponse.json({ ok: false, error: direct.error }, { status: direct.status, headers });
     }
     return NextResponse.json(
       {
@@ -104,17 +104,17 @@ export async function POST(req: Request) {
         path: direct.path,
         contentType: direct.contentType,
       },
-      { headers: rlHeaders },
+      { headers },
     );
   }
 
   if (!isImageScope(scopeRaw)) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400, headers: rlHeaders });
+    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400, headers });
   }
 
   const mime = normalizeStaffImageMime({ type: mimeRaw, name: fileName });
   if (!validateStaffImageMime({ type: mime, name: fileName })) {
-    return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400, headers: rlHeaders });
+    return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400, headers });
   }
 
   const direct = await createStaffDirectUpload({
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
     mime,
   });
   if (!direct.ok) {
-    return NextResponse.json({ ok: false, error: direct.error }, { status: direct.status, headers: rlHeaders });
+    return NextResponse.json({ ok: false, error: direct.error }, { status: direct.status, headers });
   }
 
   return NextResponse.json(
@@ -134,6 +134,6 @@ export async function POST(req: Request) {
       path: direct.path,
       contentType: direct.contentType,
     },
-    { headers: rlHeaders },
+    { headers },
   );
 }

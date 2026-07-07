@@ -220,6 +220,8 @@ export function normalizeSiteContent(site: SiteContent): SiteContent {
     usdIqdRate,
     shippingFeeIqd,
     discountCodes: normalizeDiscountCodes(site.discountCodes),
+    whatsappRetail: site.whatsappRetail?.replace(/\D/g, "") || undefined,
+    whatsappWholesale: site.whatsappWholesale?.replace(/\D/g, "") || undefined,
     homepage: {
       featuredProductIds: site.homepage?.featuredProductIds ?? [],
       featuredCollectionSlug: site.homepage?.featuredCollectionSlug ?? "",

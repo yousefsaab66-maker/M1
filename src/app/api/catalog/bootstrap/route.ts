@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import { BOOTSTRAP_JSON_CACHE_HEADERS } from "@/lib/api-cache-headers";
 import { fetchCatalogBootstrap } from "@/lib/catalog-bootstrap";
+import { BOOTSTRAP_CORS_HEADERS } from "@/lib/catalog-cors";
 import { isR2PublicConfigured } from "@/lib/r2-config";
 
 export const dynamic = "force-dynamic";
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: BOOTSTRAP_CORS_HEADERS });
+}
 
 export async function GET() {
   const result = await fetchCatalogBootstrap();
@@ -20,6 +24,6 @@ export async function GET() {
       storefrontSource: result.storefront.source,
       r2Ready: isR2PublicConfigured(),
     },
-    { headers: BOOTSTRAP_JSON_CACHE_HEADERS },
+    { headers: BOOTSTRAP_CORS_HEADERS },
   );
 }

@@ -1,19 +1,19 @@
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { NO_STORE_JSON_HEADERS } from "@/lib/api-cache-headers";
 import { fetchCatalogProductsForList } from "@/lib/catalog-products-query";
 import { isR2PresignConfigured } from "@/lib/r2-presign";
 import { getR2StaffContext } from "@/lib/r2-staff-context";
 import { readStorefrontFromR2, type ReadStorefrontR2Result } from "@/lib/storefront-r2";
-import { STAFF_COOKIE_NAME, verifyStaffSession } from "@/lib/staff-session";
+import { getStaffUserFromRequest } from "@/lib/staff-auth-request";
 
 export const dynamic = "force-dynamic";
 
-async function requireStaff(): Promise<boolean> {
-  const secret = process.env.STAFF_COOKIE_SECRET;
-  const jar = await cookies();
-  return Boolean(verifyStaffSession(jar.get(STAFF_COOKIE_NAME)?.value, secret));
-}
+const CORS_HEADERS = {
+  ...NO_STORE_JSON_HEADERS,
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization",
+};
 
 async function readStorefrontSafe(): Promise<ReadStorefrontR2Result> {
   try {
@@ -23,12 +23,17 @@ async function readStorefrontSafe(): Promise<ReadStorefrontR2Result> {
   }
 }
 
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 /**
  * Staff init — list products + site/collections only (no journal/boutiques bodies).
  * Parallel Supabase + R2 + upload gate; includes presign flag so the client skips `/api/health/r2`.
  */
-export async function GET() {
-  if (!(await requireStaff())) {
+export async function GET(req: NextRequest) {
+  const staff = await getStaffUserFromRequest(req);
+  if (!staff) {
     return NextResponse.json(
       {
         products: [],
@@ -40,7 +45,7 @@ export async function GET() {
         r2Ready: false,
         presignConfigured: false,
       },
-      { status: 401, headers: NO_STORE_JSON_HEADERS },
+      { status: 401, headers: CORS_HEADERS },
     );
   }
 
@@ -73,7 +78,7 @@ export async function GET() {
         r2Ready,
         presignConfigured,
       },
-      { headers: NO_STORE_JSON_HEADERS },
+      { headers: CORS_HEADERS },
     );
   }
 
@@ -88,6 +93,6 @@ export async function GET() {
       r2Ready,
       presignConfigured,
     },
-    { headers: NO_STORE_JSON_HEADERS },
+    { headers: CORS_HEADERS },
   );
 }

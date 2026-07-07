@@ -2,7 +2,7 @@
 
 import { cookies, headers } from "next/headers";
 import type { Product } from "@/lib/catalog";
-import type { Order, OrderStatus, PlaceOrderInput } from "@/lib/commerce-types";
+import type { Order, OrderStatus, PlaceOrderInput, OrderSource } from "@/lib/commerce-types";
 import { normalizeCustomerNote } from "@/lib/customer-note";
 import { isValidInternationalPhone } from "@/lib/countries";
 import {
@@ -57,6 +57,7 @@ export async function createOrderRemote(
     priceSlotIndex?: number;
     productOptionSlotIndex?: number;
   }[],
+  source: OrderSource = "website",
 ): Promise<{ ok: true; order: Order } | { ok: false; error: string }> {
   if (!isSupabaseBackendConfigured()) return { ok: false, error: "not_configured" };
   if (input.payment.method !== "cod") return { ok: false, error: "cod_only" };
@@ -214,6 +215,7 @@ export async function createOrderRemote(
       status: "pending",
       payment: {
         method: "cod" as const,
+        source,
         ...(discountCode ? { discountCode, discountAmountIqd } : {}),
       },
     })
@@ -244,15 +246,95 @@ export async function createOrderRemote(
     status: "pending",
     payment: {
       method: "cod",
+      source,
       ...(discountCode ? { discountCode, discountAmountIqd } : {}),
     },
+    source,
   };
+
+  void import("@/lib/push-notify").then(({ notifyStaffNewOrder }) => notifyStaffNewOrder(order));
 
   return { ok: true, order };
 }
 
-export async function listOrdersRemote(): Promise<{ ok: true; orders: Order[] } | { ok: false }> {
-  if (!(await requireStaff())) return { ok: false };
+function mapOrderRow(row: Record<string, unknown>): Order {
+  const payment = row.payment as Order["payment"] & {
+    discountCode?: string;
+    discountAmountIqd?: number;
+    source?: OrderSource;
+  };
+  const source = payment?.source ?? "website";
+  return {
+    id: row.id as string,
+    createdAt: row.created_at as string,
+    customerName: row.customer_name as string,
+    customer: row.customer as Order["customer"],
+    items: row.items as Order["items"],
+    subtotal: Number(row.subtotal),
+    subtotalIqd: row.subtotal_iqd != null ? Number(row.subtotal_iqd) : undefined,
+    shippingFeeIqd: row.shipping_fee_iqd != null ? Number(row.shipping_fee_iqd) : undefined,
+    discountCode: payment?.discountCode,
+    discountAmountIqd:
+      payment?.discountAmountIqd != null ? Number(payment.discountAmountIqd) : undefined,
+    totalIqd: row.total_iqd != null ? Number(row.total_iqd) : undefined,
+    currency: row.currency as Order["currency"],
+    status: row.status as OrderStatus,
+    payment,
+    source,
+  };
+}
+
+function normalizePhoneForMatch(phone: string, country?: string): string {
+  if (isIraqCountry(country)) {
+    return normalizeIraqiPhone(phone) ?? phone.replace(/\D/g, "");
+  }
+  return phone.replace(/[\s\-().]/g, "");
+}
+
+function customerPhoneMatches(order: Order, phoneInput: string): boolean {
+  const customer = order.customer;
+  if (!customer?.phone) return false;
+  const a = normalizePhoneForMatch(customer.phone, customer.country);
+  const b = normalizePhoneForMatch(phoneInput, customer.country);
+  return a === b && a.length > 0;
+}
+
+const TRACK_LIMIT_PER_PHONE = 15;
+const TRACK_LIMIT_PER_IP = 40;
+const TRACK_WINDOW_MS = 60 * 60 * 1000;
+
+export async function lookupOrderRemote(
+  orderId: string,
+  phoneInput: string,
+): Promise<{ ok: true; order: Order } | { ok: false; error: string }> {
+  if (!isSupabaseBackendConfigured()) return { ok: false, error: "not_configured" };
+
+  const id = orderId.trim();
+  const phone = phoneInput.trim();
+  if (!id || !phone) return { ok: false, error: "invalid_body" };
+
+  const phoneKey = phone.replace(/[\s\-().]/g, "");
+  const phoneRl = rateLimit(`track_phone:${phoneKey}`, TRACK_LIMIT_PER_PHONE, TRACK_WINDOW_MS);
+  if (!phoneRl.ok) return { ok: false, error: "rate_limited" };
+
+  const ip = getClientIp(await headers());
+  const ipRl = rateLimit(`track_ip:${ip}`, TRACK_LIMIT_PER_IP, TRACK_WINDOW_MS);
+  if (!ipRl.ok) return { ok: false, error: "rate_limited" };
+
+  const sb = supabaseAdmin();
+  const { data, error } = await sb.from("orders").select("*").eq("id", id).maybeSingle();
+  if (error || !data) return { ok: false, error: "not_found" };
+
+  const order = mapOrderRow(data as Record<string, unknown>);
+  if (!customerPhoneMatches(order, phone)) return { ok: false, error: "not_found" };
+
+  return { ok: true, order };
+}
+
+export async function listOrdersRemote(options?: {
+  staffAuthorized?: boolean;
+}): Promise<{ ok: true; orders: Order[] } | { ok: false }> {
+  if (!options?.staffAuthorized && !(await requireStaff())) return { ok: false };
   if (!isSupabaseBackendConfigured()) return { ok: false };
   const sb = supabaseAdmin();
   const { data, error } = await sb
@@ -261,42 +343,35 @@ export async function listOrdersRemote(): Promise<{ ok: true; orders: Order[] } 
     .order("created_at", { ascending: false })
     .limit(500);
   if (error || !data) return { ok: false };
-  const orders: Order[] = data.map((row: Record<string, unknown>) => {
-    const payment = row.payment as Order["payment"] & {
-      discountCode?: string;
-      discountAmountIqd?: number;
-    };
-    return {
-      id: row.id as string,
-      createdAt: row.created_at as string,
-      customerName: row.customer_name as string,
-      customer: row.customer as Order["customer"],
-      items: row.items as Order["items"],
-      subtotal: Number(row.subtotal),
-      subtotalIqd: row.subtotal_iqd != null ? Number(row.subtotal_iqd) : undefined,
-      shippingFeeIqd: row.shipping_fee_iqd != null ? Number(row.shipping_fee_iqd) : undefined,
-      discountCode: payment?.discountCode,
-      discountAmountIqd:
-        payment?.discountAmountIqd != null ? Number(payment.discountAmountIqd) : undefined,
-      totalIqd: row.total_iqd != null ? Number(row.total_iqd) : undefined,
-      currency: row.currency as Order["currency"],
-      status: row.status as OrderStatus,
-      payment,
-    };
-  });
+  const orders: Order[] = data.map((row: Record<string, unknown>) => mapOrderRow(row));
   return { ok: true, orders };
 }
 
-export async function updateOrderStatusRemote(id: string, status: OrderStatus): Promise<boolean> {
-  if (!(await requireStaff())) return false;
+export async function updateOrderStatusRemote(
+  id: string,
+  status: OrderStatus,
+  options?: { staffAuthorized?: boolean },
+): Promise<boolean> {
+  if (!options?.staffAuthorized && !(await requireStaff())) return false;
   if (!isSupabaseBackendConfigured()) return false;
   const sb = supabaseAdmin();
+  const { data: row, error: fetchErr } = await sb.from("orders").select("*").eq("id", id).maybeSingle();
+  if (fetchErr || !row) return false;
+
   const { error } = await sb.from("orders").update({ status }).eq("id", id);
-  return !error;
+  if (error) return false;
+
+  const order = mapOrderRow(row as Record<string, unknown>);
+  order.status = status;
+  void import("@/lib/push-notify").then(({ notifyCustomerOrderStatus }) =>
+    notifyCustomerOrderStatus(order, status),
+  );
+
+  return true;
 }
 
-export async function deleteOrderRemote(id: string): Promise<boolean> {
-  if (!(await requireStaff())) return false;
+export async function deleteOrderRemote(id: string, options?: { staffAuthorized?: boolean }): Promise<boolean> {
+  if (!options?.staffAuthorized && !(await requireStaff())) return false;
   if (!isSupabaseBackendConfigured()) return false;
   const sb = supabaseAdmin();
 
