@@ -26,15 +26,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400, headers: CORS_HEADERS });
     }
 
-    const ok = await upsertPushToken({
+    const result = await upsertPushToken({
       token: body.token,
       role: "staff",
       staffUser: staff,
       platform: body.platform,
     });
 
-    if (!ok) {
-      return NextResponse.json({ ok: false, error: "not_configured" }, { status: 503, headers: CORS_HEADERS });
+    if (!result.ok) {
+      const status = result.error === "not_configured" ? 503 : 500;
+      return NextResponse.json(
+        { ok: false, error: result.error, ...(result.detail ? { detail: result.detail } : {}) },
+        { status, headers: CORS_HEADERS },
+      );
     }
 
     return NextResponse.json({ ok: true }, { headers: CORS_HEADERS });
